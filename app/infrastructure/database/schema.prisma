@@ -1,0 +1,33 @@
+generator client {
+  interface            = "asyncio"
+  provider             = "prisma-client-py"
+  recursive_type_depth = 3
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id            String   @id @default(cuid())
+  client_id     String   @unique
+  hashed_secret String
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  scopes Scope[] @relation("clients_scopes")
+
+  @@map("clients")
+}
+
+model Scope {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  clients Client[] @relation("clients_scopes")
+
+  @@map("scopes")
+}

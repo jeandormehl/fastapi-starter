@@ -1,0 +1,11 @@
+{
+  "name": "fastapi-starter",
+  "service": "app",
+  "dockerComposeFile": [
+    "docker-compose.yml"
+  ],
+  "workspaceFolder": "/app",
+  "remoteEnv": {
+    "SHELL": "/bin/zsh"
+  }
+}

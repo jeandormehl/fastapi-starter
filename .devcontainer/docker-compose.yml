@@ -1,0 +1,103 @@
+name: "fastapi-starter"
+
+services:
+  app:
+    build:
+      context: ".."
+      dockerfile: ".devcontainer/Dockerfile"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
+    ports:
+      - "8080:8080"
+    restart: "unless-stopped"
+    volumes:
+      - ".:/app"
+    command: "/start.sh app"
+
+  worker:
+    build:
+      context: ".."
+      dockerfile: ".devcontainer/Dockerfile"
+    deploy:
+      mode: "replicated"
+      replicas: "2"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
+    depends_on:
+      - "redis"
+    restart: "unless-stopped"
+    command: "/start.sh worker"
+
+  beat:
+    build:
+      context: ".."
+      dockerfile: ".devcontainer/Dockerfile"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
+    depends_on:
+      - "redis"
+    restart: "unless-stopped"
+    command: "/start.sh beat"
+
+  flower:
+    build:
+      context: ".."
+      dockerfile: ".devcontainer/Dockerfile"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
+    depends_on:
+      - "redis"
+    ports:
+      - "5555:5555"
+    restart: "unless-stopped"
+    command: "/start.sh flower"
+
+  postgres:
+    image: "bitnami/postgresql:latest"
+    environment:
+      POSTGRES_USER: "${POSTGRESQL_USERNAME}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRESQL_DATABASE: "${POSTGRESQL_DATABASE}"
+      TZ: "${TZ}"
+    ports:
+      - "5432:5432"
+    restart: "unless-stopped"
+    volumes:
+      - "postgres_data:/var/lib/postgresql/data"
+
+  redis:
+    image: "bitnami/redis:latest"
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      TZ: "${TZ}"
+    ports:
+      - "6379:6379"
+    restart: "unless-stopped"
+    volumes:
+      - "redis_data:/data"
+
+  parseable:
+    image: containers.parseable.com/parseable/parseable:latest
+    environment:
+      P_USERNAME: ${PARSEABLE_USERNAME}
+      P_PASSWORD: ${PARSEABLE_PASSWORD}
+      P_FS_DIR: "/parseable/data"
+      P_STAGING_DIR: "/parseable/staging"
+      TZ: "${TZ}"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    restart: "unless-stopped"
+    volumes:
+      - "parseable_data:/parseable"
+    command: "parseable local-store"
+
+volumes:
+  postgres_data:
+  seq_data:
+  redis_data:
+  parseable_data:
