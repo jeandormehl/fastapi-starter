@@ -2,18 +2,10 @@ from datetime import datetime, timedelta
 
 import jwt
 from kink import di
-from pydantic import BaseModel
 
 from app.core.config import Configuration
 from app.core.errors.exceptions import AuthenticationException
-
-
-class JWTPayload(BaseModel):
-    id: str
-    client_id: str
-    exp: int
-    iat: int
-    scopes: list[str] = []
+from app.domain.v1.auth.schemas import JWTPayload
 
 
 class JWTService:

@@ -6,7 +6,7 @@ import pytest
 
 from app.core.config import Configuration
 from app.core.errors.exceptions import AuthenticationException
-from app.services.jwt_service import JWTPayload, JWTService
+from app.domain.v1.auth.services.jwt_service import JWTPayload, JWTService
 
 
 class TestJWTService:

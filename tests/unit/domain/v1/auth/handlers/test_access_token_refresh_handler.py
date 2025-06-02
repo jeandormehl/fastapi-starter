@@ -7,7 +7,7 @@ from app.domain.v1.auth.handlers.access_token_refresh_handler import (
     AccessTokenRefreshHandler,
 )
 from app.domain.v1.auth.requests import AccessTokenRefreshRequest
-from app.services import JWTPayload
+from app.domain.v1.auth.schemas import JWTPayload
 
 
 class TestAccessTokenRefreshHandler:

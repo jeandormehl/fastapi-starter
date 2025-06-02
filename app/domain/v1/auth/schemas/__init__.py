@@ -3,6 +3,7 @@ from .access_token import (
     AccessTokenCreateOutput,
 )
 from .client import ClientCreateInput, ClientOut
+from .jwt import JWTPayload
 from .scope import ScopeOut
 
 __all__ = [
@@ -10,5 +11,6 @@ __all__ = [
     "AccessTokenCreateOutput",
     "ClientCreateInput",
     "ClientOut",
+    "JWTPayload",
     "ScopeOut",
 ]

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 
 from prisma.models import Client, Scope
 
-from app.services.jwt_service import JWTPayload
+from app.domain.v1.auth.schemas import JWTPayload
 
 
 def create_test_client(

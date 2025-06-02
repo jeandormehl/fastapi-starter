@@ -3,10 +3,6 @@ set -euo pipefail
 
 CMD="${1:-}"
 
-poetry config virtualenvs.create false
-git config --global --add safe.directory /app
-
-prisma py fetch
 ./manage.sh db-generate
 
 app() {

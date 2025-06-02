@@ -1,4 +1,6 @@
 from app.domain.common import BaseRequest
+from app.domain.v1.auth.schemas import ClientCreateInput
 
 
-class ClientCreateRequest(BaseRequest): ...
+class ClientCreateRequest(BaseRequest):
+    data: ClientCreateInput

@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, SecurityScopes
@@ -11,8 +11,11 @@ from app.core.errors.exceptions import (
     AuthorizationException,
     ErrorCode,
 )
+from app.domain.v1.auth.services import JWTService
 from app.infrastructure.database import Database
-from app.services import JWTPayload, JWTService
+
+if TYPE_CHECKING:
+    from app.domain.v1.auth.schemas import JWTPayload
 
 security = HTTPBearer()
 

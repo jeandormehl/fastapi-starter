@@ -20,9 +20,10 @@ pydantic = {extras = ["dotenv", "emails"], version = "^2.11.4"}
 pydantic-settings = "^2.9.1"
 pydiator-core = "^1.0.12"
 pyjwt = "^2.10.1"
-python = "^3.10"
+python = "^3.13.3"
 redis = "<6.0.0"
 typer = "^0.15.4"
+websockets = "^15.0.1"
 
 [tool.poetry.group.dev.dependencies]
 autoflake = "^2.3.1"
@@ -84,7 +85,7 @@ ignore = [
   "B008",   # Depends for FastAPI
   "B904",   # Allow raising without from
   "PLR2004",# Magic value comparison
-  "PLR0913",# Too many arguments in function
+  "PLR0913",# Too many arguments
 ]
 unfixable = ["B904", "DTZ005"]
 

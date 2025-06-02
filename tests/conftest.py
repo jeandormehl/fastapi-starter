@@ -12,8 +12,8 @@ from pytest_mock import MockerFixture
 from app.core.config import Configuration
 from app.core.constants import TESTS_PATH
 from app.core.logging import initialize_logging
+from app.domain.v1.auth.services import JWTService
 from app.infrastructure.database import Database
-from app.services import JWTService
 
 
 @pytest.fixture(scope="session")

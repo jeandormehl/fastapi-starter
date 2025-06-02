@@ -150,7 +150,7 @@ case "$CMD" in
     ;;
   test-cov)
     echo "${BOLD}${BLUE}Running all tests with coverage...${RESET}"
-    pytest --cov=app --cov-report=html:htmlcov --cov-report=term-missing:skip-covered --cov-fail-under=80 -v
+    pytest --cov=app --cov-report=html:app/static/htmlcov --cov-report=term-missing:skip-covered --cov-fail-under=80 -v
     echo "${GREEN}Testing with coverage complete.${RESET}"
     ;;
   db-generate)

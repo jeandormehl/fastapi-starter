@@ -6,8 +6,8 @@ from app.domain.common import BaseHandler
 from app.domain.v1.auth.requests import AccessTokenCreateRequest
 from app.domain.v1.auth.responses import AccessTokenCreateResponse
 from app.domain.v1.auth.schemas import AccessTokenCreateOutput
+from app.domain.v1.auth.services import JWTService
 from app.infrastructure.database import Database
-from app.services import JWTService
 
 
 class AccessTokenCreateHandler(BaseHandler):

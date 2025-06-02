@@ -44,4 +44,5 @@ celerybeat-schedule
 poetry.lock
 
 certs/
+.devcontainer/proxy
 !.devcontainer/.env

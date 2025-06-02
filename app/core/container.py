@@ -11,10 +11,10 @@ from pydiator_core.mediatr_container import MediatrContainer
 
 from app.core.application import get_application
 from app.core.config import Configuration
+from app.domain.v1.auth.services import JWTService
 from app.domain.v1.request_handler_map import RequestHandlerMap
 from app.infrastructure.celery.app import get_celery
 from app.infrastructure.database import Database
-from app.services import JWTService
 
 T = TypeVar("T")
 

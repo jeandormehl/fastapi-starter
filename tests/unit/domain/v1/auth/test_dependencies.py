@@ -19,7 +19,7 @@ from app.domain.v1.auth.dependencies import (
     require_read_scope,
     require_write_scope,
 )
-from app.services import JWTPayload
+from app.domain.v1.auth.schemas import JWTPayload
 
 
 class TestAuthenticationDependency:

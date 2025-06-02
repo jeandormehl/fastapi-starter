@@ -1,7 +1,8 @@
 generator client {
-  interface            = "asyncio"
-  provider             = "prisma-client-py"
-  recursive_type_depth = 3
+  interface                   = "asyncio"
+  provider                    = "prisma-client-py"
+  recursive_type_depth        = 3
+  enable_experimental_decimal = true
 }
 
 datasource db {

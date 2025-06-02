@@ -4,7 +4,7 @@ from app.domain.common import BaseHandler
 from app.domain.v1.auth.requests import AccessTokenRefreshRequest
 from app.domain.v1.auth.responses import AccessTokenRefreshResponse
 from app.domain.v1.auth.schemas.access_token import AccessTokenRefreshOutput
-from app.services import JWTService
+from app.domain.v1.auth.services import JWTService
 
 
 class AccessTokenRefreshHandler(BaseHandler):
