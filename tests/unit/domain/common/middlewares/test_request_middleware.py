@@ -8,13 +8,13 @@ from fastapi import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from app.api.middlewares.request_middleware import RequestMiddleware
 from app.core.errors.exceptions import (
     AppException,
     AuthenticationException,
     ErrorCode,
     ValidationException,
 )
+from app.domain.common.middlewares.request_middleware import RequestMiddleware
 
 
 # noinspection PyUnusedLocal
@@ -188,7 +188,7 @@ class TestRequestMiddleware:
             mock_logger.bind.return_value = mock_bound_logger
 
             with patch(
-                "app.api.middlewares.request_middleware.EXCEPTION_HANDLERS"
+                "app.domain.common.middlewares.request_middleware.EXCEPTION_HANDLERS"
             ) as mock_handlers:
                 mock_handler = AsyncMock(return_value=mock_response)
                 mock_handlers.__getitem__.return_value = mock_handler
@@ -221,7 +221,7 @@ class TestRequestMiddleware:
             mock_logger.bind.return_value = mock_bound_logger
 
             with patch(
-                "app.api.middlewares.request_middleware.EXCEPTION_HANDLERS"
+                "app.domain.common.middlewares.request_middleware.EXCEPTION_HANDLERS"
             ) as mock_handlers:
                 mock_handler = AsyncMock(return_value=mock_response)
                 mock_handlers.__getitem__.return_value = mock_handler
@@ -248,7 +248,7 @@ class TestRequestMiddleware:
             mock_logger.bind.return_value = mock_bound_logger
 
             with patch(
-                "app.api.middlewares.request_middleware.EXCEPTION_HANDLERS"
+                "app.domain.common.middlewares.request_middleware.EXCEPTION_HANDLERS"
             ) as mock_handlers:
                 fallback_handler = AsyncMock(return_value=mock_response)
                 mock_handlers.__getitem__.return_value = fallback_handler
@@ -285,7 +285,7 @@ class TestRequestMiddleware:
             response_time = float(response.headers["X-Response-Time"].rstrip("s"))
             actual_duration = end_time - start_time
 
-            # Should be close to actual duration (within 10ms tolerance)
+            # Should be close to actual duration (within 10 ms tolerance)
             assert abs(response_time - actual_duration) < 0.01
 
     @pytest.mark.asyncio
@@ -374,7 +374,7 @@ class TestRequestMiddleware:
             create_nested_exception()
 
         with patch(
-            "app.api.middlewares.request_middleware.EXCEPTION_HANDLERS"
+            "app.domain.common.middlewares.request_middleware.EXCEPTION_HANDLERS"
         ) as mock_handlers:
             fallback_handler = AsyncMock(return_value=mock_response)
             mock_handlers.items.return_value = []
@@ -411,7 +411,7 @@ class TestRequestMiddleware:
             mock_logger.bind.return_value = mock_bound_logger
 
             with patch(
-                "app.api.middlewares.request_middleware.EXCEPTION_HANDLERS"
+                "app.domain.common.middlewares.request_middleware.EXCEPTION_HANDLERS"
             ) as mock_handlers:
                 mock_handler = AsyncMock(return_value=mock_response)
                 mock_handlers.items.return_value = [(AppException, mock_handler)]

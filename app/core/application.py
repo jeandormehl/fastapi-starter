@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,10 +10,10 @@ from kink import inject
 from starlette.staticfiles import StaticFiles
 
 from app.api import router_v1
-from app.api.middlewares.request_middleware import RequestMiddleware
 from app.core.config import Configuration
 from app.core.constants import STATIC_PATH
 from app.core.errors.exception_handlers import EXCEPTION_HANDLERS
+from app.domain.common.middlewares.request_middleware import RequestMiddleware
 from app.infrastructure.database import disconnect_db, init_db
 
 
@@ -30,7 +31,11 @@ async def lifespan(
     yield
 
     # Shutdown
-    await disconnect_db()
+    # noinspection PyBroadException
+    try:
+        await disconnect_db()
+    except Exception:
+        contextlib.suppress(Exception)
 
 
 def get_application(config: Configuration) -> FastAPI:

@@ -409,7 +409,7 @@ class TestBaseTask:
         context = completion_call[1]
         duration = context["execution_duration_seconds"]
 
-        assert duration >= 0.01  # At least 10ms
+        assert duration >= 0.01  # At least 10 ms
         assert duration < 1.0  # But not too long
 
     @pytest.mark.parametrize(
