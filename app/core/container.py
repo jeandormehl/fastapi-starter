@@ -1,20 +1,20 @@
 from typing import TypeVar
 from zoneinfo import ZoneInfo
 
-from celery import Celery
 from fastapi import FastAPI
 from httpx import Timeout
 from kink import di
 from prisma.types import HttpConfig
 from pydiator_core.mediatr import pydiator
 from pydiator_core.mediatr_container import MediatrContainer
+from taskiq import AsyncBroker
 
 from app.core.application import get_application
 from app.core.config import Configuration
 from app.domain.v1.auth.services import JWTService
 from app.domain.v1.request_handler_map import RequestHandlerMap
-from app.infrastructure.celery.app import get_celery
 from app.infrastructure.database import Database
+from app.infrastructure.taskiq.broker import get_broker
 
 T = TypeVar("T")
 
@@ -58,8 +58,8 @@ class Container:
         # fastapi
         di[FastAPI] = get_application(di[Configuration])
 
-        # celery
-        di[Celery] = get_celery(di[Configuration])
+        # taskiq
+        di[AsyncBroker] = get_broker(di[Configuration])
 
     def _wire_services(self) -> None:
         di[JWTService] = JWTService(di[Configuration])

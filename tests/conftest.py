@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, Mock
 from zoneinfo import ZoneInfo
 
 import pytest
-from celery import Celery
 from fastapi.requests import Request
 from kink import di
 from prisma.models import Client, Scope
@@ -200,10 +199,3 @@ def mock_request(mocker: MockerFixture):
     }
 
     return mock_req
-
-
-@pytest.fixture(scope="session")
-def test_celery_app():
-    """Test Celery App"""
-
-    return Celery("test_app", broker="memory://", backend="rpc://")

@@ -215,7 +215,8 @@ def initialize_logging(config: Configuration):
 
     global _logger_manager  # noqa: PLW0603
 
-    _logger_manager = LoggerManager(config)
+    if _logger_manager is None:
+        _logger_manager = LoggerManager(config)
 
 
 def get_logger(name: str) -> ContextualLogger:

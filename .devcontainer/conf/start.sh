@@ -11,15 +11,34 @@ app() {
 }
 
 worker() {
-  python -m app.infrastructure.celery.worker
+  local_params=""
+  if [[ -n "${ENVIRONMENT:-}" && "$ENVIRONMENT" = "local" ]]; then
+    # Add desired parameter(s) here for the local environment
+    local_params+=" --reload"
+
+  fi
+
+  taskiq worker app.infrastructure.taskiq.worker:app \
+    --max-async-tasks 10 \
+    --max-prefetch 10 \
+    -w 2 \
+    --tasks-pattern "**/*_task.py" \
+    -fsd \
+    "${local_params}"
 }
 
-beat() {
-  python -m app.infrastructure.celery.beat
-}
+scheduler() {
+  local_params=""
+  if [[ -n "${ENVIRONMENT:-}" && "$ENVIRONMENT" = "local" ]]; then
+    # Add desired parameter(s) here for the local environment
+    local_params+=" --reload"
+  fi
 
-flower() {
-  python -m app.infrastructure.celery.flower
+  taskiq scheduler app.infrastructure.taskiq.scheduler:app \
+    --tasks-pattern "**/*_task.py" \
+    -fsd \
+    --skip-first-run \
+    "${local_params}"
 }
 
 case "$CMD" in
@@ -29,10 +48,7 @@ case "$CMD" in
   worker)
     worker
     ;;
-  beat)
-    beat
-    ;;
-  flower)
-    flower
+  scheduler)
+    scheduler
     ;;
 esac

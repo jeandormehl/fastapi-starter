@@ -1,5 +1,3 @@
-import os
-import tempfile
 from unittest.mock import Mock, patch
 
 import pytest
@@ -8,60 +6,10 @@ from pydantic import ValidationError
 
 from app.core.utils import (
     build_pydiator_request,
-    detect_tasks,
     extract_client_info,
     sanitize_for_logging,
 )
 from app.domain.common import BaseRequest
-
-
-class TestDetectTasks:
-    """Test Celery task detection functionality."""
-
-    def test_detect_tasks_with_task_files(self):
-        """Test task detection with valid task files."""
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create task directory structure
-            task_dir = os.path.join(temp_dir, "app", "some_module", "tasks")
-            os.makedirs(task_dir)
-
-            # Create task files
-            task_files = ["email_tasks.py", "user_tasks.py", "__init__.py"]
-            for task_file in task_files:
-                with open(os.path.join(task_dir, task_file), "w") as f:
-                    f.write("# Task file")
-
-            tasks = detect_tasks(temp_dir)
-
-            # Should find task files but not __init__.py
-            assert len(tasks) == 2
-            assert ["app.some_module.tasks.email_tasks" in task for task in tasks]
-            assert ["app.some_module.tasks.users_tasks" in task for task in tasks]
-
-    def test_detect_tasks_no_task_directories(self):
-        """Test task detection with no task directories."""
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create app directory but no tasks
-            app_dir = os.path.join(temp_dir, "app")
-            os.makedirs(app_dir)
-
-            tasks = detect_tasks(temp_dir)
-
-            assert tasks == ()
-
-    def test_detect_tasks_empty_task_directory(self):
-        """Test task detection with empty task directory."""
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create empty task directory
-            task_dir = os.path.join(temp_dir, "app", "tasks")
-            os.makedirs(task_dir)
-
-            tasks = detect_tasks(temp_dir)
-
-            assert tasks == ()
 
 
 class TestBuildPydiatorRequest:

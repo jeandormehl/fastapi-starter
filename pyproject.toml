@@ -9,9 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 asyncio = "^3.4.3"
 bcrypt = "^4.3.0"
-celery = {extras = ["beat", "redis"], version = "^5.5.2"}
 fastapi = {extras = ["all"], version = "^0.115.12"}
-flower = "^2.0.1"
 httpx = "^0.28.1"
 kink = "^0.8.1"
 loguru = "^0.7.3"
@@ -22,6 +20,9 @@ pydiator-core = "^1.0.12"
 pyjwt = "^2.10.1"
 python = "^3.13.3"
 redis = "<6.0.0"
+taskiq = {extras = ["reload"], version = "^0.11.17"}
+taskiq-aio-pika = "^0.4.2"
+taskiq-redis = "^1.0.8"
 typer = "^0.15.4"
 websockets = "^15.0.1"
 

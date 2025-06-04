@@ -25,6 +25,9 @@ services:
       context: ".."
       dockerfile: ".devcontainer/Dockerfile"
       target: "build-dev"  # TODO: Change to "build" later
+    depends_on:
+      - "redis"
+      - "postgres"
     environment:
       ENVIRONMENT: "${ENVIRONMENT}"
       TZ: "${TZ}"
@@ -41,49 +44,32 @@ services:
       context: ".."
       dockerfile: ".devcontainer/Dockerfile"
       target: "build"
-    deploy:
-      mode: "replicated"
-      replicas: "2"
-    networks:
-      - "deps"
+    depends_on:
+      - "redis"
+      - "postgres"
     environment:
       ENVIRONMENT: "${ENVIRONMENT}"
       TZ: "${TZ}"
-    depends_on:
-      - "redis"
+    networks:
+      - "deps"
     restart: "unless-stopped"
     command: "/start.sh worker"
 
-  beat:
-    build:
-      context: ".."
-      dockerfile: ".devcontainer/Dockerfile"
-      target: "build"
-    environment:
-      ENVIRONMENT: "${ENVIRONMENT}"
-      TZ: "${TZ}"
-    depends_on:
-      - "redis"
-    networks:
-      - "deps"
-    restart: "unless-stopped"
-    command: "/start.sh beat"
-
-  flower:
-    build:
-      context: ".."
-      dockerfile: ".devcontainer/Dockerfile"
-      target: "build"
-    environment:
-      ENVIRONMENT: "${ENVIRONMENT}"
-      TZ: "${TZ}"
-    depends_on:
-      - "redis"
-    networks:
-      - "proxy"
-      - "deps"
-    restart: "unless-stopped"
-    command: "/start.sh flower"
+#  scheduler:
+#    build:
+#      context: ".."
+#      dockerfile: ".devcontainer/Dockerfile"
+#      target: "build"
+#    depends_on:
+#      - "redis"
+#      - "postgres"
+#    environment:
+#      ENVIRONMENT: "${ENVIRONMENT}"
+#      TZ: "${TZ}"
+#    networks:
+#      - "deps"
+#    restart: "unless-stopped"
+#    command: "/start.sh scheduler"
 
   postgres:
     image: "bitnami/postgresql:latest"

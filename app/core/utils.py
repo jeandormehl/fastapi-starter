@@ -1,4 +1,3 @@
-import os
 import uuid
 from typing import TypeVar
 
@@ -7,32 +6,6 @@ from fastapi.requests import Request
 from app.domain.common import BaseRequest
 
 T = TypeVar("T", bound=BaseRequest)
-
-
-def detect_tasks(project_root):
-    """Detect available Celery tasks in the project."""
-
-    tasks = []
-    file_path = os.path.join(project_root, "app")
-
-    for root, dirs, files in os.walk(file_path):  # noqa: B007
-        for filename in files:
-            if (
-                os.path.basename(root) == "tasks"
-                and filename != "__init__.py"
-                and filename.endswith(".py")
-            ):
-                task = (
-                    os.path.join(root, filename)
-                    .replace(os.path.dirname(project_root) + "/", "")
-                    .replace("/", ".")
-                    .replace(".py", "")
-                )
-
-                _slice = f"{project_root.replace('/', '.')}."
-                tasks.append(task.replace(_slice, ""))
-
-    return tuple(tasks)
 
 
 async def build_pydiator_request(request_class: type[T], req: Request, **kwargs) -> T:

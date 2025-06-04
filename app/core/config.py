@@ -37,15 +37,19 @@ class Configuration(BaseSettings):
     api_host: str = Field("0.0.0.0", description="API host")
     api_port: int = Field(8080, description="API port")
 
-    # Celery settings
-    celery_broker_url: str = Field(
-        "redis://localhost:6379/0", description="Celery broker URL"
+    # Taskiq settings
+    taskiq_broker_type: str = Field(
+        default="redis", description="Type of broker to use (redis, rabbitmq, inmemory)"
     )
-    celery_result_backend: str = Field(
-        "redis://localhost:6379/0", description="Celery reseult backend URL"
+    taskiq_broker_url: SecretStr = Field(
+        default="redis://localhost:6379/1",
+        description="URL for Taskiq broker connection",
     )
-    celery_task_always_eager: bool = Field(
-        False, description="Run tasks eagerly in tests"
+    taskiq_result_backend: SecretStr | None = Field(
+        default=None, description="URL for Taskiq result backend"
+    )
+    taskiq_queue: str | None = Field(
+        default="taskiq_default_queue", description="Name of the task queue"
     )
 
     # Cloud provider settings
