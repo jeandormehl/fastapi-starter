@@ -11,10 +11,12 @@ from taskiq import AsyncBroker
 
 from app.core.application import get_application
 from app.core.config import Configuration
+from app.core.logging import initialize_logging
 from app.domain.v1.auth.services import JWTService
 from app.domain.v1.request_handler_map import RequestHandlerMap
 from app.infrastructure.database import Database
-from app.infrastructure.taskiq.broker import get_broker
+from app.infrastructure.taskiq.broker.broker import get_broker
+from app.infrastructure.taskiq.config import TaskiqConfiguration
 
 T = TypeVar("T")
 
@@ -49,6 +51,10 @@ class Container:
         di[Configuration] = Configuration()
         di["timezone"] = ZoneInfo(di[Configuration].app_timezone)
 
+        initialize_logging(di[Configuration])
+
+        di[TaskiqConfiguration] = TaskiqConfiguration()
+
     def _wire_infrastructure_dependencies(self) -> None:
         """Wire infrastructure dependencies."""
 
@@ -59,7 +65,7 @@ class Container:
         di[FastAPI] = get_application(di[Configuration])
 
         # taskiq
-        di[AsyncBroker] = get_broker(di[Configuration])
+        di[AsyncBroker] = get_broker(di[TaskiqConfiguration])
 
     def _wire_services(self) -> None:
         di[JWTService] = JWTService(di[Configuration])

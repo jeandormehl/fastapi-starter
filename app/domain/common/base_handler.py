@@ -18,6 +18,11 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
 
     logger: ContextualLogger
 
+    def __init__(self):
+        super().__init__()
+
+        self.logger = get_logger(__name__)
+
     @abstractmethod
     async def _handle_internal(self, request: TRequest) -> TResponse:
         """Safely handle request with automatic error handling."""
@@ -26,8 +31,6 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
         """
         Handle the request and return a response with comprehensive error handling.
         """
-
-        self.logger = get_logger(__name__)
 
         # Create contextual logger with trace information
         context_logger = self.logger.bind(

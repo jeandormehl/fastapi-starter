@@ -4,6 +4,7 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import __version__
+from app.core.constants import ROOT_PATH
 
 
 # noinspection PyNestedDecorators
@@ -11,7 +12,7 @@ class Configuration(BaseSettings):
     """Application Settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=f"{ROOT_PATH}/.env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -36,21 +37,6 @@ class Configuration(BaseSettings):
     api_allowed_hosts: list[str] = Field(["*"], description="API allowed hosts")
     api_host: str = Field("0.0.0.0", description="API host")
     api_port: int = Field(8080, description="API port")
-
-    # Taskiq settings
-    taskiq_broker_type: str = Field(
-        default="redis", description="Type of broker to use (redis, rabbitmq, inmemory)"
-    )
-    taskiq_broker_url: SecretStr = Field(
-        default="redis://localhost:6379/1",
-        description="URL for Taskiq broker connection",
-    )
-    taskiq_result_backend: SecretStr | None = Field(
-        default=None, description="URL for Taskiq result backend"
-    )
-    taskiq_queue: str | None = Field(
-        default="taskiq_default_queue", description="Name of the task queue"
-    )
 
     # Cloud provider settings
     cloud_provider: str | None = Field(
