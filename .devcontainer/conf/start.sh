@@ -14,7 +14,7 @@ worker() {
   local_params=""
   if [[ -n "${ENVIRONMENT:-}" && "$ENVIRONMENT" = "local" ]]; then
     # Add desired parameter(s) here for the local environment
-    local_params+=" --reload"
+    local_params+="--reload"
 
   fi
 
@@ -28,17 +28,10 @@ worker() {
 }
 
 scheduler() {
-  local_params=""
-  if [[ -n "${ENVIRONMENT:-}" && "$ENVIRONMENT" = "local" ]]; then
-    # Add desired parameter(s) here for the local environment
-    local_params+=" --reload"
-  fi
-
   taskiq scheduler app.infrastructure.taskiq.scheduler:app \
     --tasks-pattern "**/*_task.py" \
     -fsd \
-    --skip-first-run \
-    "${local_params}"
+    --skip-first-run
 }
 
 case "$CMD" in

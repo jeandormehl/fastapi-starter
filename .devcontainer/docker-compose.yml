@@ -55,21 +55,21 @@ services:
     restart: "unless-stopped"
     command: "/start.sh worker"
 
-#  scheduler:
-#    build:
-#      context: ".."
-#      dockerfile: ".devcontainer/Dockerfile"
-#      target: "build"
-#    depends_on:
-#      - "redis"
-#      - "postgres"
-#    environment:
-#      ENVIRONMENT: "${ENVIRONMENT}"
-#      TZ: "${TZ}"
-#    networks:
-#      - "deps"
-#    restart: "unless-stopped"
-#    command: "/start.sh scheduler"
+  scheduler:
+    build:
+      context: ".."
+      dockerfile: ".devcontainer/Dockerfile"
+      target: "build"
+    depends_on:
+      - "redis"
+      - "postgres"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
+    networks:
+      - "deps"
+    restart: "unless-stopped"
+    command: "/start.sh scheduler"
 
   postgres:
     image: "bitnami/postgresql:latest"

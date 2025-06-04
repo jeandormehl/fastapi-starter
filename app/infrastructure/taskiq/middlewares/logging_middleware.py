@@ -1,82 +1,62 @@
+import time
 from datetime import datetime
 from typing import Any
-from uuid import uuid4
 
 from kink import di
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.core.logging import get_logger
+from app.core.utils import sanitize_for_logging
 
 
 class LoggingMiddleware(TaskiqMiddleware):
-    """Middleware for comprehensive task logging."""
+    """Comprehensive logging middleware for Taskiq tasks."""
 
-    def __init__(self):
+    def __init__(self, log_task_args: bool = True, log_task_results: bool = False):
         super().__init__()
 
-    async def pre_send(self, message: TaskiqMessage) -> TaskiqMessage:
-        """Log task submission."""
+        self.log_task_args = log_task_args
+        self.log_task_results = log_task_results
 
-        # Ensure trace context exists
-        if "trace_id" not in message.kwargs:
-            message.kwargs["trace_id"] = str(uuid4())
-        if "request_id" not in message.kwargs:
-            message.kwargs["request_id"] = (
-                f"task-{message.task_name}-{datetime.now(di['timezone']).timestamp()}"
-            )
+    def _create_base_context(self, message: TaskiqMessage) -> dict[str, Any]:
+        """Create base logging context from message."""
 
-        send_context = {
+        context = {
             "task_id": message.task_id,
             "task_name": message.task_name,
-            "task_args": str(message.args) if message.args else None,
-            "task_kwargs": message.kwargs,
+            "task_labels": message.labels,
+            "execution_context": "taskiq_middleware",
             "trace_id": message.kwargs.get("trace_id"),
             "request_id": message.kwargs.get("request_id"),
-            "submitted_at": datetime.now(di["timezone"]).isoformat(),
+            "timestamp": datetime.now(di["timezone"]).isoformat(),
         }
 
-        logger = get_logger(self.__class__.__module__)
-        logger.bind(**send_context).info(
-            f"task '{message.task_name}' submitted to broker"
-        )
+        if self.log_task_args and message.args:
+            context["task_args"] = str(message.args)[:500]
 
-        return message
+        if self.log_task_args and message.kwargs:
+            # Sanitize sensitive data
+            sanitized_kwargs = sanitize_for_logging(message.kwargs)
+            context["task_kwargs"] = sanitized_kwargs
 
-    async def post_send(self, message: TaskiqMessage) -> None:
-        """Log successful task submission."""
-
-        post_send_context = {
-            "task_id": message.task_id,
-            "task_name": message.task_name,
-            "trace_id": message.kwargs.get("trace_id"),
-            "request_id": message.kwargs.get("request_id"),
-        }
-
-        logger = get_logger(self.__class__.__module__)
-        logger.bind(**post_send_context).info(
-            f"task '{message.task_name}' successfully sent to broker"
-        )
+        return context
 
     async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:
         """Log task execution start."""
 
-        execution_context = {
-            "task_id": message.task_id,
-            "task_name": message.task_name,
-            "task_args": str(message.args) if message.args else None,
-            "task_kwargs": message.kwargs,
-            "execution_start": datetime.now(di["timezone"]).isoformat(),
-            "trace_id": message.kwargs.get("trace_id"),
-            "request_id": message.kwargs.get("request_id"),
-        }
-
-        logger = get_logger(self.__class__.__module__)
-        logger.bind(**execution_context).info(
-            f"task '{message.task_name}' execution started"
+        context = self._create_base_context(message)
+        context.update(
+            {
+                "event": "task_started",
+                "execution_status": "starting",
+            }
         )
 
+        logger = get_logger(__name__)
+        logger.bind(**context).info(f"starting task '{message.task_name}' execution")
+
         # Store start time for duration calculation
-        message.labels["execution_start_time"] = datetime.now(di["timezone"])
+        message.labels["_middleware_start_time"] = time.time()
 
         return message
 
@@ -85,46 +65,62 @@ class LoggingMiddleware(TaskiqMiddleware):
     ) -> None:
         """Log task execution completion."""
 
-        end_time = datetime.now(di["timezone"])
-        start_time = message.labels.get("execution_start_time", end_time)
-        duration = (end_time - start_time).total_seconds()
+        logger = get_logger(__name__)
 
-        execution_context = {
-            "task_id": message.task_id,
-            "task_name": message.task_name,
-            "execution_end": end_time.isoformat(),
-            "execution_duration_seconds": duration,
-            "execution_status": "completed" if not result.is_err else "failed",
-            "trace_id": message.kwargs.get("trace_id"),
-            "request_id": message.kwargs.get("request_id"),
-        }
+        start_time = message.labels.get("_middleware_start_time")
+        duration = time.time() - start_time if start_time else None
 
-        logger = get_logger(self.__class__.__module__)
+        context = self._create_base_context(message)
+        context.update(
+            {
+                "event": "task_completed",
+                "execution_status": "failed" if result.is_err else "success",
+                "is_error": result.is_err,
+                "execution_duration_seconds": round(duration, 3) if duration else None,
+            }
+        )
+
         if result.is_err:
-            logger.bind(**execution_context).error(
-                f"task '{message.task_name}' execution failed after {duration:.2f}s"
+            context.update(
+                {
+                    "error_log": result.log,
+                    "error_return_value": str(result.return_value)[:1000]
+                    if result.return_value
+                    else None,
+                }
+            )
+
+            logger.bind(**context).error(
+                f"task '{message.task_name}' execution failed: {result.log}"
             )
         else:
-            logger.bind(**execution_context).info(
-                f"task '{message.task_name}' execution completed "
-                f"successfully in {duration:.2f}s"
+            if self.log_task_results and result.return_value is not None:
+                context["task_result"] = str(result.return_value)[:500]
+
+            logger.bind(**context).info(
+                f"task '{message.task_name}' execution completed successfully"
             )
 
-    async def post_save(
-        self,
-        message: TaskiqMessage,
-        result: TaskiqResult[Any],  # noqa: ARG002
+    async def on_error(
+        self, message: TaskiqMessage, _result: TaskiqResult[Any], exception: Exception
     ) -> None:
-        """Log result storage."""
-        save_context = {
-            "task_id": message.task_id,
-            "task_name": message.task_name,
-            "result_saved": True,
-            "trace_id": message.kwargs.get("trace_id"),
-            "request_id": message.kwargs.get("request_id"),
-        }
+        """Log task execution errors."""
+        start_time = message.labels.get("_middleware_start_time")
+        duration = time.time() - start_time if start_time else None
 
-        logger = get_logger(self.__class__.__module__)
-        logger.bind(**save_context).info(
-            f"task '{message.task_name}' result saved to backend"
+        context = self._create_base_context(message)
+        context.update(
+            {
+                "event": "task_error",
+                "execution_status": "error",
+                "exception_type": type(exception).__name__,
+                "exception_message": str(exception),
+                "execution_duration_seconds": round(duration, 3) if duration else None,
+            }
+        )
+
+        logger = get_logger(__name__)
+        logger.bind(**context).error(
+            f"task '{message.task_name}' raised exception: {exception}",
+            exc_info=exception,
         )
