@@ -199,7 +199,9 @@ class LoggingMiddleware(TaskiqMiddleware):
                 task_name=message.task_name,
                 start_time=datetime.fromisoformat(
                     message.labels.get("_start_timestamp")
-                ),
+                )
+                if message.labels.get("_start_timestamp")
+                else datetime.now(di["timezone"]),
                 end_time=datetime.now(di["timezone"]),
                 duration_seconds=duration,
                 status=TaskStatus.FAILED if result.is_err else TaskStatus.SUCCESS,

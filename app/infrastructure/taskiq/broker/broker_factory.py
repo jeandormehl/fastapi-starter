@@ -75,5 +75,5 @@ class BrokerFactory:
         return RedisAsyncResultBackend(
             redis_url=self.config.result_backend_url.get_secret_value(),
             keep_results=self.config.result_ttl,
-            serializer="json",
+            # serializer="json",
         )

@@ -16,12 +16,8 @@ TResponse = TypeVar("TResponse", bound=BaseResponse)
 class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
     """Base handler class with enhanced error handling and logging support."""
 
-    logger: ContextualLogger
-
     def __init__(self):
         super().__init__()
-
-        self.logger = get_logger(__name__)
 
     @abstractmethod
     async def _handle_internal(self, request: TRequest) -> TResponse:
@@ -157,3 +153,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
             event_context["event_data"] = event_data
 
         self.logger.bind(**event_context).info("business event occurred")
+
+    @property
+    def logger(self) -> ContextualLogger:
+        return get_logger(self.__class__.__name__)

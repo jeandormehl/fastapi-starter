@@ -1,4 +1,5 @@
 from pydantic import Field, SecretStr, field_validator
+from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.constants import ROOT_PATH
@@ -64,22 +65,21 @@ class TaskiqConfiguration(BaseSettings):
     # noinspection PyNestedDecorators
     @field_validator("broker_url", mode="after")
     @classmethod
-    def validate_broker_url(cls, v):
+    def validate_broker_url(cls, value: str, values: ValidationInfo):
         """Validate broker URL is provided for non-memory brokers."""
 
-        broker_type = v
-        if broker_type != BrokerType.MEMORY and not v:
-            msg = f"broker_url is required for {broker_type} broker"
+        if values.data.get("broker_type") != BrokerType.MEMORY and value is None:
+            msg = f"broker_url is required for {values.data.get('broker_type')} broker"
             raise ValueError(msg)
-        return v
+        return value
 
     # noinspection PyNestedDecorators
     @field_validator("encryption_key", mode="after")
     @classmethod
-    def validate_encryption_key(cls, v, values):
+    def validate_encryption_key(cls, value: str, values: ValidationInfo):
         """Validate encryption key when encryption is enabled."""
 
-        if values.data.get("enable_task_encryption") and not v:
+        if values.data.get("enable_task_encryption") and not value:
             msg = "encryption_key is required when task encryption is enabled"
             raise ValueError(msg)
-        return v
+        return value

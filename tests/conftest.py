@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 from zoneinfo import ZoneInfo
@@ -7,19 +8,33 @@ from fastapi.requests import Request
 from kink import di
 from prisma.models import Client, Scope
 from pytest_mock import MockerFixture
-from taskiq import AsyncBroker
 
 from app.core.config import Configuration
 from app.core.constants import TESTS_PATH
 from app.core.logging import initialize_logging
 from app.domain.v1.auth.services import JWTService
 from app.infrastructure.database import Database
-from app.infrastructure.taskiq.broker import Broker
 
 
+# Configure async testing
 @pytest.fixture(scope="session")
-def anyio_backend():
-    return "asyncio"
+def event_loop():
+    """Create an instance of the default event loop for the test session."""
+
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+pytest_plugins = ["tests.fixtures.taskiq_fixtures"]
+
+
+def pytest_configure(config):
+    """Configure pytest markers."""
+
+    config.addinivalue_line("markers", "integration: mark test as integration test")
+    config.addinivalue_line("markers", "unit: mark test as unit test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 @pytest.fixture(scope="session")
@@ -70,20 +85,6 @@ def mock_database():
 
 
 @pytest.fixture
-def mock_broker():
-    config = Configuration(
-        _env_file=f"{TESTS_PATH}/.env.test",
-        admin_password="test-admin-password-very-secure",
-        app_environment="test",
-        app_secret_key="test-secret-key-very-long-and-secure-for-testing",
-        app_timezone="Africa/Harare",
-        taskiq_broker_type="inmemory",
-        taskiq_queue="test_queue",
-    )
-    return Broker(config).get_broker()
-
-
-@pytest.fixture
 def jwt_service(test_config):
     """Create JWT service instance for testing."""
 
@@ -91,9 +92,7 @@ def jwt_service(test_config):
 
 
 @pytest.fixture(autouse=True)
-def setup_di_container(
-    test_config, test_timezone, mock_database, jwt_service, mock_broker
-):
+def setup_di_container(test_config, test_timezone, mock_database, jwt_service):
     """Setup dependency injection container for each test."""
 
     # Clear any existing container state
@@ -106,7 +105,6 @@ def setup_di_container(
     di[Database] = mock_database
 
     di[JWTService] = jwt_service
-    di[AsyncBroker] = mock_broker
 
     yield di
 
@@ -147,48 +145,6 @@ def test_client_inactive(test_timezone):
         scopes=[],
         created_at=datetime.now(test_timezone),
         updated_at=datetime.now(test_timezone),
-    )
-
-
-@pytest.fixture
-def test_jwt_token(jwt_service, test_client_model):
-    """Create a valid test JWT token."""
-
-    return jwt_service.create_access_token(
-        _id=test_client_model.id,
-        client_id=test_client_model.client_id,
-        scopes=["read", "write"],
-    )
-
-
-@pytest.fixture
-def test_admin_jwt_token(jwt_service, test_client_model):
-    """Create a valid admin JWT token."""
-
-    return jwt_service.create_access_token(
-        _id=test_client_model.id,
-        client_id=test_client_model.client_id,
-        scopes=["read", "write", "admin"],
-    )
-
-
-@pytest.fixture
-def expired_jwt_token(jwt_service, test_client_model, test_timezone):
-    """Create an expired JWT token for testing."""
-    from datetime import datetime, timedelta
-
-    import jwt
-
-    expired_payload = {
-        "id": test_client_model.id,
-        "client_id": test_client_model.client_id,
-        "exp": int((datetime.now(test_timezone) - timedelta(hours=1)).timestamp()),
-        "iat": int((datetime.now(test_timezone) - timedelta(hours=2)).timestamp()),
-        "scopes": ["read"],
-    }
-
-    return jwt.encode(
-        expired_payload, jwt_service.secret_key, algorithm=jwt_service.algorithm
     )
 
 

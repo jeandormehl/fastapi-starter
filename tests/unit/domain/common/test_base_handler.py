@@ -281,7 +281,6 @@ class TestBaseHandler:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
-            test_handler.logger = mock_logger
 
             test_handler.log_performance_metric(
                 "response_time", 150.5, "ms", {"endpoint": "/api/test"}
@@ -306,7 +305,6 @@ class TestBaseHandler:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
-            test_handler.logger = mock_logger
 
             test_handler.log_performance_metric("cpu_usage", 75.2)
 
@@ -320,7 +318,6 @@ class TestBaseHandler:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
-            test_handler.logger = mock_logger
 
             event_data = {"user_id": "123", "action": "login"}
             test_handler.log_business_event("user_login", event_data)
@@ -342,7 +339,6 @@ class TestBaseHandler:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
-            test_handler.logger = mock_logger
 
             test_handler.log_business_event("system_startup")
 

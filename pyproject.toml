@@ -14,6 +14,7 @@ httpx = "^0.28.1"
 kink = "^0.8.1"
 loguru = "^0.7.3"
 prisma = "^0.15.0"
+psutil = "^7.0.0"
 pydantic = {extras = ["dotenv", "emails"], version = "^2.11.4"}
 pydantic-settings = "^2.9.1"
 pydiator-core = "^1.0.12"
@@ -103,23 +104,19 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
+    "-v",
+    "--tb=short",
     "--strict-markers",
-    "--strict-config",
     "--disable-warnings",
-    "-vvs"
 ]
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "slow: Slow running tests",
-    "auth: Authentication related tests",
-    "celery: Celery task tests",
-    "database: Database related tests",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
-    "error::UserWarning",
 ]
 log_cli = true
 log_cli_level = "INFO"
@@ -133,10 +130,9 @@ omit = [
     "*/migrations/*",
     "app/core/container.py",
     "app/domain/v1/request_handler_map.py",
-    "app/infrastructure/celery/app.py",
-    "app/infrastructure/celery/beat.py",
-    "app/infrastructure/celery/flower.py",
-    "app/infrastructure/celery/worker.py",
+    "app/infrastructure/taskiq/examples/example_tasks.py",
+    "app/infrastructure/taskiq/scheduler.py",
+    "app/infrastructure/taskiq/worker.py",
     "app/main.py",
     "tests/*"
 ]

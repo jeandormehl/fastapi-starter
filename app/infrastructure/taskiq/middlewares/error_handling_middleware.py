@@ -6,6 +6,7 @@ from typing import Any
 from kink import di
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
+from app.core.constants import QUARANTINE_ERRORS
 from app.core.errors.exceptions import AppException, ErrorCode
 from app.core.logging import get_logger
 from app.infrastructure.taskiq.config import TaskiqConfiguration
@@ -93,12 +94,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         """Determine if task should be quarantined."""
 
         # Quarantine for specific error types
-        quarantine_errors = {
-            "DatabaseConnectionError",
-            "ExternalServiceUnavailable",
-            "RateLimitExceeded",
-            "ResourceExhaustionError",
-        }
+        quarantine_errors = QUARANTINE_ERRORS
 
         error_type = type(exception).__name__
         if error_type in quarantine_errors:

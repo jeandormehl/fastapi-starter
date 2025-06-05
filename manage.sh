@@ -145,7 +145,7 @@ case "$CMD" in
     ;;
   test)
     echo "${BOLD}${BLUE}Running all tests (no coverage)...${RESET}"
-    pytest -vvs --tb=short --no-cov
+    pytest -v --tb=short --no-cov
     echo "${GREEN}Testing complete.${RESET}"
     ;;
   test-cov)
