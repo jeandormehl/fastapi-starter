@@ -41,7 +41,7 @@ async def example_processing_task(
     max_retries=1,
     timeout=30,
     delay=10,
-    proirity=1,
+    priority=1,
 )
 async def critical_system_task(
     system_id: str,
@@ -70,7 +70,7 @@ async def critical_system_task(
     max_retries=1,
     timeout=600,
     delay=10,
-    proirity=3,
+    priority=3,
 )
 async def bulk_processing_task(
     items: list,

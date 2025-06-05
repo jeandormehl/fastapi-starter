@@ -3,15 +3,15 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi.requests import Request
 
+from app.common.base_handler import BaseHandler
+from app.common.base_request import BaseRequest
+from app.common.base_response import BaseResponse
 from app.core.errors.exceptions import (
     AppException,
     AuthenticationException,
     ErrorCode,
     ValidationException,
 )
-from app.domain.common.base_handler import BaseHandler
-from app.domain.common.base_request import BaseRequest
-from app.domain.common.base_response import BaseResponse
 
 
 class TestRequest(BaseRequest):
@@ -128,7 +128,7 @@ class TestBaseHandler:
     async def test_handle_success(self, test_handler, test_request):
         """Test successful handler execution."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -147,7 +147,7 @@ class TestBaseHandler:
     async def test_handle_with_app_exception(self, app_exception_handler, test_request):
         """Test handler execution with AppException."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -169,7 +169,7 @@ class TestBaseHandler:
     ):
         """Test handler execution with unexpected exception."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -192,7 +192,7 @@ class TestBaseHandler:
     async def test_handle_logging_context(self, test_handler, test_request):
         """Test that proper logging context is created."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -215,7 +215,7 @@ class TestBaseHandler:
     ):
         """Test logging context when client is None."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -241,7 +241,7 @@ class TestBaseHandler:
 
         handler = CustomHandler()
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -258,7 +258,7 @@ class TestBaseHandler:
     async def test_exception_detail_extraction(self, failing_handler, test_request):
         """Test that exception details are properly extracted."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -277,7 +277,7 @@ class TestBaseHandler:
     def test_log_performance_metric(self, test_handler):
         """Test performance metric logging."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -301,7 +301,7 @@ class TestBaseHandler:
     def test_log_performance_metric_default_unit(self, test_handler):
         """Test performance metric logging with default unit."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -314,7 +314,7 @@ class TestBaseHandler:
     def test_log_business_event(self, test_handler):
         """Test business event logging."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -335,7 +335,7 @@ class TestBaseHandler:
     def test_log_business_event_no_data(self, test_handler):
         """Test business event logging without additional data."""
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
@@ -359,7 +359,7 @@ class TestBaseHandler:
 
         handler = TracebackHandler()
 
-        with patch("app.domain.common.base_handler.get_logger") as mock_get_logger:
+        with patch("app.common.base_handler.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger

@@ -1,4 +1,4 @@
-from app.domain.common import BaseRequest
+from app.common import BaseRequest
 
 
 class AccessTokenRefreshRequest(BaseRequest): ...

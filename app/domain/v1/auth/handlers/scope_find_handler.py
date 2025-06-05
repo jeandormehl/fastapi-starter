@@ -1,6 +1,6 @@
 from kink import di
 
-from app.domain.common import BaseHandler
+from app.common import BaseHandler
 from app.domain.v1.auth.requests import ScopeFindRequest
 from app.domain.v1.auth.responses import ScopeFindResponse
 from app.domain.v1.auth.schemas import ScopeOut

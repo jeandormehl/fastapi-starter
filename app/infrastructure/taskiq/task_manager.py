@@ -46,6 +46,7 @@ class TaskManager:
 
     async def stop(self) -> None:
         """Stop task manager."""
+
         if self._cleanup_task:
             self._cleanup_task.cancel()
 
@@ -97,6 +98,8 @@ class TaskManager:
         )
 
         self.task_registry[task_id] = task_info
+
+        self._limit_registry_size()
 
         self.logger.info(
             f"task submitted: {task_name}",
@@ -254,6 +257,7 @@ class TaskManager:
                 ).total_seconds()
                 stats["avg_duration"] = (stats["avg_duration"] + duration) / 2
 
+        # noinspection PyUnresolvedReferences
         return {
             "total_tasks": len(self.task_registry),
             "status_counts": {
@@ -304,3 +308,21 @@ class TaskManager:
 
         if old_task_ids:
             self.logger.info(f"cleaned up {len(old_task_ids)} old task records")
+
+    def _limit_registry_size(self, max_size: int = 10000) -> None:
+        """Limit the size of the task registry to prevent memory issues."""
+
+        if len(self.task_registry) > max_size:
+            # Sort tasks by creation time (oldest first)
+            sorted_tasks = sorted(
+                self.task_registry.items(), key=lambda item: item[1].created_at
+            )
+
+            # Remove oldest tasks to get back under the limit
+            tasks_to_remove = len(self.task_registry) - max_size
+            for task_id, _ in sorted_tasks[:tasks_to_remove]:
+                del self.task_registry[task_id]
+
+            self.logger.info(
+                f"removed {tasks_to_remove} old task records due to size limit"
+            )

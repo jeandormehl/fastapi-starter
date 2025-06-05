@@ -104,19 +104,19 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-    "-v",
-    "--tb=short",
-    "--strict-markers",
-    "--disable-warnings",
+  "-v",
+  "--tb=short",
+  "--strict-markers",
+  "--disable-warnings",
 ]
 markers = [
-    "unit: Unit tests",
-    "integration: Integration tests",
-    "slow: Slow running tests",
+  "unit: Unit tests",
+  "integration: Integration tests",
+  "slow: Slow running tests",
 ]
 filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
+  "ignore::DeprecationWarning",
+  "ignore::PendingDeprecationWarning",
 ]
 log_cli = true
 log_cli_level = "INFO"
@@ -126,25 +126,25 @@ log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 [tool.coverage.run]
 source = ["app"]
 omit = [
-    "*/__init__.py",
-    "*/migrations/*",
-    "app/core/container.py",
-    "app/domain/v1/request_handler_map.py",
-    "app/infrastructure/taskiq/examples/example_tasks.py",
-    "app/infrastructure/taskiq/scheduler.py",
-    "app/infrastructure/taskiq/worker.py",
-    "app/main.py",
-    "tests/*"
+  "*/__init__.py",
+  "*/migrations/*",
+  "app/core/container.py",
+  "app/domain/v1/request_handler_map.py",
+  "app/infrastructure/taskiq/examples/example_tasks.py",
+  "app/infrastructure/taskiq/scheduler.py",
+  "app/infrastructure/taskiq/worker.py",
+  "app/main.py",
+  "tests/*"
 ]
 branch = true
 
 [tool.coverage.report]
 exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:"
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:"
 ]
 show_missing = true
 fail_under = 80

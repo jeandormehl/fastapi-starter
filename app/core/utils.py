@@ -3,7 +3,7 @@ from typing import TypeVar
 
 from fastapi.requests import Request
 
-from app.domain.common import BaseRequest
+from app.common import BaseRequest
 
 T = TypeVar("T", bound=BaseRequest)
 

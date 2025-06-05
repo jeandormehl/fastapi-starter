@@ -1,4 +1,4 @@
-import asyncio
+import logging
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 from zoneinfo import ZoneInfo
@@ -15,17 +15,6 @@ from app.core.logging import initialize_logging
 from app.domain.v1.auth.services import JWTService
 from app.infrastructure.database import Database
 
-
-# Configure async testing
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
 pytest_plugins = ["tests.fixtures.taskiq_fixtures"]
 
 
@@ -35,6 +24,12 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: mark test as integration test")
     config.addinivalue_line("markers", "unit: mark test as unit test")
     config.addinivalue_line("markers", "slow: mark test as slow running")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mute_loggers():
+    logging.getLogger("asyncio").disabled = True
+    logging.getLogger("httpx").disabled = True
 
 
 @pytest.fixture(scope="session")

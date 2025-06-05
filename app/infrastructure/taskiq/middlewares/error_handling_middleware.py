@@ -37,6 +37,10 @@ class CircuitBreaker:
             return True
 
         if self.state == CircuitBreakerState.OPEN:
+            if self.last_failure_time is None:
+                self.state = CircuitBreakerState.HALF_OPEN
+                return True
+
             if (
                 datetime.now(di["timezone"]) - self.last_failure_time
             ).seconds >= self.recovery_timeout:

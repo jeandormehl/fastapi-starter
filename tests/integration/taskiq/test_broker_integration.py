@@ -1,6 +1,5 @@
-# tests/integration/taskiq/test_broker_integration.py
-import asyncio
 import contextlib
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -15,8 +14,11 @@ class TestBrokerIntegration:
     """Integration tests for broker functionality."""
 
     @pytest.mark.asyncio
-    async def test_memory_broker_integration(self):
+    async def test_memory_broker_integration(self, caplog):
         """Test in-memory broker integration."""
+
+        caplog.set_level(logging.FATAL)
+
         config = TaskiqConfiguration(broker_type=BrokerType.MEMORY)
         broker = get_broker(config)
 
@@ -36,6 +38,7 @@ class TestBrokerIntegration:
     @pytest.mark.asyncio
     async def test_broker_middleware_chain(self):
         """Test broker middleware chain execution."""
+
         config = TaskiqConfiguration(broker_type=BrokerType.MEMORY, enable_metrics=True)
 
         broker = get_broker(config)
@@ -48,8 +51,11 @@ class TestBrokerIntegration:
         assert "ErrorHandlingMiddleware" in middleware_types
 
     @pytest.mark.asyncio
-    async def test_task_execution_with_tracing(self):
+    async def test_task_execution_with_tracing(self, caplog):
         """Test task execution with tracing context."""
+
+        caplog.set_level(logging.FATAL, logger="taskiq.receiver.receiver")
+
         config = TaskiqConfiguration(broker_type=BrokerType.MEMORY)
         broker = get_broker(config)
 
@@ -84,8 +90,12 @@ class TestMiddlewareIntegration:
         return get_broker(config)
 
     @pytest.mark.asyncio
-    async def test_error_handling_and_logging_integration(self, configured_broker):
+    async def test_error_handling_and_logging_integration(
+        self, caplog, configured_broker
+    ):
         """Test error handling and logging middleware integration."""
+
+        caplog.set_level(logging.FATAL)
 
         @configured_broker.task
         async def failing_task(should_fail: bool = True) -> str:
@@ -103,8 +113,10 @@ class TestMiddlewareIntegration:
         assert failure_result.task_id is not None
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_integration(self, configured_broker):
+    async def test_circuit_breaker_integration(self, caplog, configured_broker):
         """Test circuit breaker functionality in integration."""
+
+        caplog.set_level(logging.FATAL)
 
         @configured_broker.task
         async def unreliable_task(failure_rate: float = 1.0) -> str:
@@ -124,8 +136,10 @@ class TestMiddlewareIntegration:
         # Additional test execution would be blocked
 
     @pytest.mark.asyncio
-    async def test_retry_middleware_integration(self, configured_broker):
+    async def test_retry_middleware_integration(self, caplog, configured_broker):
         """Test retry middleware with error handling."""
+
+        caplog.set_level(logging.FATAL)
         attempt_count = 0
 
         @configured_broker.task(retry_on_error=True, max_retries=2)
@@ -160,8 +174,10 @@ class TestTaskExecution:
         )
 
     @pytest.mark.asyncio
-    async def test_task_with_complex_data(self, production_like_config):
+    async def test_task_with_complex_data(self, caplog, production_like_config):
         """Test task execution with complex data structures."""
+
+        caplog.set_level(logging.FATAL)
         broker = get_broker(production_like_config)
 
         @broker.task
@@ -187,8 +203,10 @@ class TestTaskExecution:
         assert result.task_id is not None
 
     @pytest.mark.asyncio
-    async def test_error_propagation_and_recovery(self, production_like_config):
+    async def test_error_propagation_and_recovery(self, caplog, production_like_config):
         """Test error propagation and recovery mechanisms."""
+
+        caplog.set_level(logging.FATAL)
         broker = get_broker(production_like_config)
 
         failure_count = 0
@@ -205,6 +223,7 @@ class TestTaskExecution:
             return f"Recovered after {failure_count} attempts"
 
         # Test failure without recovery
+        # noinspection PyBroadException
         try:
             await recovery_task.kiq(should_recover=False)
         except Exception:

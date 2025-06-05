@@ -1,8 +1,8 @@
 from bcrypt import checkpw
 from kink import di
 
+from app.common import BaseHandler
 from app.core.errors.exceptions import AuthenticationException
-from app.domain.common import BaseHandler
 from app.domain.v1.auth.requests import AccessTokenCreateRequest
 from app.domain.v1.auth.responses import AccessTokenCreateResponse
 from app.domain.v1.auth.schemas import AccessTokenCreateOutput

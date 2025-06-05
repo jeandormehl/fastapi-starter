@@ -1,6 +1,6 @@
 from kink import di
 
-from app.domain.common import BaseHandler
+from app.common import BaseHandler
 from app.domain.v1.auth.requests import AccessTokenRefreshRequest
 from app.domain.v1.auth.responses import AccessTokenRefreshResponse
 from app.domain.v1.auth.schemas.access_token import AccessTokenRefreshOutput

@@ -96,10 +96,12 @@ class TestApplicationFactory:
         ]
 
         expected_middleware = [
-            "RequestMiddleware",
+            "GZipMiddleware",
             "CORSMiddleware",
             "TrustedHostMiddleware",
-            "GZipMiddleware",
+            "TracingMiddleware",
+            "LoggingMiddleware",
+            "ErrorMiddleware",
         ]
 
         for expected in expected_middleware:

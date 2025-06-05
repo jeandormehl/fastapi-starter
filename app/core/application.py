@@ -5,15 +5,14 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
-from fastapi.middleware import cors, gzip, trustedhost
 from kink import inject
 from starlette.staticfiles import StaticFiles
 
 from app.api import router_v1
+from app.common.middlewares import register_request_middlewares
 from app.core.config import Configuration
 from app.core.constants import STATIC_PATH
 from app.core.errors.exception_handlers import EXCEPTION_HANDLERS
-from app.domain.common.middlewares.request_middleware import RequestMiddleware
 from app.infrastructure.database import disconnect_db, init_db
 
 
@@ -75,19 +74,8 @@ def _v1(config: Configuration) -> FastAPI:
         app.add_exception_handler(exc_type, handler)
 
     # Add middleware
-    app.add_middleware(gzip.GZipMiddleware, minimum_size=1000)
-    app.add_middleware(
-        trustedhost.TrustedHostMiddleware, allowed_hosts=config.api_allowed_hosts
-    )
-    app.add_middleware(
-        cors.CORSMiddleware,
-        allow_origins=config.api_cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
-    app.add_middleware(RequestMiddleware)
+    register_request_middlewares(config, app)
 
     # Mount static files
     Path(STATIC_PATH).mkdir(parents=True, exist_ok=True)

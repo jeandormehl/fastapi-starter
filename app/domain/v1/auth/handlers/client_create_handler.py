@@ -2,8 +2,8 @@ from bcrypt import gensalt, hashpw
 from kink import di
 from prisma.models import Scope
 
+from app.common import BaseHandler
 from app.core.errors.exceptions import DatabaseException, ValidationException
-from app.domain.common import BaseHandler
 from app.domain.v1.auth.requests import ClientCreateRequest
 from app.domain.v1.auth.responses import ClientCreateResponse
 from app.domain.v1.auth.schemas import ClientOut

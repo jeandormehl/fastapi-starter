@@ -107,6 +107,7 @@ services:
       TZ: "${TZ}"
     networks:
       - "proxy"
+      - "deps"
     restart: "unless-stopped"
     volumes:
       - "parseable_data:/parseable"

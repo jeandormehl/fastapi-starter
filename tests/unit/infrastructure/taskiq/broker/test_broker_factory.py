@@ -59,7 +59,7 @@ class TestBrokerFactory:
             "declare_exchange": True,
             "exchange_name": f"{rabbitmq_config.default_queue}_exchange",
             "routing_key": f"{rabbitmq_config.default_queue}_routing",
-            "heartbeat": 600,
+            "heartbeat": 60,
         }
 
         mock_rabbitmq_broker.assert_called_once_with(**expected_config)
@@ -171,7 +171,7 @@ class TestBrokerFactory:
                 "declare_exchange": True,
                 "exchange_name": f"{rabbitmq_config.default_queue}_exchange",
                 "routing_key": f"{rabbitmq_config.default_queue}_routing",
-                "heartbeat": 600,
+                "heartbeat": 60,
             }
 
             mock_rabbitmq.assert_called_once_with(**expected_config)

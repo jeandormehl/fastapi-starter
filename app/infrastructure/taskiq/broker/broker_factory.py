@@ -58,13 +58,14 @@ class BrokerFactory:
 
     def _create_rabbitmq_broker(self) -> AsyncBroker:
         """Create RabbitMQ broker with advanced configuration."""
+
         broker_config = {
             "url": self.config.broker_url.get_secret_value(),
             "queue_name": self.config.default_queue,
             "declare_exchange": True,
             "exchange_name": f"{self.config.default_queue}_exchange",
             "routing_key": f"{self.config.default_queue}_routing",
-            "heartbeat": 600,
+            "heartbeat": 60,
         }
 
         return AioPikaBroker(**broker_config)

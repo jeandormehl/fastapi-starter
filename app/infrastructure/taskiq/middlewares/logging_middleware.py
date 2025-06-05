@@ -130,9 +130,19 @@ class LoggingMiddleware(TaskiqMiddleware):
             import psutil
 
             process = psutil.Process()
-            return process.memory_info().rss / 1024 / 1024
+
+            try:
+                return process.memory_info().rss / 1024 / 1024
+
+            except (AttributeError, psutil.Error) as e:
+                self.logger.debug(f"failed to get memory info: {e}")
+                return 0.0
 
         except ImportError:
+            return 0.0
+
+        except Exception as e:
+            self.logger.debug(f"unexpected error getting memory usage: {e}")
             return 0.0
 
     async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:

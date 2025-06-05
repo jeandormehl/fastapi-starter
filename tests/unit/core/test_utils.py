@@ -4,12 +4,12 @@ import pytest
 from fastapi.requests import Request
 from pydantic import ValidationError
 
+from app.common import BaseRequest
 from app.core.utils import (
     build_pydiator_request,
     extract_client_info,
     sanitize_for_logging,
 )
-from app.domain.common import BaseRequest
 
 
 class TestBuildPydiatorRequest:
