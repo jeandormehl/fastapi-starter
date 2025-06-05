@@ -1,4 +1,3 @@
-# tests/fixtures/taskiq_fixtures.py
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 

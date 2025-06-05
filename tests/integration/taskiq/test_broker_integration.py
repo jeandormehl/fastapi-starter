@@ -73,7 +73,6 @@ class TestBrokerIntegration:
         assert result.task_id is not None
 
 
-# tests/integration/taskiq/test_middleware_integration.py
 @pytest.mark.integration
 class TestMiddlewareIntegration:
     """Integration tests for middleware interactions."""
@@ -155,7 +154,6 @@ class TestMiddlewareIntegration:
         assert result.task_id is not None
 
 
-# tests/integration/taskiq/test_task_execution.py
 @pytest.mark.integration
 class TestTaskExecution:
     """Integration tests for complete task execution flows."""

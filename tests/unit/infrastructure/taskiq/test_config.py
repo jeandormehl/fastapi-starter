@@ -1,4 +1,3 @@
-# tests/unit/infrastructure/taskiq/test_config.py
 import pytest
 from pydantic import SecretStr, ValidationError
 

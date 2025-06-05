@@ -69,13 +69,12 @@ def _v1(config: Configuration) -> FastAPI:
         version=config.app_version,
     )
 
+    # Add middleware
+    register_request_middlewares(config, app)
+
     # Add exception handlers (order matters - most specific first)
     for exc_type, handler in EXCEPTION_HANDLERS.items():
         app.add_exception_handler(exc_type, handler)
-
-    # Add middleware
-
-    register_request_middlewares(config, app)
 
     # Mount static files
     Path(STATIC_PATH).mkdir(parents=True, exist_ok=True)

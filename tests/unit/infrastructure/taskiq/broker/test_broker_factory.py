@@ -1,4 +1,3 @@
-# tests/unit/infrastructure/taskiq/broker/test_broker_factory.py
 from unittest.mock import Mock, patch
 
 import pytest

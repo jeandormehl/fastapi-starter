@@ -1,4 +1,3 @@
-# tests/unit/infrastructure/taskiq/middlewares/test_logging_middleware.py
 from datetime import datetime
 from unittest.mock import Mock, patch
 
