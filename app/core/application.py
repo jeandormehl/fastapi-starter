@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import NoReturn
 
 from fastapi import FastAPI
 from kink import inject
@@ -21,7 +21,7 @@ from app.infrastructure.database import disconnect_db, init_db
 @inject
 async def lifespan(
     app: FastAPI,  # noqa: ARG001
-) -> AsyncGenerator[None, Any]:
+) -> AsyncGenerator[None, NoReturn]:
     """Application lifespan manager."""
 
     # Startup

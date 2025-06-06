@@ -1,5 +1,5 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
 
 from bcrypt import gensalt, hashpw
 from kink import di
@@ -27,7 +27,7 @@ async def disconnect_db() -> None:
 
 
 @asynccontextmanager
-async def get_db() -> Any:
+async def get_db() -> AsyncGenerator[Database]:
     db = di[Database]
 
     await connect_db()

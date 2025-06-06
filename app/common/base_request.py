@@ -1,5 +1,4 @@
 from abc import ABC
-from typing import Any
 
 from fastapi.requests import Request
 from prisma.models import Client
@@ -39,7 +38,7 @@ class BaseRequest(TraceModel, PydiatorBaseRequest, ABC):
             "http_client_ip": self.req.client.host if self.req.client else "unknown",
         }
 
-    def get_full_context(self) -> dict[str, Any]:
+    def get_full_context(self) -> dict[str, str | int]:
         """Get complete context for logging and error handling."""
 
         context = {
