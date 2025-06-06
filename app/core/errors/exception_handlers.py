@@ -9,7 +9,7 @@ from kink import di
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.errors.exceptions import AppException, ErrorCode, ErrorDetail
+from app.core.errors.errors import AppError, ErrorCode, ErrorDetail
 from app.core.logging import get_logger
 
 
@@ -56,7 +56,7 @@ def create_error_response(
     )
 
 
-async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+async def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
     """Handle custom application exceptions."""
 
     error_detail = exc.to_error_detail()
@@ -215,7 +215,7 @@ async def python_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 # Exception handler registry for easy registration
 EXCEPTION_HANDLERS: dict[Any, Any] = {
-    AppException: app_exception_handler,
+    AppError: app_exception_handler,
     HTTPException: http_exception_handler,
     StarletteHTTPException: http_exception_handler,
     RequestValidationError: validation_exception_handler,

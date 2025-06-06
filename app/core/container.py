@@ -25,7 +25,7 @@ T = TypeVar("T")
 class Container:
     """Dependency injection container."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._mediatr = MediatrContainer()
         self._is_wired = False
 

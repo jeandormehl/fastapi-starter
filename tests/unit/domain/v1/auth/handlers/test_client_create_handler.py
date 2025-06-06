@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 from prisma.models import Scope
 
-from app.core.errors.exceptions import DatabaseException, ValidationException
+from app.core.errors.errors import DatabaseError, ValidationError
 from app.domain.v1.auth.handlers.client_create_handler import ClientCreateHandler
 from app.domain.v1.auth.requests import ClientCreateRequest
 from app.domain.v1.auth.schemas import ClientCreateInput
@@ -184,7 +184,7 @@ class TestClientCreateHandler:
         ]
 
         # Execute and expect validation exception
-        with pytest.raises(ValidationException) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await handler._handle_internal(client_create_request)
 
         assert "unknown scopes" in str(exc_info.value)
@@ -200,7 +200,7 @@ class TestClientCreateHandler:
         mock_database.scope.find_many.return_value = []
 
         # Execute and expect validation exception
-        with pytest.raises(ValidationException) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await handler._handle_internal(client_create_request)
 
         assert "unknown scopes" in str(exc_info.value)
@@ -219,7 +219,7 @@ class TestClientCreateHandler:
         mock_database.client.create.return_value = None
 
         # Execute and expect database exception
-        with pytest.raises(DatabaseException) as exc_info:
+        with pytest.raises(DatabaseError) as exc_info:
             await handler._handle_internal(client_create_request)
 
         assert "could not create client" in str(exc_info.value)
@@ -236,10 +236,10 @@ class TestClientCreateHandler:
         mock_database.scope.find_many.return_value = available_scopes[:2]
 
         # Mock database exception
-        mock_database.client.create.side_effect = DatabaseException("Connection error")
+        mock_database.client.create.side_effect = DatabaseError("Connection error")
 
         # Execute and expect exception propagation
-        with pytest.raises(DatabaseException) as exc_info:
+        with pytest.raises(DatabaseError) as exc_info:
             await handler._handle_internal(client_create_request)
 
         assert "Connection error" in str(exc_info.value)
@@ -251,12 +251,10 @@ class TestClientCreateHandler:
         """Test exception handling during scope validation."""
 
         # Mock database exception during scope validation
-        mock_database.scope.find_many.side_effect = DatabaseException(
-            "Scope query failed"
-        )
+        mock_database.scope.find_many.side_effect = DatabaseError("Scope query failed")
 
         # Execute and expect exception propagation
-        with pytest.raises(DatabaseException) as exc_info:
+        with pytest.raises(DatabaseError) as exc_info:
             await handler._handle_internal(client_create_request)
 
         assert "Scope query failed" in str(exc_info.value)

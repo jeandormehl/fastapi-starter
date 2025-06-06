@@ -1,17 +1,17 @@
 from fastapi import status
 
-from app.core.errors.exceptions import (
-    AppException,
-    AuthenticationException,
-    AuthorizationException,
-    BusinessRuleException,
-    DatabaseException,
+from app.core.errors.errors import (
+    AppError,
+    AuthenticationError,
+    AuthorizationError,
+    BusinessRuleError,
+    DatabaseError,
     ErrorCode,
     ErrorDetail,
-    ExternalServiceException,
-    ResourceConflictException,
-    ResourceNotFoundException,
-    ValidationException,
+    ExternalServiceError,
+    ResourceConflictError,
+    ResourceNotFoundError,
+    ValidationError,
 )
 
 
@@ -67,7 +67,7 @@ class TestAppException:
     def test_app_exception_creation(self):
         """Test basic exception creation."""
 
-        exc = AppException(
+        exc = AppError(
             error_code=ErrorCode.INTERNAL_SERVER_ERROR,
             message="Test error",
             trace_id="test-trace",
@@ -85,7 +85,7 @@ class TestAppException:
         """Test exception with underlying cause."""
 
         cause = ValueError("Original error")
-        exc = AppException(
+        exc = AppError(
             error_code=ErrorCode.VALIDATION_ERROR,
             message="Validation failed",
             cause=cause,
@@ -98,7 +98,7 @@ class TestAppException:
     def test_to_error_detail(self):
         """Test conversion to error detail."""
 
-        exc = AppException(
+        exc = AppError(
             error_code=ErrorCode.AUTHENTICATION_ERROR,
             message="Auth failed",
             trace_id="trace-123",
@@ -122,7 +122,7 @@ class TestValidationException:
     def test_validation_exception_basic(self):
         """Test basic validation exception."""
 
-        exc = ValidationException(message="Validation failed", trace_id="trace-123")
+        exc = ValidationError(message="Validation failed", trace_id="trace-123")
 
         assert exc.error_code == ErrorCode.VALIDATION_ERROR
         assert exc.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -136,7 +136,7 @@ class TestValidationException:
             "email": ["Invalid email format", "Email already exists"],
         }
 
-        exc = ValidationException(
+        exc = ValidationError(
             message="Multiple validation errors", field_errors=field_errors
         )
 
@@ -150,7 +150,7 @@ class TestResourceNotFoundException:
     def test_resource_not_found_basic(self):
         """Test basic resource not found."""
 
-        exc = ResourceNotFoundException(resource_type="User", resource_id="123")
+        exc = ResourceNotFoundError(resource_type="User", resource_id="123")
 
         assert exc.error_code == ErrorCode.RESOURCE_NOT_FOUND
         assert exc.status_code == status.HTTP_404_NOT_FOUND
@@ -162,7 +162,7 @@ class TestResourceNotFoundException:
         """Test resource not found with search criteria."""
 
         search_criteria = {"email": "test@example.com", "active": True}
-        exc = ResourceNotFoundException(
+        exc = ResourceNotFoundError(
             resource_type="User",
             resource_id="test@example.com",
             search_criteria=search_criteria,
@@ -178,7 +178,7 @@ class TestResourceConflictException:
     def test_resource_conflict_basic(self):
         """Test basic resource conflict."""
 
-        exc = ResourceConflictException(
+        exc = ResourceConflictError(
             resource_type="User",
             resource_id="testuser",
             conflict_reason="username already taken",
@@ -193,7 +193,7 @@ class TestResourceConflictException:
         """Test resource conflict with existing resource info."""
 
         existing_info = {"id": "456", "created_at": "2023-01-01"}
-        exc = ResourceConflictException(
+        exc = ResourceConflictError(
             resource_type="User",
             resource_id="testuser",
             conflict_reason="duplicate email",
@@ -209,7 +209,7 @@ class TestAuthenticationException:
     def test_authentication_exception_basic(self):
         """Test basic authentication exception."""
 
-        exc = AuthenticationException()
+        exc = AuthenticationError()
 
         assert exc.error_code == ErrorCode.AUTHENTICATION_ERROR
         assert exc.status_code == status.HTTP_401_UNAUTHORIZED
@@ -218,7 +218,7 @@ class TestAuthenticationException:
     def test_authentication_exception_with_method(self):
         """Test authentication exception with method."""
 
-        exc = AuthenticationException(message="JWT token invalid", auth_method="jwt")
+        exc = AuthenticationError(message="JWT token invalid", auth_method="jwt")
 
         assert exc.message == "JWT token invalid"
         assert exc.details["authentication_method"] == "jwt"
@@ -230,7 +230,7 @@ class TestAuthorizationException:
     def test_authorization_exception_basic(self):
         """Test basic authorization exception."""
 
-        exc = AuthorizationException()
+        exc = AuthorizationError()
 
         assert exc.error_code == ErrorCode.AUTHORIZATION_ERROR
         assert exc.status_code == status.HTTP_403_FORBIDDEN
@@ -239,7 +239,7 @@ class TestAuthorizationException:
     def test_authorization_exception_with_permissions(self):
         """Test authorization exception with permission details."""
 
-        exc = AuthorizationException(
+        exc = AuthorizationError(
             message="Access denied",
             required_permissions=["read", "write"],
             client_permissions=["read"],
@@ -257,7 +257,7 @@ class TestBusinessRuleException:
     def test_business_rule_exception_basic(self):
         """Test basic business rule exception."""
 
-        exc = BusinessRuleException(message="Business rule violated")
+        exc = BusinessRuleError(message="Business rule violated")
 
         assert exc.error_code == ErrorCode.BUSINESS_RULE_VIOLATION
         assert exc.status_code == status.HTTP_400_BAD_REQUEST
@@ -266,7 +266,7 @@ class TestBusinessRuleException:
         """Test business rule exception with rule details."""
 
         rule_details = {"min_age": 18, "provided_age": 16}
-        exc = BusinessRuleException(
+        exc = BusinessRuleError(
             message="Age requirement not met",
             rule_name="minimum_age_check",
             rule_details=rule_details,
@@ -282,7 +282,7 @@ class TestExternalServiceException:
     def test_external_service_exception_basic(self):
         """Test basic external service exception."""
 
-        exc = ExternalServiceException(
+        exc = ExternalServiceError(
             service_name="PaymentAPI", message="Service unavailable"
         )
 
@@ -294,7 +294,7 @@ class TestExternalServiceException:
     def test_external_service_exception_with_response_details(self):
         """Test external service exception with response details."""
 
-        exc = ExternalServiceException(
+        exc = ExternalServiceError(
             service_name="PaymentAPI",
             message="Bad request",
             service_endpoint="https://api.payment.com/charge",
@@ -313,7 +313,7 @@ class TestDatabaseException:
     def test_database_exception_basic(self):
         """Test basic database exception."""
 
-        exc = DatabaseException(message="Connection failed")
+        exc = DatabaseError(message="Connection failed")
 
         assert exc.error_code == ErrorCode.DATABASE_CONNECTION
         assert exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -323,7 +323,7 @@ class TestDatabaseException:
         """Test database exception with operation details."""
 
         cause = Exception("Connection timeout")
-        exc = DatabaseException(
+        exc = DatabaseError(
             message="Query failed",
             operation="SELECT",
             table_name="users",

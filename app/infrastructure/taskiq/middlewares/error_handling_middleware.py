@@ -7,7 +7,7 @@ from kink import di
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.core.constants import QUARANTINE_ERRORS
-from app.core.errors.exceptions import AppException, ErrorCode
+from app.core.errors.errors import AppError, ErrorCode
 from app.core.logging import get_logger
 from app.infrastructure.taskiq.config import TaskiqConfiguration
 
@@ -23,7 +23,7 @@ class CircuitBreakerState(Enum):
 class CircuitBreaker:
     """Circuit breaker for task execution."""
 
-    def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 60):
+    def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 60) -> None:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.failure_count = 0
@@ -70,7 +70,7 @@ class CircuitBreaker:
 class ErrorHandlingMiddleware(TaskiqMiddleware):
     """Error handling with circuit breaker and adaptive retry."""
 
-    def __init__(self, config: TaskiqConfiguration):
+    def __init__(self, config: TaskiqConfiguration) -> None:
         super().__init__()
 
         self.config = config
@@ -139,7 +139,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         # Add jitter (±25%)
         import random
 
-        jitter = random.uniform(0.75, 1.25)
+        jitter = random.uniform(0.75, 1.25)  # nosec B311
 
         return int(exponential_delay * jitter)
 
@@ -223,7 +223,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             )
 
         # Add AppException details
-        if isinstance(exception, AppException):
+        if isinstance(exception, AppError):
             context.update(
                 {
                     "app_error_code": exception.error_code.value,
@@ -328,7 +328,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         # Log error with enhanced context
         log_level = (
             "warning"
-            if isinstance(exception, AppException)
+            if isinstance(exception, AppError)
             and exception.error_code
             in {ErrorCode.VALIDATION_ERROR, ErrorCode.RESOURCE_NOT_FOUND}
             else "error"

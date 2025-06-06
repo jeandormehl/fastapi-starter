@@ -5,10 +5,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, SecurityS
 from kink import di
 from prisma.models import Client
 
-from app.core.errors.exceptions import (
-    AppException,
-    AuthenticationException,
-    AuthorizationException,
+from app.core.errors.errors import (
+    AppError,
+    AuthenticationError,
+    AuthorizationError,
     ErrorCode,
 )
 from app.domain.v1.auth.services import JWTService
@@ -42,7 +42,7 @@ class AuthenticationDependency:
 
             if not required_scopes.issubset(token_scopes):
                 msg = "insufficient permissions"
-                raise AuthorizationException(msg, list(required_scopes))
+                raise AuthorizationError(msg, list(required_scopes))
 
         try:
             # noinspection PyTypeChecker
@@ -52,20 +52,20 @@ class AuthenticationDependency:
 
             if not client:
                 msg = "client not found"
-                raise AuthenticationException(msg)
+                raise AuthenticationError(msg)
 
             # Verify client is still active
             if not client.is_active:
                 msg = "client account is inactive"
-                raise AuthenticationException(msg)
+                raise AuthenticationError(msg)
 
             return client
 
-        except AuthenticationException:
+        except AuthenticationError:
             raise
 
         except Exception as e:
-            raise AppException(
+            raise AppError(
                 ErrorCode.AUTHENTICATION_ERROR,
                 "unknown authentication error",
             ) from e
@@ -83,7 +83,7 @@ async def get_client(
 class RequireScopes:
     """Factory for creating scope-specific authentication dependencies."""
 
-    def __init__(self, *scopes: str):
+    def __init__(self, *scopes: str) -> None:
         self.required_scopes = set(scopes)
 
     async def __call__(
@@ -97,7 +97,7 @@ class RequireScopes:
 
         if missing_scopes:
             msg = "not enough permissions, missing scopes"
-            raise AuthorizationException(msg, list(missing_scopes))
+            raise AuthorizationError(msg, list(missing_scopes))
 
         return current_client
 

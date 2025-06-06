@@ -1,5 +1,5 @@
 import uuid
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from fastapi.requests import Request
 
@@ -8,7 +8,9 @@ from app.common import BaseRequest
 T = TypeVar("T", bound=BaseRequest)
 
 
-async def build_pydiator_request(request_class: type[T], req: Request, **kwargs) -> T:
+async def build_pydiator_request(
+    request_class: type[T], req: Request, **kwargs: Any
+) -> T:
     """
     Enhanced utility to build pydiator requests with
     comprehensive error handling support.

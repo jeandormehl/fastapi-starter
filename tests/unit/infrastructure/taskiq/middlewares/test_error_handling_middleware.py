@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 from prisma.errors import ClientNotConnectedError
 
-from app.core.errors.exceptions import AppException, ErrorCode
+from app.core.errors.errors import AppError, ErrorCode
 from app.infrastructure.taskiq.middlewares.error_handling_middleware import (
     CircuitBreaker,
     CircuitBreakerState,
@@ -264,7 +264,7 @@ class TestErrorHandlingMiddleware:
     ):
         """Test on_error with AppException."""
 
-        exception = AppException(
+        exception = AppError(
             error_code=ErrorCode.VALIDATION_ERROR,
             message="Validation failed",
             details={"field": "value"},

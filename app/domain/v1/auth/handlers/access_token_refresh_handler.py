@@ -8,7 +8,7 @@ from app.domain.v1.auth.services import JWTService
 
 
 class AccessTokenRefreshHandler(BaseHandler):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self.jwt_service = di[JWTService]
@@ -22,13 +22,17 @@ class AccessTokenRefreshHandler(BaseHandler):
             )
             payload = self.jwt_service.verify_token(current_token)
 
+            response_data = AccessTokenRefreshOutput(
+                access_token=self.jwt_service.refresh_token(current_token),
+                token_type="bearer",  # nosec B106
+                expires_in=self.jwt_service.access_token_expire_minutes * 60,
+                scopes=" ".join(payload.scopes),
+            )
+
             return AccessTokenRefreshResponse(
-                data=AccessTokenRefreshOutput(
-                    access_token=self.jwt_service.refresh_token(current_token),
-                    token_type="bearer",
-                    expires_in=self.jwt_service.access_token_expire_minutes * 60,
-                    scopes=" ".join(payload.scopes),
-                )
+                trace_id=request.trace_id,
+                request_id=request.request_id,
+                data=response_data,
             )
 
         except Exception as e:

@@ -6,7 +6,7 @@ from pydiator_core.interfaces import BaseHandler as PydiatorBaseHandler
 
 from app.common.base_request import BaseRequest
 from app.common.base_response import BaseResponse
-from app.core.errors.exceptions import AppException, ErrorCode
+from app.core.errors.errors import AppError, ErrorCode
 from app.core.logging import ContextualLogger, get_logger
 
 TRequest = TypeVar("TRequest", bound=BaseRequest)
@@ -16,7 +16,7 @@ TResponse = TypeVar("TResponse", bound=BaseResponse)
 class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
     """Base handler class with enhanced error handling and logging support."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
     @abstractmethod
@@ -51,7 +51,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
 
             return result
 
-        except AppException as exc:
+        except AppError as exc:
             # Ensure trace information is set on app exceptions
             if not exc.trace_id:
                 exc.trace_id = request.trace_id
@@ -101,7 +101,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
 
             # Convert to application exception with enhanced details
             # noinspection PyUnboundLocalVariable
-            raise AppException(
+            raise AppError(
                 error_code=ErrorCode.INTERNAL_SERVER_ERROR,
                 message=f"handler '{self.__class__.__name__}' "
                 f"encountered an unexpected error",
@@ -125,7 +125,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
         value: float,
         unit: str = "ms",
         additional_context: dict | None = None,
-    ):
+    ) -> None:
         """Log performance metrics for monitoring."""
 
         metric_context = {
@@ -140,7 +140,9 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
 
         self.logger.bind(**metric_context).info("performance metric recorded")
 
-    def log_business_event(self, event_name: str, event_data: dict | None = None):
+    def log_business_event(
+        self, event_name: str, event_data: dict | None = None
+    ) -> None:
         """Log business events for analytics and monitoring."""
 
         event_context = {

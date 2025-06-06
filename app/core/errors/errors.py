@@ -57,7 +57,7 @@ class ErrorDetail(BaseModel):
     details: dict[str, Any] = {}
 
 
-class AppException(Exception):
+class AppError(Exception):
     """Base application exception with standardized error handling."""
 
     def __init__(
@@ -69,7 +69,7 @@ class AppException(Exception):
         trace_id: str | None = None,
         request_id: str | None = None,
         cause: Exception | None = None,
-    ):
+    ) -> None:
         self.error_code = error_code
         self.message = message
         self.status_code = status_code
@@ -105,7 +105,7 @@ class AppException(Exception):
 
 
 # Specific exception classes for common scenarios
-class ValidationException(AppException):
+class ValidationError(AppError):
     """Exception for validation errors."""
 
     def __init__(
@@ -115,7 +115,7 @@ class ValidationException(AppException):
         details: dict[str, Any] | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,
-    ):
+    ) -> None:
         enhanced_details = details or {}
         if field_errors:
             enhanced_details["field_errors"] = field_errors
@@ -131,7 +131,7 @@ class ValidationException(AppException):
         )
 
 
-class ResourceNotFoundException(AppException):
+class ResourceNotFoundError(AppError):
     """Exception for resource not found errors."""
 
     def __init__(
@@ -141,7 +141,7 @@ class ResourceNotFoundException(AppException):
         search_criteria: dict[str, Any] | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,
-    ):
+    ) -> None:
         message = f"{resource_type} with identifier '{resource_id}' was not found"
 
         details = {
@@ -164,7 +164,7 @@ class ResourceNotFoundException(AppException):
         )
 
 
-class ResourceConflictException(AppException):
+class ResourceConflictError(AppError):
     """Exception for resource conflict errors."""
 
     def __init__(
@@ -175,7 +175,7 @@ class ResourceConflictException(AppException):
         existing_resource_info: dict[str, Any] | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,
-    ):
+    ) -> None:
         message = f"{resource_type} '{resource_id}' already exists: {conflict_reason}"
 
         details = {
@@ -198,7 +198,7 @@ class ResourceConflictException(AppException):
         )
 
 
-class AuthenticationException(AppException):
+class AuthenticationError(AppError):
     """Exception for authentication errors."""
 
     def __init__(
@@ -207,7 +207,7 @@ class AuthenticationException(AppException):
         auth_method: str | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,
-    ):
+    ) -> None:
         details = {}
         if auth_method:
             details["authentication_method"] = auth_method
@@ -222,7 +222,7 @@ class AuthenticationException(AppException):
         )
 
 
-class AuthorizationException(AppException):
+class AuthorizationError(AppError):
     """Exception for authorization errors."""
 
     def __init__(
@@ -233,7 +233,7 @@ class AuthorizationException(AppException):
         resource: str | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,
-    ):
+    ) -> None:
         details = {}
         if required_permissions:
             details["required_permissions"] = required_permissions
@@ -252,7 +252,7 @@ class AuthorizationException(AppException):
         )
 
 
-class BusinessRuleException(AppException):
+class BusinessRuleError(AppError):
     """Exception for business rule violations."""
 
     def __init__(
@@ -263,7 +263,7 @@ class BusinessRuleException(AppException):
         details: dict[str, Any] | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,
-    ):
+    ) -> None:
         enhanced_details = details or {}
         if rule_name:
             enhanced_details["violated_rule"] = rule_name
@@ -280,7 +280,7 @@ class BusinessRuleException(AppException):
         )
 
 
-class ExternalServiceException(AppException):
+class ExternalServiceError(AppError):
     """Exception for external service errors."""
 
     def __init__(
@@ -292,7 +292,7 @@ class ExternalServiceException(AppException):
         response_body: str | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,
-    ):
+    ) -> None:
         details = {
             "service_name": service_name,
         }
@@ -317,7 +317,7 @@ class ExternalServiceException(AppException):
         )
 
 
-class DatabaseException(AppException):
+class DatabaseError(AppError):
     """Exception for database-related errors."""
 
     def __init__(
@@ -329,7 +329,7 @@ class DatabaseException(AppException):
         trace_id: str | None = None,
         request_id: str | None = None,
         cause: Exception | None = None,
-    ):
+    ) -> None:
         details = {}
         if operation:
             details["database_operation"] = operation

@@ -35,7 +35,7 @@ class Configuration(BaseSettings):
     # API settings
     api_cors_origins: list[str] = Field(["*"], description="API CORS origins")
     api_allowed_hosts: list[str] = Field(["*"], description="API allowed hosts")
-    api_host: str = Field("0.0.0.0", description="API host")
+    api_host: str = Field("127.0.0.1", description="API host")
     api_port: int = Field(8080, description="API port")
 
     # Cloud provider settings

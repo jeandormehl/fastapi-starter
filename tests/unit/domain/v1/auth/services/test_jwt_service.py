@@ -1,11 +1,11 @@
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
 
 from app.core.config import Configuration
-from app.core.errors.exceptions import AuthenticationException
+from app.core.errors.errors import AuthenticationError
 from app.domain.v1.auth.services.jwt_service import JWTPayload, JWTService
 
 
@@ -65,20 +65,20 @@ class TestJWTService:
     def test_create_access_token_expiration(self, jwt_service):
         """Test access token expiration time."""
 
-        before_creation = datetime.now(timezone.utc)
+        before_creation = datetime.now(UTC)
         time.sleep(1)
 
         token = jwt_service.create_access_token(_id="user-123", client_id="client-456")
 
         time.sleep(1)
-        after_creation = datetime.now(timezone.utc)
+        after_creation = datetime.now(UTC)
 
         decoded = jwt.decode(
             token, jwt_service.secret_key, algorithms=[jwt_service.algorithm]
         )
 
-        exp_time = datetime.fromtimestamp(decoded["exp"], tz=timezone.utc)
-        iat_time = datetime.fromtimestamp(decoded["iat"], tz=timezone.utc)
+        exp_time = datetime.fromtimestamp(decoded["exp"], tz=UTC)
+        iat_time = datetime.fromtimestamp(decoded["iat"], tz=UTC)
 
         assert before_creation <= iat_time <= after_creation
 
@@ -112,7 +112,7 @@ class TestJWTService:
             algorithm="HS256",
         )
 
-        with pytest.raises(AuthenticationException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             jwt_service.verify_token(wrong_token)
 
         assert "invalid token" in str(exc_info.value)
@@ -121,7 +121,7 @@ class TestJWTService:
         """Test verification of expired token."""
 
         # Create expired token
-        past_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        past_time = datetime.now(UTC) - timedelta(hours=1)
         expired_payload = {
             "id": "user-123",
             "client_id": "client-456",
@@ -134,7 +134,7 @@ class TestJWTService:
             expired_payload, jwt_service.secret_key, algorithm=jwt_service.algorithm
         )
 
-        with pytest.raises(AuthenticationException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             jwt_service.verify_token(expired_token)
 
         assert "token has expired" in str(exc_info.value)
@@ -151,7 +151,7 @@ class TestJWTService:
         ]
 
         for malformed_token in malformed_tokens:
-            with pytest.raises(AuthenticationException) as exc_info:
+            with pytest.raises(AuthenticationError) as exc_info:
                 jwt_service.verify_token(malformed_token)
 
             assert "invalid token" in str(exc_info.value)
@@ -163,17 +163,15 @@ class TestJWTService:
         incomplete_payload = {
             "id": "user-123",
             # Missing client_id
-            "exp": int(
-                (datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()
-            ),
-            "iat": int(datetime.now(timezone.utc).timestamp()),
+            "exp": int((datetime.now(UTC) + timedelta(minutes=30)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
         }
 
         incomplete_token = jwt.encode(
             incomplete_payload, jwt_service.secret_key, algorithm=jwt_service.algorithm
         )
 
-        with pytest.raises(AuthenticationException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             jwt_service.verify_token(incomplete_token)
 
         assert "invalid token" in str(exc_info.value)
@@ -209,7 +207,7 @@ class TestJWTService:
     def test_refresh_access_token_invalid(self, jwt_service):
         """Test refresh of invalid token."""
 
-        with pytest.raises(AuthenticationException):
+        with pytest.raises(AuthenticationError):
             jwt_service.refresh_token("invalid-token")
 
     @pytest.mark.parametrize("algorithm", ["HS256", "HS384", "HS512"])

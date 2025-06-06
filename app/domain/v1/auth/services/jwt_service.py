@@ -4,12 +4,12 @@ import jwt
 from kink import di
 
 from app.core.config import Configuration
-from app.core.errors.exceptions import AuthenticationException
+from app.core.errors.errors import AuthenticationError
 from app.domain.v1.auth.schemas import JWTPayload
 
 
 class JWTService:
-    def __init__(self, config: Configuration):
+    def __init__(self, config: Configuration) -> None:
         self.secret_key = config.app_secret_key.get_secret_value()
         self.algorithm = config.jwt_algorithm
         self.access_token_expire_minutes = config.jwt_access_token_expire_minutes
@@ -84,12 +84,12 @@ class JWTService:
             for field in required_fields:
                 if field not in payload:
                     msg = f"invalid token: missing {field}"
-                    raise AuthenticationException(msg)
+                    raise AuthenticationError(msg)
 
             # Validate token type
             if payload.get("type") != "access_token":
                 msg = "invalid token type"
-                raise AuthenticationException(msg)
+                raise AuthenticationError(msg)
 
             return JWTPayload(
                 id=payload["id"],
@@ -101,12 +101,12 @@ class JWTService:
 
         except jwt.ExpiredSignatureError:
             msg = "token has expired"
-            raise AuthenticationException(msg)
+            raise AuthenticationError(msg)
 
         except jwt.InvalidTokenError as e:
             print(e)
             msg = "invalid token"
-            raise AuthenticationException(msg)
+            raise AuthenticationError(msg)
 
     # noinspection PyBroadException,PyMethodMayBeStatic
     def extract_scopes(self, token: str) -> list[str]:

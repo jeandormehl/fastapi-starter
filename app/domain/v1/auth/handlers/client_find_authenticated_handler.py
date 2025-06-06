@@ -15,4 +15,8 @@ class ClientFindAuthenticatedHandler(
         data = request.client.model_dump()
         data["scopes"] = [scope.name for scope in request.client.scopes]
 
-        return ClientFindAuthenticatedResponse(data=ClientOut(**data))
+        return ClientFindAuthenticatedResponse(
+            trace_id=request.trace_id,
+            request_id=request.request_id,
+            data=ClientOut(**data),
+        )

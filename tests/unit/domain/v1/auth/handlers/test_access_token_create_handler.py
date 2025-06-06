@@ -5,7 +5,7 @@ import pytest
 from bcrypt import gensalt, hashpw
 from prisma.models import Client, Scope
 
-from app.core.errors.exceptions import AuthenticationException, DatabaseException
+from app.core.errors.errors import AuthenticationError, DatabaseError
 from app.domain.v1.auth.handlers.access_token_create_handler import (
     AccessTokenCreateHandler,
 )
@@ -114,7 +114,7 @@ class TestAccessTokenCreateHandler:
         mock_database.client.find_unique.return_value = None
 
         # Execute and expect exception
-        with pytest.raises(AuthenticationException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             await handler._handle_internal(access_token_request)
 
         assert "invalid client credentials" in str(exc_info.value)
@@ -132,7 +132,7 @@ class TestAccessTokenCreateHandler:
         mock_database.client.find_unique.return_value = client_with_scopes
 
         # Execute and expect exception
-        with pytest.raises(AuthenticationException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             await handler._handle_internal(access_token_request)
 
         assert "invalid client credentials" in str(exc_info.value)
@@ -150,7 +150,7 @@ class TestAccessTokenCreateHandler:
         mock_database.client.find_unique.return_value = client_with_scopes
 
         # Execute and expect exception
-        with pytest.raises(AuthenticationException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             await handler._handle_internal(access_token_request)
 
         assert "client account is inactive" in str(exc_info.value)
@@ -235,12 +235,10 @@ class TestAccessTokenCreateHandler:
         """Test that database exceptions are properly propagated."""
 
         # Mock database to raise exception
-        mock_database.client.find_unique.side_effect = DatabaseException(
-            "Database error"
-        )
+        mock_database.client.find_unique.side_effect = DatabaseError("Database error")
 
         # Execute and expect exception propagation
-        with pytest.raises(DatabaseException) as exc_info:
+        with pytest.raises(DatabaseError) as exc_info:
             await handler._handle_internal(access_token_request)
 
         assert "Database error" in str(exc_info.value)

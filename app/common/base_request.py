@@ -7,10 +7,7 @@ from pydantic import BaseModel
 from pydantic_settings import SettingsConfigDict
 from pydiator_core.interfaces import BaseRequest as PydiatorBaseRequest
 
-
-class TraceModel(BaseModel):
-    trace_id: str
-    request_id: str
+from app.common.base_schemas import TraceModel
 
 
 class BaseRequest(TraceModel, PydiatorBaseRequest, ABC):

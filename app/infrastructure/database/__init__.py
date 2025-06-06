@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import Any
 
 from bcrypt import gensalt, hashpw
 from kink import di
@@ -11,14 +12,14 @@ from app.domain.v1.auth.scopes import SCOPE_DESCRIPTIONS
 class Database(Prisma): ...
 
 
-async def connect_db():
+async def connect_db() -> None:
     db = di[Database]
 
     if not db.is_connected():
         await db.connect()
 
 
-async def disconnect_db():
+async def disconnect_db() -> None:
     db = di[Database]
 
     if db.is_connected():
@@ -26,7 +27,7 @@ async def disconnect_db():
 
 
 @asynccontextmanager
-async def get_db():
+async def get_db() -> Any:
     db = di[Database]
 
     await connect_db()
@@ -37,7 +38,7 @@ async def get_db():
         await disconnect_db()
 
 
-async def init_db():
+async def init_db() -> None:
     db = di[Database]
     config = di[Configuration]
 

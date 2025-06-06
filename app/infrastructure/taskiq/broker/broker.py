@@ -14,7 +14,7 @@ from app.infrastructure.taskiq.middlewares import (
 class Broker:
     """Broker with comprehensive middleware and monitoring."""
 
-    def __init__(self, config: TaskiqConfiguration):
+    def __init__(self, config: TaskiqConfiguration) -> None:
         self.taskiq_config = config
         self.broker_factory = BrokerFactory(self.taskiq_config)
         self.metrics_collector = None

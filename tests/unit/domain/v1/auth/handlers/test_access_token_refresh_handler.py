@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.core.errors.exceptions import AuthenticationException
+from app.core.errors.errors import AuthenticationError
 from app.domain.v1.auth.handlers.access_token_refresh_handler import (
     AccessTokenRefreshHandler,
 )
@@ -114,10 +114,10 @@ class TestAccessTokenRefreshHandler:
         with patch.object(
             jwt_service,
             "verify_token",
-            side_effect=AuthenticationException("Invalid token"),
+            side_effect=AuthenticationError("Invalid token"),
         ):
             # Execute and expect exception propagation
-            with pytest.raises(AuthenticationException) as exc_info:
+            with pytest.raises(AuthenticationError) as exc_info:
                 await handler._handle_internal(refresh_request)
 
             assert "Invalid token" in str(exc_info.value)
@@ -133,10 +133,10 @@ class TestAccessTokenRefreshHandler:
             with patch.object(
                 jwt_service,
                 "refresh_token",
-                side_effect=AuthenticationException("Refresh failed"),
+                side_effect=AuthenticationError("Refresh failed"),
             ):
                 # Execute and expect exception propagation
-                with pytest.raises(AuthenticationException) as exc_info:
+                with pytest.raises(AuthenticationError) as exc_info:
                     await handler._handle_internal(refresh_request)
 
                 assert "Refresh failed" in str(exc_info.value)

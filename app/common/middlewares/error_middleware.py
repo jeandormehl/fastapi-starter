@@ -16,12 +16,12 @@ class ErrorMiddleware(BaseHTTPMiddleware):
     Middleware for centralized exception handling with comprehensive error logging.
     """
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
         self._logger = get_logger(__name__)
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
         """Process request with comprehensive exception handling."""
 
         try:
@@ -67,7 +67,7 @@ class ErrorMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    def _find_exception_handler(self, exc: Exception):
+    def _find_exception_handler(self, exc: Exception) -> Any:
         """Find appropriate exception handler for the given exception."""
 
         # Find specific handler for exception type

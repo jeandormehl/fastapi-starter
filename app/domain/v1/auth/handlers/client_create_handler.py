@@ -3,7 +3,7 @@ from kink import di
 from prisma.models import Scope
 
 from app.common import BaseHandler
-from app.core.errors.exceptions import DatabaseException, ValidationException
+from app.core.errors.errors import DatabaseError, ValidationError
 from app.domain.v1.auth.requests import ClientCreateRequest
 from app.domain.v1.auth.responses import ClientCreateResponse
 from app.domain.v1.auth.schemas import ClientOut
@@ -11,7 +11,7 @@ from app.infrastructure.database import Database
 
 
 class ClientCreateHandler(BaseHandler[ClientCreateRequest, ClientCreateResponse]):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self.db = di[Database]
@@ -35,12 +35,16 @@ class ClientCreateHandler(BaseHandler[ClientCreateRequest, ClientCreateResponse]
 
         if not client:
             msg = "could not create client"
-            raise DatabaseException(msg, "create", "clients")
+            raise DatabaseError(msg, "create", "clients")
 
         data = client.model_dump()
         data["scopes"] = [scope.name for scope in scopes]
 
-        return ClientCreateResponse(data=ClientOut(**data))
+        return ClientCreateResponse(
+            trace_id=request.trace_id,
+            request_id=request.request_id,
+            data=ClientOut(**data),
+        )
 
     async def _validate_scopes(self, scopes: list[str] | None = None) -> list[Scope]:
         existing_scopes = []
@@ -57,6 +61,6 @@ class ClientCreateHandler(BaseHandler[ClientCreateRequest, ClientCreateResponse]
 
             if missing_scopes:
                 msg = "unknown scopes"
-                raise ValidationException(msg, details={"scopes": list(missing_scopes)})
+                raise ValidationError(msg, details={"scopes": list(missing_scopes)})
 
         return existing_scopes

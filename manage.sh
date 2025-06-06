@@ -29,6 +29,7 @@ function usage() {
   echo "  ${YELLOW}clean${RESET}         Remove Python/build/test caches and logs"
   echo "  ${YELLOW}lint${RESET}          Lint the codebase using Ruff"
   echo "  ${YELLOW}format${RESET}        Format Python code and Prisma schema"
+  echo "  ${YELLOW}sec${RESET}           Check application for security vulnerabilities"
   echo "  ${YELLOW}test${RESET}          Run all tests without coverage"
   echo "  ${YELLOW}test-cov${RESET}      Run all tests with coverage"
   echo "  ${YELLOW}db-generate${RESET}   Generate Prisma client (schema: ${SCHEMA_PATH})"
@@ -142,6 +143,11 @@ case "$CMD" in
     ;;
   format)
     format_code
+    ;;
+  sec)
+    echo "${BOLD}${BLUE}Checking application security with Bandit...${RESET}"
+    bandit -r app
+    echo "${GREEN}Security check complete.${RESET}"
     ;;
   test)
     echo "${BOLD}${BLUE}Running all tests (no coverage)...${RESET}"

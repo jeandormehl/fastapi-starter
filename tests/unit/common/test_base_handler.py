@@ -6,11 +6,11 @@ from fastapi.requests import Request
 from app.common.base_handler import BaseHandler
 from app.common.base_request import BaseRequest
 from app.common.base_response import BaseResponse
-from app.core.errors.exceptions import (
-    AppException,
-    AuthenticationException,
+from app.core.errors.errors import (
+    AppError,
+    AuthenticationError,
     ErrorCode,
-    ValidationException,
+    ValidationError,
 )
 
 
@@ -19,8 +19,8 @@ class TestRequest(BaseRequest):
 
     __test__ = False
 
-    trace_id: str = "12345"
-    request_id: str = "12345"
+    trace_id: str = "trace-12345"
+    request_id: str = "request-12345"
     req: Request = Mock(spec=Request)
 
     test_data: str = "test"
@@ -31,6 +31,8 @@ class TestResponse(BaseResponse):
 
     __test__ = False
 
+    trace_id: str = "trace-12345"
+    request_id: str = "request-12345"
     result: str = "success"
 
 
@@ -78,7 +80,7 @@ class TestAppExceptionHandler(BaseHandler[TestRequest, TestResponse]):
         """Implementation that raises an AppException."""
 
         msg = "Test validation error"
-        raise ValidationException(msg)
+        raise ValidationError(msg)
 
 
 class TestBaseHandler:
@@ -152,7 +154,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(ValidationException) as exc_info:
+            with pytest.raises(ValidationError) as exc_info:
                 await app_exception_handler.handle(test_request)
 
             # Verify exception details are properly set
@@ -174,7 +176,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(AppException) as exc_info:
+            with pytest.raises(AppError) as exc_info:
                 await failing_handler.handle(test_request)
 
             # Verify exception conversion
@@ -233,7 +235,7 @@ class TestBaseHandler:
 
         class CustomHandler(BaseHandler[TestRequest, TestResponse]):
             async def _handle_internal(self, request: TestRequest) -> TestResponse:  # noqa: ARG002
-                exc = AuthenticationException("Auth failed")
+                exc = AuthenticationError("Auth failed")
                 exc.trace_id = "existing-trace"
                 exc.request_id = "existing-request"
 
@@ -246,7 +248,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(AuthenticationException) as exc_info:
+            with pytest.raises(AuthenticationError) as exc_info:
                 await handler.handle(test_request)
 
             # Verify existing trace info is preserved
@@ -263,7 +265,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(AppException) as exc_info:
+            with pytest.raises(AppError) as exc_info:
                 await failing_handler.handle(test_request)
 
             exception = exc_info.value
@@ -364,7 +366,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(AppException):
+            with pytest.raises(AppError):
                 await handler.handle(test_request)
 
             # Verify traceback context was logged

@@ -7,7 +7,7 @@ from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 
 from app.common.middlewares import register_request_middlewares
-from app.core.errors.exceptions import ValidationException
+from app.core.errors.errors import ValidationError
 
 
 class TestMiddlewareIntegration:
@@ -30,7 +30,7 @@ class TestMiddlewareIntegration:
 
         @app.get("/app-error")
         async def app_error_endpoint():
-            raise ValidationException(message="Validation failed")
+            raise ValidationError(message="Validation failed")
 
         # Register middlewares
         register_request_middlewares(test_config, app)

@@ -31,7 +31,7 @@ class TaskInfo:
 class TaskManager:
     """Task management and monitoring."""
 
-    def __init__(self, broker: AsyncBroker):
+    def __init__(self, broker: AsyncBroker) -> None:
         self.broker = broker
         self.logger = get_logger(__name__)
         self.task_registry: dict[str, TaskInfo] = {}
@@ -58,11 +58,11 @@ class TaskManager:
     async def submit_task(
         self,
         task_name: str,
-        *args,
+        *args: Any,
         priority: TaskPriority = TaskPriority.NORMAL,
         delay: int | None = None,
         eta: datetime | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Submit task with management tracking."""
 

@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 from taskiq import InMemoryBroker
 
-from app.core.errors.exceptions import AppException, ErrorCode
+from app.core.errors.errors import AppError, ErrorCode
 from app.infrastructure.taskiq.broker.broker_factory import BrokerFactory
 
 
@@ -99,9 +99,9 @@ class TestBrokerFactory:
             patch.object(
                 factory,
                 "_create_base_broker",
-                side_effect=AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Test error"),
+                side_effect=AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Test error"),
             ),
-            pytest.raises(AppException, match="Test error"),
+            pytest.raises(AppError, match="Test error"),
         ):
             factory.create_broker()
 
@@ -128,10 +128,10 @@ class TestBrokerFactory:
             patch.object(
                 factory,
                 "_create_base_broker",
-                side_effect=AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Test error"),
+                side_effect=AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Test error"),
             ),
         ):
-            with pytest.raises(AppException):
+            with pytest.raises(AppError):
                 factory.create_broker()
 
             mock_error.assert_called_once_with("failed to create broker: Test error")

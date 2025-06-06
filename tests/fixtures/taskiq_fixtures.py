@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -17,7 +17,7 @@ from app.infrastructure.taskiq.schemas import (
 def mock_timezone():
     """Mock timezone for consistent testing."""
 
-    return timezone.utc
+    return UTC
 
 
 @pytest.fixture
@@ -125,7 +125,7 @@ def sample_execution_metrics():
     return TaskExecutionMetrics(
         task_id="test-task-123",
         task_name="test_task",
-        start_time=datetime.now(timezone.utc),
+        start_time=datetime.now(UTC),
         status=TaskStatus.RUNNING,
     )
 

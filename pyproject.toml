@@ -29,6 +29,7 @@ websockets = "^15.0.1"
 
 [tool.poetry.group.dev.dependencies]
 autoflake = "^2.3.1"
+bandit = "^1.8.3"
 bumpver = "^2024.1130"
 celery-stubs = "^0.1.3"
 coverage = {extras = ["toml"], version = "^7.8.1"}
@@ -61,11 +62,12 @@ exclude = [
   "venv"
 ]
 line-length = 88
-target-version = "py310"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
   "A",     # Built-in exceptions
+  "ANN",   # flake8-annotations (type annotation checks)
   "ARG",   # Unused arguments
   "ASYNC", # Async
   "B",     # Bugbear
@@ -76,6 +78,7 @@ select = [
   "F",     # Pyflakes
   "I",     # Import order
   "ICN",   # Import conventions
+  "N",     # pep8-naming (naming conventions)
   "PGH",   # PEP 8 naming
   "PL",    # Pylint
   "PT",    # Pytest style
@@ -84,8 +87,10 @@ select = [
   "SIM",   # Simplifications
   "TCH",   # Type checking
   "UP",    # Pyupgrade
+  "W",     # Pycodestyle (warnings, e.g., whitespace)
 ]
 ignore = [
+  "ANN401", # Any
   "B008",   # Depends for FastAPI
   "B904",   # Allow raising without from
   "PLR2004",# Magic value comparison
@@ -94,7 +99,24 @@ ignore = [
 unfixable = ["B904", "DTZ005"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["ANN", "S101"]
+
+[tool.bandit]
+targets = [
+  "app/",       # Assuming your FastAPI application code is in an 'app' directory
+  "main.py",    # If your main FastAPI app is in a single file
+]
+exclude_dirs = [
+  ".venv/",
+  "venv/",
+  "tests/",    # Usually, you don't need to security scan your test code
+  "__pycache__/",
+  "docs/",
+  "node_modules/",
+  "migrations/", # If not using alembic but have a migrations folder
+]
+confidence_level = "MEDIUM"
+severity_level = "MEDIUM"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

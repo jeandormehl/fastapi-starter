@@ -5,10 +5,10 @@ import pytest
 from fastapi.security import HTTPAuthorizationCredentials, SecurityScopes
 from prisma.models import Client, Scope
 
-from app.core.errors.exceptions import (
-    AppException,
-    AuthenticationException,
-    AuthorizationException,
+from app.core.errors.errors import (
+    AppError,
+    AuthenticationError,
+    AuthorizationError,
     ErrorCode,
 )
 from app.domain.v1.auth.dependencies import (
@@ -100,9 +100,9 @@ class TestAuthenticationDependency:
         with patch.object(  # noqa: SIM117
             jwt_service,
             "verify_token",
-            side_effect=AuthenticationException("Invalid token"),
+            side_effect=AuthenticationError("Invalid token"),
         ):
-            with pytest.raises(AuthenticationException):
+            with pytest.raises(AuthenticationError):
                 await auth_dependency(mock_security_scopes, mock_credentials)
 
     @pytest.mark.asyncio
@@ -128,7 +128,7 @@ class TestAuthenticationDependency:
         )
 
         with patch.object(jwt_service, "verify_token", return_value=jwt_payload):
-            with pytest.raises(AuthorizationException) as exc_info:
+            with pytest.raises(AuthorizationError) as exc_info:
                 await auth_dependency(security_scopes, mock_credentials)
 
             assert "insufficient permissions" in str(exc_info.value)
@@ -150,7 +150,7 @@ class TestAuthenticationDependency:
             # Mock database to return None
             mock_database.client.find_unique.return_value = None
 
-            with pytest.raises(AuthenticationException) as exc_info:
+            with pytest.raises(AuthenticationError) as exc_info:
                 await auth_dependency(mock_security_scopes, mock_credentials)
 
             assert "client not found" in str(exc_info.value)
@@ -171,7 +171,7 @@ class TestAuthenticationDependency:
         with patch.object(jwt_service, "verify_token", return_value=mock_jwt_payload):
             mock_database.client.find_unique.return_value = test_client_inactive
 
-            with pytest.raises(AuthenticationException) as exc_info:
+            with pytest.raises(AuthenticationError) as exc_info:
                 await auth_dependency(mock_security_scopes, mock_credentials)
 
             assert "client account is inactive" in str(exc_info.value)
@@ -192,7 +192,7 @@ class TestAuthenticationDependency:
             # Mock database to raise an exception
             mock_database.client.find_unique.side_effect = Exception("Database error")
 
-            with pytest.raises(AppException) as exc_info:
+            with pytest.raises(AppError) as exc_info:
                 await auth_dependency(mock_security_scopes, mock_credentials)
 
             assert exc_info.value.error_code == ErrorCode.AUTHENTICATION_ERROR
@@ -315,7 +315,7 @@ class TestRequireScopes:
 
         security_scopes = SecurityScopes(scopes=["admin"])
 
-        with pytest.raises(AuthorizationException) as exc_info:
+        with pytest.raises(AuthorizationError) as exc_info:
             await require_admin_only(client_with_read_only, security_scopes)
 
         assert "not enough permissions" in str(exc_info.value)
@@ -339,7 +339,7 @@ class TestRequireScopes:
 
         security_scopes = SecurityScopes(scopes=["read", "write"])
 
-        with pytest.raises(AuthorizationException) as exc_info:
+        with pytest.raises(AuthorizationError) as exc_info:
             await require_read_write(client_no_scopes, security_scopes)
 
         required_permissions = exc_info.value.details.get("required_permissions", [])
@@ -354,7 +354,7 @@ class TestRequireScopes:
 
         security_scopes = SecurityScopes(scopes=["read", "write"])
 
-        with pytest.raises(AuthorizationException) as exc_info:
+        with pytest.raises(AuthorizationError) as exc_info:
             await require_read_write(client_with_read_only, security_scopes)
 
         required_permissions = exc_info.value.details.get("required_permissions", [])
@@ -445,7 +445,7 @@ class TestPredefinedScopeDependencies:
 
         security_scopes = SecurityScopes(scopes=[])
 
-        with pytest.raises(AuthorizationException):
+        with pytest.raises(AuthorizationError):
             await require_write_scope(client_with_read_scope, security_scopes)
 
     @pytest.mark.asyncio
@@ -454,7 +454,7 @@ class TestPredefinedScopeDependencies:
 
         security_scopes = SecurityScopes(scopes=[])
 
-        with pytest.raises(AuthorizationException):
+        with pytest.raises(AuthorizationError):
             await require_admin_scope(client_with_write_scope, security_scopes)
 
     @pytest.mark.asyncio

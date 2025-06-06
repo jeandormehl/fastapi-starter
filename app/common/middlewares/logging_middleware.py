@@ -14,12 +14,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     Middleware for comprehensive request/response logging with performance metrics.
     """
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
         self._logger = get_logger(__name__)
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
         """Process request with comprehensive logging."""
 
         start_time = time.time()

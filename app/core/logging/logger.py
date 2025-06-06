@@ -12,7 +12,7 @@ from app.core.config import Configuration
 class LoggerConfig:
     """Configuration for logging system."""
 
-    def __init__(self, config: Configuration):
+    def __init__(self, config: Configuration) -> None:
         self.config = config
 
         self.log_level = config.log_level
@@ -43,13 +43,13 @@ class LoggerConfig:
 class LoggerManager:
     """Centralized logger management with consistent formatting."""
 
-    def __init__(self, config: Configuration):
+    def __init__(self, config: Configuration) -> None:
         self.config = LoggerConfig(config)
         self._initialized = False
 
         self._setup_logger()
 
-    def _setup_logger(self):
+    def _setup_logger(self) -> None:
         """Setup loguru logger with consistent configuration."""
 
         if self._initialized:
@@ -110,11 +110,11 @@ class LoggerManager:
 class ContextualLogger:
     """Enhanced logger with consistent error formatting and context management."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
         self.context: dict[str, Any] = {}
 
-    def bind(self, **kwargs) -> "ContextualLogger":
+    def bind(self, **kwargs: Any) -> "ContextualLogger":
         """Create new logger instance with additional context."""
 
         new_logger = ContextualLogger(self.name)
@@ -122,7 +122,7 @@ class ContextualLogger:
 
         return new_logger
 
-    def _log(self, level: str, message: str, **kwargs):
+    def _log(self, level: str, message: str, **kwargs: Any) -> None:
         """Internal logging method with consistent formatting."""
 
         extra = {
@@ -135,27 +135,27 @@ class ContextualLogger:
         bound_logger = logger.bind(**extra)
         getattr(bound_logger, level.lower())(message)
 
-    def debug(self, message: str, **kwargs):
+    def debug(self, message: str, **kwargs: Any) -> None:
         """Log debug message."""
 
         self._log("DEBUG", message, **kwargs)
 
-    def info(self, message: str, **kwargs):
+    def info(self, message: str, **kwargs: Any) -> None:
         """Log info message."""
 
         self._log("INFO", message, **kwargs)
 
-    def warning(self, message: str, **kwargs):
+    def warning(self, message: str, **kwargs: Any) -> None:
         """Log warning message."""
 
         self._log("WARNING", message, **kwargs)
 
-    def error(self, message: str, **kwargs):
+    def error(self, message: str, **kwargs: Any) -> None:
         """Log error message with enhanced context."""
 
         self._log("ERROR", message, **kwargs)
 
-    def critical(self, message: str, **kwargs):
+    def critical(self, message: str, **kwargs: Any) -> None:
         """Log critical message."""
 
         self._log("CRITICAL", message, **kwargs)
@@ -165,8 +165,8 @@ class ContextualLogger:
         exc: Exception,
         message: str = "exception occurred",
         include_traceback: bool = True,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log exception with standardized format."""
 
         import traceback
@@ -188,8 +188,8 @@ class ContextualLogger:
         url: str,
         status_code: int | None = None,
         duration_ms: float | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log API request with standardized format."""
 
         request_data = {"request_method": method, "request_url": url, **kwargs}
@@ -210,7 +210,7 @@ class ContextualLogger:
 _logger_manager: LoggerManager | None = None
 
 
-def initialize_logging(config: Configuration):
+def initialize_logging(config: Configuration) -> None:
     """Initialize the global logging system."""
 
     global _logger_manager  # noqa: PLW0603

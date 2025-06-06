@@ -22,7 +22,7 @@ class LoggingMiddleware(TaskiqMiddleware):
         self,
         config: TaskiqConfiguration,
         metrics_collector: TaskiqMetricsCollector | None = None,
-    ):
+    ) -> None:
         super().__init__()
 
         self.config = config
@@ -103,7 +103,7 @@ class LoggingMiddleware(TaskiqMiddleware):
         return f"{os.getpid()}@{os.uname().nodename}"
 
     @contextmanager
-    def _performance_tracking(self, task_id: str):
+    def _performance_tracking(self, task_id: str) -> Any:
         """Context manager for performance tracking."""
 
         start_time = time.perf_counter()

@@ -10,7 +10,7 @@ from app.infrastructure.taskiq.schemas import BrokerType
 class BrokerFactory:
     """Broker factory."""
 
-    def __init__(self, config: TaskiqConfiguration):
+    def __init__(self, config: TaskiqConfiguration) -> None:
         self.config = config
         self.logger = get_logger(__name__)
 

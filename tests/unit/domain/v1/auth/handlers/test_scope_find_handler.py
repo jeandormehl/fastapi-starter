@@ -1,7 +1,7 @@
 import pytest
 from prisma.models import Scope
 
-from app.core.errors.exceptions import DatabaseException
+from app.core.errors.errors import DatabaseError
 from app.domain.v1.auth.handlers.scope_find_handler import ScopeFindHandler
 from app.domain.v1.auth.requests import ScopeFindRequest
 
@@ -99,12 +99,12 @@ class TestScopeFindHandler:
         """Test exception handling during database query."""
 
         # Mock database exception
-        mock_database.scope.find_many.side_effect = DatabaseException(
+        mock_database.scope.find_many.side_effect = DatabaseError(
             "Database connection error"
         )
 
         # Execute and expect exception propagation
-        with pytest.raises(DatabaseException) as exc_info:
+        with pytest.raises(DatabaseError) as exc_info:
             await handler._handle_internal(scope_find_request)
 
         assert "Database connection error" in str(exc_info.value)

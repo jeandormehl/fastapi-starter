@@ -1,14 +1,13 @@
 from abc import ABC
-from typing import TypeVar
 
 from pydantic import BaseModel
 from pydantic_settings import SettingsConfigDict
 from pydiator_core.interfaces import BaseResponse as PydiatorBaseResponse
 
-T = TypeVar("T", bound=BaseModel)
+from app.common.base_schemas import TraceModel
 
 
-class BaseResponse(BaseModel, PydiatorBaseResponse, ABC):
+class BaseResponse(TraceModel, PydiatorBaseResponse, ABC):
     """Enhanced base response class for all domain responses."""
 
     model_config = SettingsConfigDict(arbitrary_types_allowed=True)

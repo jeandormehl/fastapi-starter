@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 from prisma.models import Client, Scope
@@ -28,8 +28,8 @@ def create_test_client(
         hashed_secret="$2b$12$Brj6p08XnWd1IZotcue9GubHhOxUuaG8KGvRgSyWHI5fGJL8JiBM.",
         is_active=is_active,
         scopes=scope_objects,
-        created_at=kwargs.get("created_at", datetime.now(timezone.utc)),
-        updated_at=kwargs.get("updated_at", datetime.now(timezone.utc)),
+        created_at=kwargs.get("created_at", datetime.now(UTC)),
+        updated_at=kwargs.get("updated_at", datetime.now(UTC)),
     )
 
 
@@ -41,7 +41,7 @@ def create_jwt_payload(
     if scopes is None:
         scopes = ["read", "write"]
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     return JWTPayload(
         id=kwargs.get("id", f"{client_id}-id"),

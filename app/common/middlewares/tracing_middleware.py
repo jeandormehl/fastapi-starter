@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -9,10 +10,10 @@ from starlette.types import ASGIApp
 class TracingMiddleware(BaseHTTPMiddleware):
     """Middleware for request tracing and correlation ID management."""
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
         """Process request with tracing context setup."""
 
         # Generate or extract trace and request IDs

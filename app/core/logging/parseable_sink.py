@@ -15,7 +15,7 @@ from app.core.config import Configuration
 class ParseableSink:
     """Parseable sink with improved reliability and error handling."""
 
-    def __init__(self, config: Configuration):
+    def __init__(self, config: Configuration) -> None:
         self.config = config
 
         self.base_url = config.parseable_url
@@ -46,14 +46,14 @@ class ParseableSink:
         signal.signal(signal.SIGINT, self._signal_handler)
 
     # noinspection PyUnusedLocal
-    def _signal_handler(self, signum, frame):  # noqa: ARG002
+    def _signal_handler(self, _signum: Any, _frame: Any) -> None:
         """Handle shutdown signals gracefully."""
         self.cleanup()
 
-    def _start_background_processing(self):
+    def _start_background_processing(self) -> None:
         """Start background thread for async processing."""
 
-        def run_loop():
+        def run_loop() -> None:
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
             self._loop.run_until_complete(self._background_processor())
@@ -61,7 +61,7 @@ class ParseableSink:
         thread = Thread(target=run_loop, daemon=True)
         thread.start()
 
-    async def _background_processor(self):
+    async def _background_processor(self) -> None:
         """Background coroutine for processing log batches."""
 
         self._client = httpx.AsyncClient(
@@ -76,7 +76,7 @@ class ParseableSink:
         finally:
             await self._client.aclose()
 
-    def log(self, message):
+    def log(self, message: Any) -> None:
         """Log message to Parseable (called by loguru)."""
 
         try:
@@ -163,7 +163,7 @@ class ParseableSink:
                 file=sys.stderr,
             )
 
-    async def _flush_buffer(self):
+    async def _flush_buffer(self) -> None:
         """Flush buffered logs to Parseable."""
 
         if not self._buffer:
@@ -196,7 +196,7 @@ class ParseableSink:
                 print(f"batch size: {len(batch)}", file=sys.stderr)
                 break
 
-    async def _send_batch(self, batch: list[dict[str, Any]]):
+    async def _send_batch(self, batch: list[dict[str, Any]]) -> None:
         """Send a batch of logs to Parseable."""
         if not self._client:
             msg = "http client not initialized"
@@ -230,7 +230,7 @@ class ParseableSink:
             print(f"parseable_sink: Request error: {e}", file=sys.stderr)
             raise
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup resources and flush remaining logs."""
 
         self._running = False
