@@ -14,7 +14,7 @@ tm = di[TaskManager]
 
 
 @tm.broker.task(
-    "request_log:cleanup_enhanced",
+    "request_log:cleanup",
     priority=TaskPriority.LOW,
     max_retries=2,
     schedule=[

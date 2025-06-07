@@ -108,7 +108,7 @@ class LoggerManager:
 
 
 class ContextualLogger:
-    """Enhanced logger with consistent error formatting and context management."""
+    """Logger with consistent error formatting and context management."""
 
     def __init__(self, name: str) -> None:
         self.name = name
@@ -151,7 +151,7 @@ class ContextualLogger:
         self._log("WARNING", message, **kwargs)
 
     def error(self, message: str, **kwargs: Any) -> None:
-        """Log error message with enhanced context."""
+        """Log error message with context."""
 
         self._log("ERROR", message, **kwargs)
 

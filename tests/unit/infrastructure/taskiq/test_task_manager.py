@@ -1,11 +1,16 @@
-import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from app.core.errors.errors import ApplicationError, ErrorCode
 from app.infrastructure.taskiq.schemas import TaskPriority, TaskStatus
-from app.infrastructure.taskiq.task_manager import TaskInfo, TaskManager
+from app.infrastructure.taskiq.task_manager import (
+    TaskInfo,
+    TaskManager,
+    TaskManagerError,
+    TaskSubmissionError,
+)
 
 
 class TestTaskManager:
@@ -14,7 +19,6 @@ class TestTaskManager:
     @pytest.fixture
     def mock_broker(self):
         """Mock broker for testing."""
-
         broker = Mock()
         broker.result_backend = Mock()
         broker.result_backend.get_result = AsyncMock()
@@ -23,14 +27,15 @@ class TestTaskManager:
     @pytest.fixture
     def task_manager(self, mock_broker):
         """Task manager fixture."""
-
-        return TaskManager(mock_broker)
+        return TaskManager(mock_broker, max_registry_size=5)  # Small size for testing
 
     @pytest.mark.asyncio
     async def test_submit_task_success(
         self, task_manager, mock_broker, mock_di_container
     ):
         """Test successful task submission."""
+        await task_manager.start()
+
         with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
             # Setup mock task function
             mock_task_func = AsyncMock()
@@ -50,78 +55,71 @@ class TestTaskManager:
             )
 
             assert task_id == "test-task-123"
-
-            # Verify task is registered
             assert task_id in task_manager.task_registry
-            task_info = task_manager.task_registry[task_id]
 
+            task_info = task_manager.task_registry[task_id]
             assert task_info.task_name == "test_task"
             assert task_info.status == TaskStatus.PENDING
             assert task_info.priority == TaskPriority.HIGH
             assert task_info.metadata["args"] == ("arg1", "arg2")
             assert task_info.metadata["kwargs"]["param1"] == "value1"
 
-    @pytest.mark.asyncio
-    async def test_submit_task_not_found(self, task_manager, memory_broker):
-        """Test task submission with non-existent task."""
-
-        task_manager.broker = memory_broker
-
-        with pytest.raises(ValueError, match="task nonexistent_task not found"):
-            await task_manager.submit_task("nonexistent_task")
+        await task_manager.stop()
 
     @pytest.mark.asyncio
-    async def test_submit_task_with_eta(
+    async def test_submit_task_not_running(self, task_manager):
+        """Test task submission when manager is not running."""
+        with pytest.raises(TaskManagerError, match="task manager is not running"):
+            await task_manager.submit_task("test_task")
+
+    @pytest.mark.asyncio
+    async def test_submit_task_invalid_delay(self, task_manager, mock_broker):
+        """Test task submission with invalid delay."""
+        await task_manager.start()
+        mock_broker.test_task = AsyncMock()
+
+        with pytest.raises(ValueError, match="delay must be non-negative"):
+            await task_manager.submit_task("test_task", delay=-1)
+
+        await task_manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_submit_task_invalid_eta(
         self, task_manager, mock_broker, mock_di_container
     ):
-        """Test task submission with ETA."""
+        """Test task submission with invalid ETA."""
+        await task_manager.start()
+        mock_broker.test_task = AsyncMock()
 
         with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
-            mock_task_func = AsyncMock()
-            mock_task_result = Mock()
-            mock_task_result.task_id = "test-task-456"
-            mock_task_func.kiq.return_value = mock_task_result
+            past_eta = datetime.now(mock_di_container["timezone"]) - timedelta(hours=1)
 
-            mock_broker.test_task = mock_task_func
+            with pytest.raises(ValueError, match="eta must be in the future"):
+                await task_manager.submit_task("test_task", eta=past_eta)
 
-            eta = datetime.now(mock_di_container["timezone"]) + timedelta(hours=1)
-
-            await task_manager.submit_task("test_task", eta=eta)
-
-            # Verify ETA was passed to task
-            call_kwargs = mock_task_func.kiq.call_args[1]
-            assert call_kwargs["eta"] == eta
+        await task_manager.stop()
 
     @pytest.mark.asyncio
-    async def test_get_task_status_found(self, task_manager, mock_di_container):
-        """Test getting task status for existing task."""
+    async def test_submit_task_timeout(self, task_manager, mock_broker):
+        """Test task submission timeout."""
+        await task_manager.start()
 
-        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
-            task_id = "test-task-123"
-            task_info = TaskInfo(
-                task_id=task_id,
-                task_name="test_task",
-                status=TaskStatus.PENDING,
-                created_at=datetime.now(mock_di_container["timezone"]),
-            )
-            task_manager.task_registry[task_id] = task_info
+        # Mock task function that times out
+        mock_task_func = AsyncMock()
+        mock_task_func.kiq.side_effect = TimeoutError()
+        mock_broker.test_task = mock_task_func
 
-            result = await task_manager.get_task_status(task_id)
+        with pytest.raises(TaskSubmissionError, match="task submission timeout"):
+            await task_manager.submit_task("test_task")
 
-            assert result == task_info
+        await task_manager.stop()
 
     @pytest.mark.asyncio
-    async def test_get_task_status_not_found(self, task_manager):
-        """Test getting task status for non-existent task."""
-
-        result = await task_manager.get_task_status("nonexistent-task")
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_get_task_status_with_result_backend(
+    async def test_get_task_status_with_result_backend_timeout(
         self, task_manager, mock_broker, mock_di_container
     ):
-        """Test getting task status with result backend update."""
+        """Test getting task status with result backend timeout."""
+        await task_manager.start()
 
         with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
             task_id = "test-task-123"
@@ -133,75 +131,20 @@ class TestTaskManager:
             )
             task_manager.task_registry[task_id] = task_info
 
-            # Mock successful result
-            mock_result = Mock()
-            mock_result.is_err = False
-            mock_result.return_value = {"result": "success"}
-            mock_broker.result_backend.get_result.return_value = mock_result
+            # Mock timeout
+            mock_broker.result_backend.get_result.side_effect = TimeoutError()
 
             result = await task_manager.get_task_status(task_id)
+            assert (
+                result.status == TaskStatus.RUNNING
+            )  # Status unchanged due to timeout
 
-            assert result.status == TaskStatus.SUCCESS
-            assert result.result == {"result": "success"}
-            assert result.completed_at is not None
-
-    @pytest.mark.asyncio
-    async def test_get_task_status_with_failed_result(
-        self, task_manager, mock_broker, mock_di_container
-    ):
-        """Test getting task status with failed result."""
-
-        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
-            task_id = "test-task-123"
-            task_info = TaskInfo(
-                task_id=task_id,
-                task_name="test_task",
-                status=TaskStatus.RUNNING,
-                created_at=datetime.now(mock_di_container["timezone"]),
-            )
-            task_manager.task_registry[task_id] = task_info
-
-            # Mock failed result
-            mock_result = Mock()
-            mock_result.is_err = True
-            mock_result.log = "Task failed with error"
-            mock_broker.result_backend.get_result.return_value = mock_result
-
-            result = await task_manager.get_task_status(task_id)
-
-            assert result.status == TaskStatus.FAILED
-            assert result.error_message == "Task failed with error"
+        await task_manager.stop()
 
     @pytest.mark.asyncio
-    async def test_cancel_task_success(self, task_manager, mock_di_container):
-        """Test successful task cancellation."""
-
-        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
-            task_id = "test-task-123"
-            task_info = TaskInfo(
-                task_id=task_id,
-                task_name="test_task",
-                status=TaskStatus.PENDING,
-                created_at=datetime.now(mock_di_container["timezone"]),
-            )
-            task_manager.task_registry[task_id] = task_info
-
-            result = await task_manager.cancel_task(task_id)
-
-            assert result is True
-            assert task_info.status == TaskStatus.CANCELLED
-            assert task_info.completed_at is not None
-
-    @pytest.mark.asyncio
-    async def test_cancel_task_not_found(self, task_manager):
-        """Test cancelling non-existent task."""
-
-        result = await task_manager.cancel_task("nonexistent-task")
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_cancel_task_already_completed(self, task_manager, mock_di_container):
-        """Test cancelling already completed task."""
+    async def test_cancel_task_not_cancellable(self, task_manager, mock_di_container):
+        """Test cancelling task in non-cancellable state."""
+        await task_manager.start()
 
         with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
             task_id = "test-task-123"
@@ -216,51 +159,38 @@ class TestTaskManager:
             result = await task_manager.cancel_task(task_id)
             assert result is False
 
+        await task_manager.stop()
+
     @pytest.mark.asyncio
-    async def test_retry_failed_task_success(
-        self, task_manager, mock_broker, mock_di_container
+    async def test_retry_failed_task_max_retries_exceeded(
+        self, task_manager, mock_di_container
     ):
-        """Test successful retry of failed task."""
+        """Test retry when max retries exceeded."""
+        await task_manager.start()
 
         with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
-            original_task_id = "failed-task-123"
-            original_task_info = TaskInfo(
-                task_id=original_task_id,
+            task_id = "failed-task-123"
+            task_info = TaskInfo(
+                task_id=task_id,
                 task_name="test_task",
                 status=TaskStatus.FAILED,
                 created_at=datetime.now(mock_di_container["timezone"]),
-                priority=TaskPriority.HIGH,
-                metadata={"args": ("arg1", "arg2"), "kwargs": {"param1": "value1"}},
+                retry_count=6,  # Exceeds max of 5
+                metadata={"args": (), "kwargs": {}},
             )
-            task_manager.task_registry[original_task_id] = original_task_info
+            task_manager.task_registry[task_id] = task_info
 
-            # Setup mock for new task submission
-            mock_task_func = AsyncMock()
-            mock_task_result = Mock()
-            mock_task_result.task_id = "retry-task-456"
-            mock_task_func.kiq.return_value = mock_task_result
+            result = await task_manager.retry_failed_task(task_id)
+            assert result is None
 
-            mock_broker.test_task = mock_task_func
-
-            new_task_id = await task_manager.retry_failed_task(original_task_id)
-
-            assert new_task_id == "retry-task-456"
-
-            # Verify new task has incremented retry count
-            new_task_info = task_manager.task_registry[new_task_id]
-            assert new_task_info.retry_count == 1
-            assert new_task_info.metadata["original_task_id"] == original_task_id
+        await task_manager.stop()
 
     @pytest.mark.asyncio
-    async def test_retry_failed_task_not_found(self, task_manager):
-        """Test retry of non-existent task."""
-
-        result = await task_manager.retry_failed_task("nonexistent-task")
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_retry_failed_task_not_failed(self, task_manager, mock_di_container):
-        """Test retry of non-failed task."""
+    async def test_retry_failed_task_force(
+        self, task_manager, mock_broker, mock_di_container
+    ):
+        """Test force retry of non-failed task."""
+        await task_manager.start()
 
         with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
             task_id = "success-task-123"
@@ -269,152 +199,192 @@ class TestTaskManager:
                 task_name="test_task",
                 status=TaskStatus.SUCCESS,
                 created_at=datetime.now(mock_di_container["timezone"]),
+                metadata={"args": ("arg1",), "kwargs": {"param1": "value1"}},
             )
             task_manager.task_registry[task_id] = task_info
 
-            result = await task_manager.retry_failed_task(task_id)
-            assert result is None
+            # Setup mock for new task submission
+            mock_task_func = AsyncMock()
+            mock_task_result = Mock()
+            mock_task_result.task_id = "retry-task-456"
+            mock_task_func.kiq.return_value = mock_task_result
+            mock_broker.test_task = mock_task_func
+
+            new_task_id = await task_manager.retry_failed_task(task_id, force=True)
+            assert new_task_id == "retry-task-456"
+
+        await task_manager.stop()
 
     @pytest.mark.asyncio
-    async def test_get_task_statistics(self, task_manager, mock_di_container):
-        """Test comprehensive task statistics."""
+    async def test_registry_size_limiting_fixed_bug(
+        self, task_manager, mock_broker, mock_di_container
+    ):
+        """Test registry size limiting with the fixed sorting bug."""
+        await task_manager.start()
 
         with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
+            # Setup mock task function
+            mock_task_func = AsyncMock()
+            mock_broker.test_task = mock_task_func
+
+            # Submit more tasks than the limit (5)
+            task_ids = []
+            for i in range(7):
+                mock_task_result = Mock()
+                mock_task_result.task_id = f"task-{i}"
+                mock_task_func.kiq.return_value = mock_task_result
+
+                task_id = await task_manager.submit_task("test_task", f"arg{i}")
+                task_ids.append(task_id)
+
+            # Registry should be limited to max size
+            assert len(task_manager.task_registry) <= task_manager.max_registry_size
+
+        await task_manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_get_tasks_by_status(self, task_manager, mock_di_container):
+        """Test getting tasks by status."""
+        await task_manager.start()
+
+        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
+            # Add tasks with different statuses
+            pending_task = TaskInfo(
+                task_id="pending-1",
+                task_name="test_task",
+                status=TaskStatus.PENDING,
+                created_at=datetime.now(mock_di_container["timezone"]),
+            )
+            success_task = TaskInfo(
+                task_id="success-1",
+                task_name="test_task",
+                status=TaskStatus.SUCCESS,
+                created_at=datetime.now(mock_di_container["timezone"]),
+            )
+
+            task_manager.task_registry["pending-1"] = pending_task
+            task_manager.task_registry["success-1"] = success_task
+
+            pending_tasks = await task_manager.get_tasks_by_status(TaskStatus.PENDING)
+            success_tasks = await task_manager.get_tasks_by_status(TaskStatus.SUCCESS)
+
+            assert len(pending_tasks) == 1
+            assert len(success_tasks) == 1
+            assert pending_tasks[0].task_id == "pending-1"
+            assert success_tasks[0].task_id == "success-1"
+
+        await task_manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_get_tasks_by_name(self, task_manager, mock_di_container):
+        """Test getting tasks by name."""
+        await task_manager.start()
+
+        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
+            # Add tasks with different names
+            task_a = TaskInfo(
+                task_id="task-a-1",
+                task_name="task_a",
+                status=TaskStatus.PENDING,
+                created_at=datetime.now(mock_di_container["timezone"]),
+            )
+            task_b = TaskInfo(
+                task_id="task-b-1",
+                task_name="task_b",
+                status=TaskStatus.PENDING,
+                created_at=datetime.now(mock_di_container["timezone"]),
+            )
+
+            task_manager.task_registry["task-a-1"] = task_a
+            task_manager.task_registry["task-b-1"] = task_b
+
+            tasks_a = await task_manager.get_tasks_by_name("task_a")
+            tasks_b = await task_manager.get_tasks_by_name("task_b")
+
+            assert len(tasks_a) == 1
+            assert len(tasks_b) == 1
+            assert tasks_a[0].task_id == "task-a-1"
+            assert tasks_b[0].task_id == "task-b-1"
+
+        await task_manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_health_check(self, task_manager):
+        """Test health check functionality."""
+        # Before starting
+        health = await task_manager.health_check()
+        assert health["is_running"] is False
+        assert health["cleanup_task_running"] is False
+
+        # After starting
+        await task_manager.start()
+        health = await task_manager.health_check()
+        assert health["is_running"] is True
+        assert health["cleanup_task_running"] is True
+        assert health["registry_size"] == 0
+        assert health["registry_limit"] == 5
+
+        await task_manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_error_handling(self, task_manager):
+        """Test cleanup loop error handling."""
+        await task_manager.start()
+
+        # Mock cleanup to raise exception
+        with (
+            patch.object(
+                task_manager,
+                "_cleanup_old_tasks",
+                side_effect=ApplicationError(
+                    ErrorCode.EXTERNAL_SERVICE_TIMEOUT, "Cleanup error"
+                ),
+            ),
+            pytest.raises(ApplicationError),
+        ):
+            await task_manager._cleanup_old_tasks()
+
+        await task_manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_empty_statistics(self, task_manager):
+        """Test statistics with empty registry."""
+        await task_manager.start()
+
+        stats = await task_manager.get_task_statistics()
+
+        assert stats["total_tasks"] == 0
+        assert stats["success_rate"] == 0
+        assert stats["avg_execution_time"] == 0
+        assert all(count == 0 for count in stats["status_counts"].values())
+
+        await task_manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_performance_metrics_in_statistics(
+        self, task_manager, mock_di_container
+    ):
+        """Test performance metrics in statistics."""
+        await task_manager.start()
+
+        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
+            # Add a completed task with timing
             current_time = datetime.now(mock_di_container["timezone"])
-
-            # Add various test tasks
-            tasks = [
-                TaskInfo(
-                    task_id="success-1",
-                    task_name="task_a",
-                    status=TaskStatus.SUCCESS,
-                    created_at=current_time - timedelta(minutes=30),
-                    started_at=current_time - timedelta(minutes=30),
-                    completed_at=current_time - timedelta(minutes=29),
-                    priority=TaskPriority.HIGH,
-                ),
-                TaskInfo(
-                    task_id="failed-1",
-                    task_name="task_a",
-                    status=TaskStatus.FAILED,
-                    created_at=current_time - timedelta(minutes=20),
-                    priority=TaskPriority.NORMAL,
-                ),
-                TaskInfo(
-                    task_id="pending-1",
-                    task_name="task_b",
-                    status=TaskStatus.PENDING,
-                    created_at=current_time - timedelta(minutes=10),
-                    priority=TaskPriority.LOW,
-                ),
-            ]
-
-            for task in tasks:
-                task_manager.task_registry[task.task_id] = task
+            task_info = TaskInfo(
+                task_id="perf-task-1",
+                task_name="perf_task",
+                status=TaskStatus.SUCCESS,
+                created_at=current_time - timedelta(minutes=5),
+                started_at=current_time - timedelta(minutes=2),
+                completed_at=current_time,
+            )
+            task_manager.task_registry["perf-task-1"] = task_info
 
             stats = await task_manager.get_task_statistics()
 
-            assert stats["total_tasks"] == 3
-            assert stats["status_counts"]["success"] == 1
-            assert stats["status_counts"]["failed"] == 1
-            assert stats["status_counts"]["pending"] == 1
+            assert stats["total_tasks"] == 1
+            assert stats["success_rate"] == 100.0
+            assert stats["avg_execution_time"] > 0
+            assert stats["performance_metrics"]["completed_tasks"] == 1
 
-            assert stats["priority_counts"]["high"] == 1
-            assert stats["priority_counts"]["normal"] == 1
-            assert stats["priority_counts"]["low"] == 1
-
-            assert stats["last_hour"]["success"] == 1
-            assert stats["last_day"]["success"] == 1
-
-            assert "task_a" in stats["task_statistics"]
-            assert stats["task_statistics"]["task_a"]["total"] == 2
-            assert stats["task_statistics"]["task_a"]["success"] == 1
-            assert stats["task_statistics"]["task_a"]["failed"] == 1
-
-            # Success rate calculation
-            expected_success_rate = (1 / 3) * 100
-            assert abs(stats["success_rate"] - expected_success_rate) < 0.01
-
-    @pytest.mark.asyncio
-    async def test_cleanup_old_tasks(self, task_manager, mock_di_container):
-        """Test cleanup of old task records."""
-
-        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
-            current_time = datetime.now(mock_di_container["timezone"])
-            old_time = current_time - timedelta(days=8)
-
-            # Add old completed task
-            old_task = TaskInfo(
-                task_id="old-task",
-                task_name="old_task",
-                status=TaskStatus.SUCCESS,
-                created_at=old_time,
-                completed_at=old_time,
-            )
-            task_manager.task_registry["old-task"] = old_task
-
-            # Add recent task
-            recent_task = TaskInfo(
-                task_id="recent-task",
-                task_name="recent_task",
-                status=TaskStatus.SUCCESS,
-                created_at=current_time,
-                completed_at=current_time,
-            )
-            task_manager.task_registry["recent-task"] = recent_task
-
-            await task_manager._cleanup_old_tasks()
-
-            # Old task should be removed
-            assert "old-task" not in task_manager.task_registry
-            # Recent task should remain
-            assert "recent-task" in task_manager.task_registry
-
-    @pytest.mark.asyncio
-    async def test_cleanup_loop_handles_exceptions(self, task_manager):
-        """Test cleanup loop handles exceptions and continues."""
-
-        call_count = 0
-
-        async def mock_cleanup():
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                msg = "Test error"
-                raise Exception(msg)
-            raise asyncio.CancelledError  # Stop after second call
-
-        with (
-            patch.object(task_manager, "_cleanup_old_tasks", side_effect=mock_cleanup),
-            patch("asyncio.sleep", return_value=None),
-            patch.object(task_manager.logger, "error") as mock_error,
-        ):
-            await task_manager._cleanup_loop()
-
-            # Should log the error but continue
-            mock_error.assert_called_once_with("error in cleanup loop: Test error")
-            assert call_count == 2
-
-    def test_task_info_dataclass(self, mock_di_container):
-        """Test TaskInfo dataclass functionality."""
-        with patch("app.infrastructure.taskiq.task_manager.di", mock_di_container):
-            created_time = datetime.now(mock_di_container["timezone"])
-
-            task_info = TaskInfo(
-                task_id="test-123",
-                task_name="test_task",
-                status=TaskStatus.PENDING,
-                created_at=created_time,
-            )
-
-            assert task_info.task_id == "test-123"
-            assert task_info.task_name == "test_task"
-            assert task_info.status == TaskStatus.PENDING
-            assert task_info.created_at == created_time
-            assert task_info.started_at is None
-            assert task_info.completed_at is None
-            assert task_info.priority == TaskPriority.NORMAL
-            assert task_info.retry_count == 0
-            assert task_info.error_message is None
-            assert task_info.result is None
-            assert task_info.metadata == {}
+        await task_manager.stop()

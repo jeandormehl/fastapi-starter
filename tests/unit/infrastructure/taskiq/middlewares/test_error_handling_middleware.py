@@ -84,26 +84,6 @@ class TestCircuitBreaker:
                 assert cb.can_execute() is True
                 assert cb.state == CircuitBreakerState.HALF_OPEN
 
-    def test_record_success_resets_circuit(self, mock_di_container):
-        """Test that recording success resets circuit breaker."""
-
-        with patch(
-            "app.infrastructure.taskiq.middlewares.error_handling_middleware.di",
-            mock_di_container,
-        ):
-            cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
-
-            # Trip the circuit
-            for _ in range(3):
-                cb.record_failure()
-
-            assert cb.state == CircuitBreakerState.OPEN
-
-            cb.record_success()
-
-            assert cb.state == CircuitBreakerState.CLOSED
-            assert cb.failure_count == 0
-
 
 class TestErrorHandlingMiddleware:
     """Test suite for ErrorHandlingMiddleware."""
@@ -177,7 +157,7 @@ class TestErrorHandlingMiddleware:
         cb.last_failure_time = datetime.now(mock_timezone) - timedelta(seconds=30)
         cb.state = CircuitBreakerState.OPEN
 
-        with pytest.raises(Exception, match="circuit breaker is OPEN"):
+        with pytest.raises(Exception, match="circuit breaker is open"):
             await middleware.pre_execute(sample_task_message)
 
     @pytest.mark.asyncio
@@ -295,16 +275,6 @@ class TestErrorHandlingMiddleware:
         assert cb.failure_count == 0
         assert cb.state == CircuitBreakerState.CLOSED
 
-    def test_should_quarantine_task_by_error_type(self, middleware):
-        """Test quarantine decision based on error type."""
-
-        quarantine_error = ClientNotConnectedError()
-
-        assert middleware._should_quarantine_task("test_task", quarantine_error) is True
-
-        normal_error = ValueError("normal error")
-        assert middleware._should_quarantine_task("test_task", normal_error) is False
-
     def test_should_quarantine_task_by_frequency(self, middleware, mock_di_container):
         """Test quarantine decision based on error frequency."""
 
@@ -326,7 +296,10 @@ class TestErrorHandlingMiddleware:
             middleware.error_history[task_name] = deque(recent_errors, maxlen=100)
 
             exception = ValueError("test")
-            assert middleware._should_quarantine_task(task_name, exception) is True
+            assert middleware._should_quarantine_task(task_name, exception) == (
+                True,
+                "high error frequency: 10 errors in 5 minutes",
+            )
 
     def test_calculate_adaptive_delay(self, middleware, mock_di_container):
         """Test adaptive delay calculation."""

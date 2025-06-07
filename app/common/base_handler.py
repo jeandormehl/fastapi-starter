@@ -14,7 +14,7 @@ TResponse = TypeVar("TResponse", bound=BaseResponse)
 
 
 class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
-    """Base handler class with enhanced error handling and logging support."""
+    """Base handler class with error handling and logging support."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -69,7 +69,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
             raise
 
         except Exception as exc:
-            # Enhanced exception logging with full context
+            # Exception logging with full context
             tb = traceback.extract_tb(exc.__traceback__)
 
             exception_context = {
@@ -99,7 +99,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
                 f"handler raised unexpected exception: {exc}", exc_info=exc
             )
 
-            # Convert to application exception with enhanced details
+            # Convert to application exception with details
             # noinspection PyUnboundLocalVariable
             raise ApplicationError(
                 error_code=ErrorCode.INTERNAL_SERVER_ERROR,

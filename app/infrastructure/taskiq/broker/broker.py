@@ -25,7 +25,7 @@ class Broker:
         # Create base broker
         broker = self.broker_factory.create_broker()
 
-        # Add enhanced middlewares
+        # Add middlewares
         middlewares = [
             # Logging middleware (first to capture everything)
             LoggingMiddleware(
@@ -54,7 +54,7 @@ class Broker:
 
 
 def get_broker(config: TaskiqConfiguration) -> AsyncBroker:
-    """Create enhanced broker instance."""
+    """Create broker instance."""
 
     broker = Broker(config)
     return broker.create_broker()

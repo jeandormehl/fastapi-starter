@@ -18,9 +18,9 @@ def create_error_response(
     status_code: int,
     request: Request | None = None,
 ) -> JSONResponse:
-    """Create a standardized error response with enhanced logging."""
+    """Create a standardized error response with logging."""
 
-    # Enhanced error logging with more context
+    # error logging with more context
     log_context = {
         "trace_id": error_detail.trace_id,
         "request_id": error_detail.request_id,
@@ -76,7 +76,7 @@ async def app_exception_handler(
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    """Handle FastAPI HTTP exceptions with enhanced detail."""
+    """Handle FastAPI HTTP exceptions with detail."""
 
     # Map HTTP status codes to error codes
     error_code_map = {
@@ -178,7 +178,7 @@ async def python_exception_handler(request: Request, exc: Exception) -> JSONResp
     exc_type_name = type(exc).__name__
     exc_message = str(exc)
 
-    # Enhanced exception logging
+    # exception logging
     exception_context = {
         "trace_id": getattr(request.state, "trace_id", "unknown"),
         "request_id": getattr(request.state, "request_id", "unknown"),

@@ -10,7 +10,7 @@ from app.common.base_schemas import TraceModel
 
 
 class BaseRequest(TraceModel, PydiatorBaseRequest, ABC):
-    """Base request class for all domain requests with enhanced tracing."""
+    """Base request class for all domain requests with tracing."""
 
     model_config = SettingsConfigDict(arbitrary_types_allowed=True)
 

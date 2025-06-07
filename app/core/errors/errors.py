@@ -116,16 +116,16 @@ class ValidationError(ApplicationError):
         trace_id: str | None = None,
         request_id: str | None = None,
     ) -> None:
-        enhanced_details = details or {}
+        details = details or {}
         if field_errors:
-            enhanced_details["field_errors"] = field_errors
-            enhanced_details["total_fields_with_errors"] = len(field_errors)
+            details["field_errors"] = field_errors
+            details["total_fields_with_errors"] = len(field_errors)
 
         super().__init__(
             error_code=ErrorCode.VALIDATION_ERROR,
             message=message,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            details=enhanced_details,
+            details=details,
             trace_id=trace_id,
             request_id=request_id,
         )
@@ -264,17 +264,17 @@ class BusinessRuleError(ApplicationError):
         trace_id: str | None = None,
         request_id: str | None = None,
     ) -> None:
-        enhanced_details = details or {}
+        details = details or {}
         if rule_name:
-            enhanced_details["violated_rule"] = rule_name
+            details["violated_rule"] = rule_name
         if rule_details:
-            enhanced_details["rule_details"] = rule_details
+            details["rule_details"] = rule_details
 
         super().__init__(
             error_code=ErrorCode.BUSINESS_RULE_VIOLATION,
             message=message,
             status_code=status.HTTP_400_BAD_REQUEST,
-            details=enhanced_details,
+            details=details,
             trace_id=trace_id,
             request_id=request_id,
         )

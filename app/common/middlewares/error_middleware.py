@@ -16,7 +16,7 @@ from app.core.logging import get_logger
 class ErrorMiddleware(BaseHTTPMiddleware):
     """
     Middleware for centralized exception handling with comprehensive error logging.
-    Enhanced with defensive programming and better error context management.
+    Defensive programming and better error context management.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -144,7 +144,7 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         trace_id: str,
         request_id: str,
     ) -> dict[str, Any]:
-        """Create comprehensive error context for logging with enhanced safety."""
+        """Create comprehensive error context for logging with safety."""
 
         error_context = {
             "trace_id": trace_id,

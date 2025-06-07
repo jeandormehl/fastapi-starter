@@ -49,7 +49,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         self._active_requests = set()
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
-        """Process request with enhanced logging capabilities."""
+        """Process request with logging capabilities."""
 
         # Quick skip check to avoid unnecessary processing
         if not self._should_process_request(request):
@@ -61,7 +61,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         self._active_requests.add(request)
 
         try:
-            # Process request with enhanced error handling
+            # Process request with error handling
             response = await self._process_request_with_logging(
                 request, call_next, request_context
             )
@@ -121,7 +121,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
     async def _initialize_request_context(self, request: Request) -> dict[str, Any]:
-        """Initialize request context with enhanced error handling."""
+        """Initialize request context with error handling."""
 
         return {
             "trace_id": getattr(request.state, "trace_id", "unknown"),
@@ -572,7 +572,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         if path in _endpoints:
             return False
 
-        # Check excluded paths with enhanced pattern matching
+        # Check excluded paths with pattern matching
         for excluded_path in self.config.request_logging_excluded_paths:
             if path.startswith(excluded_path):
                 return False
@@ -585,7 +585,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return len(self._active_requests) < 100
 
     def _should_capture_body(self, request: Request) -> bool:
-        """Determine if request body should be captured with enhanced checks."""
+        """Determine if request body should be captured with checks."""
 
         # Only capture body for methods that typically have bodies
         if request.method.upper() not in {"POST", "PUT", "PATCH"}:
@@ -634,7 +634,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return not any(content_type.startswith(skip_type) for skip_type in skip_types)
 
     async def _submit_logging_task(self, log_data: dict[str, Any]) -> None:
-        """Submit logging task with enhanced error handling and retry logic."""
+        """Submit logging task with error handling and retry logic."""
 
         try:
             # Add metadata
