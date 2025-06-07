@@ -14,25 +14,29 @@ from app.core.config import Configuration
 from app.core.constants import STATIC_PATH
 from app.core.errors.exception_handlers import EXCEPTION_HANDLERS
 from app.infrastructure.database import disconnect_db, init_db
+from app.infrastructure.taskiq.task_manager import TaskManager
 
 
 # noinspection PyUnusedLocal
 @asynccontextmanager
 @inject
 async def lifespan(
-    app: FastAPI,  # noqa: ARG001
+    _app: FastAPI, task_manager: TaskManager
 ) -> AsyncGenerator[None, NoReturn]:
     """Application lifespan manager."""
 
     # Startup
     await init_db()
+    await task_manager.start()
 
     yield
 
-    # Shutdown
     # noinspection PyBroadException
+    # Shutdown
     try:
+        await task_manager.stop()
         await disconnect_db()
+
     except Exception:
         contextlib.suppress(Exception)
 

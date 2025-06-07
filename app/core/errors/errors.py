@@ -57,7 +57,7 @@ class ErrorDetail(BaseModel):
     details: dict[str, Any] = {}
 
 
-class AppError(Exception):
+class ApplicationError(Exception):
     """Base application exception with standardized error handling."""
 
     def __init__(
@@ -105,7 +105,7 @@ class AppError(Exception):
 
 
 # Specific exception classes for common scenarios
-class ValidationError(AppError):
+class ValidationError(ApplicationError):
     """Exception for validation errors."""
 
     def __init__(
@@ -131,7 +131,7 @@ class ValidationError(AppError):
         )
 
 
-class ResourceNotFoundError(AppError):
+class ResourceNotFoundError(ApplicationError):
     """Exception for resource not found errors."""
 
     def __init__(
@@ -164,7 +164,7 @@ class ResourceNotFoundError(AppError):
         )
 
 
-class ResourceConflictError(AppError):
+class ResourceConflictError(ApplicationError):
     """Exception for resource conflict errors."""
 
     def __init__(
@@ -198,7 +198,7 @@ class ResourceConflictError(AppError):
         )
 
 
-class AuthenticationError(AppError):
+class AuthenticationError(ApplicationError):
     """Exception for authentication errors."""
 
     def __init__(
@@ -222,7 +222,7 @@ class AuthenticationError(AppError):
         )
 
 
-class AuthorizationError(AppError):
+class AuthorizationError(ApplicationError):
     """Exception for authorization errors."""
 
     def __init__(
@@ -252,7 +252,7 @@ class AuthorizationError(AppError):
         )
 
 
-class BusinessRuleError(AppError):
+class BusinessRuleError(ApplicationError):
     """Exception for business rule violations."""
 
     def __init__(
@@ -280,7 +280,7 @@ class BusinessRuleError(AppError):
         )
 
 
-class ExternalServiceError(AppError):
+class ExternalServiceError(ApplicationError):
     """Exception for external service errors."""
 
     def __init__(
@@ -317,7 +317,7 @@ class ExternalServiceError(AppError):
         )
 
 
-class DatabaseError(AppError):
+class DatabaseError(ApplicationError):
     """Exception for database-related errors."""
 
     def __init__(

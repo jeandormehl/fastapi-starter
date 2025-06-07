@@ -7,7 +7,7 @@ from app.common.base_handler import BaseHandler
 from app.common.base_request import BaseRequest
 from app.common.base_response import BaseResponse
 from app.core.errors.errors import (
-    AppError,
+    ApplicationError,
     AuthenticationError,
     ErrorCode,
     ValidationError,
@@ -176,7 +176,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(AppError) as exc_info:
+            with pytest.raises(ApplicationError) as exc_info:
                 await failing_handler.handle(test_request)
 
             # Verify exception conversion
@@ -265,7 +265,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(AppError) as exc_info:
+            with pytest.raises(ApplicationError) as exc_info:
                 await failing_handler.handle(test_request)
 
             exception = exc_info.value
@@ -366,7 +366,7 @@ class TestBaseHandler:
             mock_get_logger.return_value = mock_logger
             mock_logger.bind.return_value = mock_logger
 
-            with pytest.raises(AppError):
+            with pytest.raises(ApplicationError):
                 await handler.handle(test_request)
 
             # Verify traceback context was logged

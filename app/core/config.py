@@ -72,6 +72,34 @@ class Configuration(BaseSettings):
         60, description="JWT access token expiry minutes"
     )
 
+    # Request logging settings
+    request_logging_enabled: bool = Field(
+        True, description="Enable request/response logging to database"
+    )
+    request_logging_log_headers: bool = Field(
+        False, description="Log request/response headers"
+    )
+    request_logging_log_body: bool = Field(
+        True, description="Log request/response bodies"
+    )
+    request_logging_max_body_size: int = Field(
+        10000, description="Maximum body size to log (bytes)"
+    )
+    request_logging_excluded_paths: list[str] = Field(
+        default_factory=lambda: ["/health", "/metrics", "/static"],
+        description="Paths to exclude from request logging",
+    )
+    request_logging_excluded_methods: list[str] = Field(
+        default_factory=lambda: [],
+        description="HTTP methods to exclude from request logging",
+    )
+    request_logging_retention_days: int = Field(
+        30, description="Days to retain request logs before cleanup"
+    )
+    request_logging_cleanup_interval_hours: int = Field(
+        24, description="Hours between cleanup task runs"
+    )
+
     @property
     def app_debug(self) -> bool:
         return self.app_environment in ["test", "local", "sandbox"]

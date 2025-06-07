@@ -1,7 +1,7 @@
 from fastapi import status
 
 from app.core.errors.errors import (
-    AppError,
+    ApplicationError,
     AuthenticationError,
     AuthorizationError,
     BusinessRuleError,
@@ -67,7 +67,7 @@ class TestAppException:
     def test_app_exception_creation(self):
         """Test basic exception creation."""
 
-        exc = AppError(
+        exc = ApplicationError(
             error_code=ErrorCode.INTERNAL_SERVER_ERROR,
             message="Test error",
             trace_id="test-trace",
@@ -85,7 +85,7 @@ class TestAppException:
         """Test exception with underlying cause."""
 
         cause = ValueError("Original error")
-        exc = AppError(
+        exc = ApplicationError(
             error_code=ErrorCode.VALIDATION_ERROR,
             message="Validation failed",
             cause=cause,
@@ -98,7 +98,7 @@ class TestAppException:
     def test_to_error_detail(self):
         """Test conversion to error detail."""
 
-        exc = AppError(
+        exc = ApplicationError(
             error_code=ErrorCode.AUTHENTICATION_ERROR,
             message="Auth failed",
             trace_id="trace-123",

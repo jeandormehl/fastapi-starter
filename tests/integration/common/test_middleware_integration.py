@@ -1,17 +1,40 @@
 import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import FastAPI
+from kink import di
 from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 
 from app.common.middlewares import register_request_middlewares
 from app.core.errors.errors import ValidationError
+from app.infrastructure.taskiq.task_manager import TaskManager
 
 
 class TestMiddlewareIntegration:
     """Integration tests for middleware stack."""
+
+    @pytest.fixture
+    def mock_broker(self):
+        """Mock broker for testing."""
+
+        broker = Mock()
+        broker.result_backend = Mock()
+        broker.result_backend.get_result = AsyncMock()
+        return broker
+
+    @pytest.fixture
+    def task_manager(self, mock_broker):
+        """Task manager fixture."""
+
+        return TaskManager(mock_broker)
+
+    @pytest.fixture(autouse=True)
+    def mock_di_container(self, task_manager):
+        """Mock dependency injection container."""
+
+        di[TaskManager] = task_manager
 
     @pytest.fixture
     def test_app(self, test_config):

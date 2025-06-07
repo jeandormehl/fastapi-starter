@@ -17,6 +17,7 @@ from app.domain.v1.request_handler_map import RequestHandlerMap
 from app.infrastructure.database import Database
 from app.infrastructure.taskiq.broker.broker import get_broker
 from app.infrastructure.taskiq.config import TaskiqConfiguration
+from app.infrastructure.taskiq.task_manager import TaskManager
 
 T = TypeVar("T")
 
@@ -66,6 +67,7 @@ class Container:
 
         # taskiq
         di[AsyncBroker] = get_broker(di[TaskiqConfiguration])
+        di[TaskManager] = TaskManager(di[AsyncBroker])
 
     def _wire_services(self) -> None:
         di[JWTService] = JWTService(di[Configuration])

@@ -7,7 +7,7 @@ from kink import di
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.core.constants import QUARANTINE_ERRORS
-from app.core.errors.errors import AppError, ErrorCode
+from app.core.errors.errors import ApplicationError, ErrorCode
 from app.core.logging import get_logger
 from app.infrastructure.taskiq.config import TaskiqConfiguration
 
@@ -223,7 +223,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             )
 
         # Add AppException details
-        if isinstance(exception, AppError):
+        if isinstance(exception, ApplicationError):
             context.update(
                 {
                     "app_error_code": exception.error_code.value,
@@ -328,7 +328,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         # Log error with enhanced context
         log_level = (
             "warning"
-            if isinstance(exception, AppError)
+            if isinstance(exception, ApplicationError)
             and exception.error_code
             in {ErrorCode.VALIDATION_ERROR, ErrorCode.RESOURCE_NOT_FOUND}
             else "error"

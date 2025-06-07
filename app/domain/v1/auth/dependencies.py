@@ -1,12 +1,13 @@
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends
+from fastapi.requests import Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, SecurityScopes
 from kink import di
 from prisma.models import Client
 
 from app.core.errors.errors import (
-    AppError,
+    ApplicationError,
     AuthenticationError,
     AuthorizationError,
     ErrorCode,
@@ -23,6 +24,7 @@ security = HTTPBearer()
 class AuthenticationDependency:
     async def __call__(
         self,
+        request: Request,
         security_scopes: SecurityScopes,
         credentials: HTTPAuthorizationCredentials = Depends(security),
     ) -> Client:
@@ -59,15 +61,16 @@ class AuthenticationDependency:
                 msg = "client account is inactive"
                 raise AuthenticationError(msg)
 
+            request.state.client = client
+
             return client
 
         except AuthenticationError:
             raise
 
         except Exception as e:
-            raise AppError(
-                ErrorCode.AUTHENTICATION_ERROR,
-                "unknown authentication error",
+            raise ApplicationError(
+                ErrorCode.AUTHENTICATION_ERROR, "unknown authentication error", cause=e
             ) from e
 
 

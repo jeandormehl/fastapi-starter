@@ -87,3 +87,38 @@ def sanitize_for_logging(data: dict) -> dict:
             sanitized[key] = value
 
     return sanitized
+
+
+def sanitize_sensitive_headers(headers: dict[str, str]) -> dict[str, str]:
+    """Remove sensitive information from headers."""
+
+    sensitive_headers = {
+        "authorization",
+        "cookie",
+        "x-api-key",
+        "x-auth-token",
+        "x-session-id",
+    }
+
+    sanitized = {}
+    for key, value in headers.items():
+        if key.lower() in sensitive_headers:
+            sanitized[key] = "[REDACTED]"
+
+        else:
+            sanitized[key] = value
+
+    return sanitized
+
+
+def safe_int(value: str | None) -> int | None:
+    """Safely convert string to integer."""
+
+    if value is None:
+        return None
+
+    try:
+        return int(value)
+
+    except (ValueError, TypeError):
+        return None

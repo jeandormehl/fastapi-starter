@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, SecurityScopes
 from prisma.models import Client, Scope
 
 from app.core.errors.errors import (
-    AppError,
+    ApplicationError,
     AuthenticationError,
     AuthorizationError,
     ErrorCode,
@@ -67,6 +67,7 @@ class TestAuthenticationDependency:
         jwt_service,
         mock_jwt_payload,
         test_client_model,
+        mock_request,
     ):
         """Test successful authentication flow."""
 
@@ -77,9 +78,12 @@ class TestAuthenticationDependency:
             mock_database.client.find_unique.return_value = test_client_model
 
             # Execute authentication
-            result = await auth_dependency(mock_security_scopes, mock_credentials)
+            result = await auth_dependency(
+                mock_request, mock_security_scopes, mock_credentials
+            )
 
             # Assertions
+            assert mock_request.state.client == test_client_model
             assert result == test_client_model
             mock_database.client.find_unique.assert_called_once_with(
                 where={"client_id": test_client_model.client_id},
@@ -93,6 +97,7 @@ class TestAuthenticationDependency:
         mock_credentials,
         mock_security_scopes,
         jwt_service,
+        mock_request,
     ):
         """Test authentication with invalid token."""
 
@@ -103,7 +108,9 @@ class TestAuthenticationDependency:
             side_effect=AuthenticationError("Invalid token"),
         ):
             with pytest.raises(AuthenticationError):
-                await auth_dependency(mock_security_scopes, mock_credentials)
+                await auth_dependency(
+                    mock_request, mock_security_scopes, mock_credentials
+                )
 
     @pytest.mark.asyncio
     async def test_authentication_insufficient_scopes(
@@ -112,6 +119,7 @@ class TestAuthenticationDependency:
         mock_credentials,
         jwt_service,
         test_client_model,
+        mock_request,
     ):
         """Test authentication with insufficient scopes."""
 
@@ -129,8 +137,9 @@ class TestAuthenticationDependency:
 
         with patch.object(jwt_service, "verify_token", return_value=jwt_payload):
             with pytest.raises(AuthorizationError) as exc_info:
-                await auth_dependency(security_scopes, mock_credentials)
+                await auth_dependency(mock_request, security_scopes, mock_credentials)
 
+            assert mock_request.state.client != test_client_model
             assert "insufficient permissions" in str(exc_info.value)
             assert exc_info.value.details.get("required_permissions") == ["admin"]
 
@@ -143,6 +152,7 @@ class TestAuthenticationDependency:
         mock_database,
         jwt_service,
         mock_jwt_payload,
+        mock_request,
     ):
         """Test authentication when client is not found in database."""
 
@@ -151,7 +161,9 @@ class TestAuthenticationDependency:
             mock_database.client.find_unique.return_value = None
 
             with pytest.raises(AuthenticationError) as exc_info:
-                await auth_dependency(mock_security_scopes, mock_credentials)
+                await auth_dependency(
+                    mock_request, mock_security_scopes, mock_credentials
+                )
 
             assert "client not found" in str(exc_info.value)
 
@@ -165,6 +177,7 @@ class TestAuthenticationDependency:
         jwt_service,
         mock_jwt_payload,
         test_client_inactive,
+        mock_request,
     ):
         """Test authentication with inactive client."""
 
@@ -172,7 +185,9 @@ class TestAuthenticationDependency:
             mock_database.client.find_unique.return_value = test_client_inactive
 
             with pytest.raises(AuthenticationError) as exc_info:
-                await auth_dependency(mock_security_scopes, mock_credentials)
+                await auth_dependency(
+                    mock_request, mock_security_scopes, mock_credentials
+                )
 
             assert "client account is inactive" in str(exc_info.value)
 
@@ -185,6 +200,7 @@ class TestAuthenticationDependency:
         mock_database,
         jwt_service,
         mock_jwt_payload,
+        mock_request,
     ):
         """Test authentication when database operation fails."""
 
@@ -192,8 +208,10 @@ class TestAuthenticationDependency:
             # Mock database to raise an exception
             mock_database.client.find_unique.side_effect = Exception("Database error")
 
-            with pytest.raises(AppError) as exc_info:
-                await auth_dependency(mock_security_scopes, mock_credentials)
+            with pytest.raises(ApplicationError) as exc_info:
+                await auth_dependency(
+                    mock_request, mock_security_scopes, mock_credentials
+                )
 
             assert exc_info.value.error_code == ErrorCode.AUTHENTICATION_ERROR
             assert "unknown authentication error" in str(exc_info.value)
@@ -207,6 +225,7 @@ class TestAuthenticationDependency:
         jwt_service,
         mock_jwt_payload,
         test_client_model,
+        mock_request,
     ):
         """Test authentication when no specific scopes are required."""
 
@@ -216,8 +235,11 @@ class TestAuthenticationDependency:
         with patch.object(jwt_service, "verify_token", return_value=mock_jwt_payload):
             mock_database.client.find_unique.return_value = test_client_model
 
-            result = await auth_dependency(security_scopes, mock_credentials)
+            result = await auth_dependency(
+                mock_request, security_scopes, mock_credentials
+            )
 
+            assert mock_request.state.client == test_client_model
             assert result == test_client_model
 
 

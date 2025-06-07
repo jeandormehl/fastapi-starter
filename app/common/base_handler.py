@@ -6,7 +6,7 @@ from pydiator_core.interfaces import BaseHandler as PydiatorBaseHandler
 
 from app.common.base_request import BaseRequest
 from app.common.base_response import BaseResponse
-from app.core.errors.errors import AppError, ErrorCode
+from app.core.errors.errors import ApplicationError, ErrorCode
 from app.core.logging import ContextualLogger, get_logger
 
 TRequest = TypeVar("TRequest", bound=BaseRequest)
@@ -51,7 +51,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
 
             return result
 
-        except AppError as exc:
+        except ApplicationError as exc:
             # Ensure trace information is set on app exceptions
             if not exc.trace_id:
                 exc.trace_id = request.trace_id
@@ -101,7 +101,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
 
             # Convert to application exception with enhanced details
             # noinspection PyUnboundLocalVariable
-            raise AppError(
+            raise ApplicationError(
                 error_code=ErrorCode.INTERNAL_SERVER_ERROR,
                 message=f"handler '{self.__class__.__name__}' "
                 f"encountered an unexpected error",

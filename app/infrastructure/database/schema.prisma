@@ -32,3 +32,54 @@ model Scope {
 
   @@map("scopes")
 }
+
+model RequestLog {
+  id         String @id @default(cuid())
+  trace_id   String
+  request_id String @unique
+
+  // Request details
+  method         String
+  url            String
+  path           String
+  query_params   String?
+  headers        Json?
+  body           Json?
+  content_type   String?
+  content_length Int?
+  client_ip      String?
+  user_agent     String?
+
+  // Response details
+  status_code      Int?
+  response_headers Json?
+  response_body    Json?
+  response_size    Int?
+
+  // Timing and metadata
+  start_time  DateTime
+  end_time    DateTime?
+  duration_ms Float?
+
+  // Security and audit
+  authenticated Boolean  @default(false)
+  client_id     String?
+  scopes        String[] @default([])
+
+  // Error information
+  error_occurred Boolean @default(false)
+  error_type     String?
+  error_message  String?
+  error_details  Json?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([trace_id])
+  @@index([request_id])
+  @@index([method, path])
+  @@index([status_code])
+  @@index([start_time])
+  @@index([client_ip])
+  @@map("request_logs")
+}

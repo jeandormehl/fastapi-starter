@@ -6,7 +6,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp
 
 from app.common.middlewares.error_middleware import ErrorMiddleware
-from app.core.errors.errors import AppError, ErrorCode
+from app.core.errors.errors import ApplicationError, ErrorCode
 from app.core.errors.exception_handlers import EXCEPTION_HANDLERS
 
 
@@ -137,7 +137,7 @@ class TestErrorMiddleware:
         mock_request.state.request_id = "test-request-456"
         mock_request.state.start_time = time.time()
 
-        app_exception = AppError(
+        app_exception = ApplicationError(
             error_code=ErrorCode.VALIDATION_ERROR,
             message="Validation failed",
             details={"field": "value"},
@@ -199,7 +199,7 @@ class TestErrorMiddleware:
         """Test finding specific exception handler."""
 
         # Create a test exception that should have a specific handler
-        validation_error = AppError(
+        validation_error = ApplicationError(
             error_code=ErrorCode.VALIDATION_ERROR, message="Test validation error"
         )
 
@@ -316,7 +316,7 @@ class TestErrorMiddleware:
             KeyError("Key error"),
             TypeError("Type error"),
             RuntimeError("Runtime error"),
-            AppError(ErrorCode.INTERNAL_SERVER_ERROR, "App error"),
+            ApplicationError(ErrorCode.INTERNAL_SERVER_ERROR, "App error"),
         ]
 
         for exception in exception_types:
