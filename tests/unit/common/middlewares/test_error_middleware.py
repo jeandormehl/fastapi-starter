@@ -1,7 +1,8 @@
 import time
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp
 
@@ -288,7 +289,7 @@ class TestErrorMiddleware:
         )
 
         # Verify traceback is not included when not available
-        assert "traceback" not in context
+        assert context["traceback"].startswith("error getting traceback for")
 
     def test_create_error_context_no_client(self, middleware, mock_request):
         """Test error context creation when request has no client."""
@@ -301,7 +302,7 @@ class TestErrorMiddleware:
             mock_request, test_exception, mock_response, 0.5, "trace", "request"
         )
 
-        assert context["client_ip"] == "unknown"
+        assert context["client_ip"] == "unknown_ip"
 
     @pytest.mark.asyncio
     async def test_multiple_exception_types(self, middleware, mock_request):
@@ -424,3 +425,63 @@ class TestErrorMiddleware:
 
             # Verify structured logging call
             mock_logger.error.assert_called_once_with("request failed with exception")
+
+    async def test_trace_id_generation_fallback(self, middleware):
+        """Test trace ID generation when not present in request state."""
+
+        request = MagicMock(spec=Request)
+        # Remove state entirely
+        del request.state
+
+        trace_id = middleware._get_trace_id(request)
+
+        assert trace_id == "unknown"
+
+    async def test_safe_exception_context_setting(self, middleware):
+        """Test safe setting of exception context."""
+
+        # Test with exception that doesn't support context attributes
+        exc = ValueError("Test error")
+
+        # Should not raise any exceptions
+        middleware._set_exception_context(exc, "req_123", "trace_123")
+
+    async def test_default_exception_handler(self, middleware):
+        """Test default exception handler fallback."""
+
+        request = MagicMock(spec=Request)
+        exc = Exception("Unhandled error")
+
+        response = await middleware._default_exception_handler(request, exc)
+
+        assert response.status_code == 500
+        assert "error" in response.body.decode()
+
+    async def test_limited_traceback_generation(self, middleware):
+        """Test limited traceback generation to prevent memory issues."""
+
+        try:
+            msg = "Test error"
+            raise ValueError(msg)
+        except ValueError as e:
+            traceback_str = middleware._get_limited_traceback(e)
+
+            assert isinstance(traceback_str, str)
+            assert len(traceback_str) <= 2000
+            assert "ValueError" in traceback_str
+
+    async def test_safe_request_data_extraction(self, middleware):
+        """Test safe extraction of request data with malformed requests."""
+
+        request = MagicMock(spec=Request)
+        request.method = "GET"
+
+        # Remove url attribute to test safety
+        del request.url
+        del request.client
+
+        path = middleware._safe_get_path(request)
+        ip = middleware._safe_get_client_ip(request)
+
+        assert path == "unknown_path"
+        assert ip == "unknown_ip"

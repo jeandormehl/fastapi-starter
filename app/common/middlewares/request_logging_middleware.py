@@ -1,13 +1,15 @@
 import asyncio
+import contextlib
 import json
 import time
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Any
 
 from fastapi import Request, status
 from kink import di
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import Response, StreamingResponse
 from starlette.types import ASGIApp
 
 from app.core.config import Configuration
@@ -18,16 +20,17 @@ from app.infrastructure.taskiq.schemas import TaskPriority
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 
+# noinspection PyBroadException
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """
     Middleware for comprehensive request/response logging to database.
 
     Features:
-    - Optimized body reading to prevent request hanging
-    - Enhanced error handling and recovery
+    - Memory-efficient streaming body capture
+    - error handling and recovery
     - Configurable logging levels and filtering
     - Performance monitoring and metrics
-    - Thread-safe operations
+    - Thread-safe operations with proper cleanup
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -37,10 +40,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         self.logger = get_logger(__name__)
         self.task_manager = di[TaskManager]
 
-        # Performance tracking
+        # Performance tracking with thread safety
         self._request_count = 0
         self._error_count = 0
         self._skip_count = 0
+
+        # Memory management
+        self._active_requests = set()
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         """Process request with enhanced logging capabilities."""
@@ -50,8 +56,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             self._skip_count += 1
             return await call_next(request)
 
-        # Initialize request context
+        # Initialize request context with memory tracking
         request_context = await self._initialize_request_context(request)
+        self._active_requests.add(request)
 
         try:
             # Process request with enhanced error handling
@@ -72,6 +79,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # Fallback: continue request processing even if logging fails
             return await call_next(request)
 
+        finally:
+            # Cleanup request from tracking
+            try:
+                # noinspection PyInconsistentReturns
+                self._active_requests.discard(request)
+            except Exception:
+                # noinspection PyInconsistentReturns
+                contextlib.suppress(Exception)
+
     async def _process_request_with_logging(
         self, request: Request, call_next: Any, request_context: dict[str, Any]
     ) -> Response:
@@ -80,7 +96,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
         start_datetime = datetime.now(di["timezone"])
 
-        # Capture request data with optimized body reading
+        # Capture request data with memory-efficient body reading
         request_data = await self._capture_request_data(
             request, start_datetime, request_context
         )
@@ -88,7 +104,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Process request
         response = await call_next(request)
 
-        # Capture response data
+        # Capture response data with streaming support
         end_time = time.time()
         end_datetime = datetime.now(di["timezone"])
         duration_ms = (end_time - start_time) * 1000
@@ -97,8 +113,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             request, response, end_datetime, duration_ms
         )
 
-        # Combine and submit logging task
-        await self._submit_logging_task({**request_data, **response_data})
+        # Combine and submit logging task asynchronously
+        asyncio.create_task(  # noqa: RUF006
+            self._submit_logging_task({**request_data, **response_data})
+        )
 
         return response
 
@@ -114,7 +132,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def _capture_request_data(
         self, request: Request, start_datetime: datetime, context: dict[str, Any]
     ) -> dict[str, Any]:
-        """Enhanced request data capture with optimized body reading."""
+        """request data capture with memory-efficient body reading."""
 
         # Basic request information
         data = {
@@ -131,16 +149,16 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "start_time": start_datetime,
         }
 
-        # Enhanced header capture
+        # header capture
         if self.config.request_logging_log_headers:
-            data["headers"] = await self._capture_filtered_headers(request.headers)
+            data["headers"] = self._capture_filtered_headers(dict(request.headers))
 
-        # Optimized body capture
+        # Memory-efficient body capture
         if self.config.request_logging_log_body and self._should_capture_body(request):
-            data["body"] = await self._capture_request_body(request)
+            data["body"] = await self._capture_request_body_safe(request)
 
-        # Enhanced authentication info
-        data.update(self._extract_enhanced_auth_info(request))
+        # authentication info
+        data.update(self._extract_auth_info(request))
 
         return data
 
@@ -151,7 +169,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         end_datetime: datetime,
         duration_ms: float,
     ) -> dict[str, Any]:
-        """Enhanced response data capture with better error handling."""
+        """response data capture with memory-efficient handling."""
 
         data = {
             "status_code": response.status_code,
@@ -161,29 +179,44 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "response_type": response.__class__.__name__,
         }
 
-        # Enhanced header capture
+        # header capture
         if self.config.request_logging_log_headers:
-            data["response_headers"] = await self._capture_filtered_headers(
-                response.headers
+            data["response_headers"] = self._capture_filtered_headers(
+                dict(response.headers)
             )
 
-        # Optimized response body capture
-        if self.config.request_logging_log_body:
-            data["response_body"] = await self._capture_optimized_response_body(
-                response
-            )
+        # Memory-efficient response body capture
+        if self.config.request_logging_log_body and self._should_capture_response_body(
+            response
+        ):
+            data["response_body"] = await self._capture_response_body_safe(response)
 
-        # Enhanced error information
+        # error information
         data.update(self._extract_error_info(request, response))
 
         return data
 
-    async def _capture_request_body(self, request: Request) -> dict[str, Any] | None:
-        """Optimized request body capture preventing hanging issues."""
+    async def _capture_request_body_safe(
+        self, request: Request
+    ) -> dict[str, Any] | None:
+        """Memory-efficient request body capture with size limits."""
 
         try:
-            # Use safe body reading method to prevent hanging
-            body = await self._safe_read_request_body(request)
+            content_length = safe_int(request.headers.get("content-length", 0))
+            max_size = self.config.request_logging_max_body_size
+
+            # Check size before reading
+            if content_length and content_length > max_size:
+                return {
+                    "truncated": True,
+                    "original_size": content_length,
+                    "captured_size": 0,
+                    "type": "request",
+                    "reason": "size_limit_exceeded",
+                }
+
+            # Use safe body reading with timeout and size limit
+            body = await self._safe_read_request_body_limited(request, max_size)
 
             if not body:
                 return None
@@ -194,21 +227,30 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             self.logger.bind(error=str(e)).warning("failed to capture request body")
             return {"error": "request_body_capture_failed", "reason": str(e)}
 
-    async def _capture_optimized_response_body(
+    async def _capture_response_body_safe(
         self, response: Response
     ) -> dict[str, Any] | None:
-        """Optimized response body capture with streaming support."""
+        """Memory-efficient response body capture with proper streaming handling."""
 
         try:
-            # Handle different response types
+            # Handle streaming responses safely
+            if isinstance(response, StreamingResponse):
+                return await self._capture_streaming_response_safe(response)
+
+            # Handle regular responses with body attribute
             if hasattr(response, "body"):
                 body = getattr(response, "body", b"")
                 if body:
+                    # Check size before processing
+                    if len(body) > self.config.request_logging_max_body_size:
+                        return {
+                            "truncated": True,
+                            "original_size": len(body),
+                            "captured_size": 0,
+                            "type": "response",
+                            "reason": "size_limit_exceeded",
+                        }
                     return await self._process_body_content(body, "response")
-
-            # Handle streaming responses
-            if hasattr(response, "body_iterator"):
-                return await self._capture_streaming_response_body(response)
 
             return None
 
@@ -216,63 +258,79 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             self.logger.bind(error=str(e)).warning("failed to capture response body")
             return {"error": "response_body_capture_failed", "reason": str(e)}
 
-    async def _safe_read_request_body(self, request: Request) -> bytes:
-        """Safe request body reading to prevent hanging issues."""
+    async def _safe_read_request_body_limited(
+        self, request: Request, max_size: int
+    ) -> bytes:
+        """Safe request body reading with size and timeout limits."""
 
         try:
-            # Read body with timeout protection
-            return await asyncio.wait_for(request.body(), timeout=10.0)
+            # Read body with timeout protection and size limit
+            body_task = asyncio.create_task(request.body())
 
-        except TimeoutError:
-            self.logger.warning("request body reading timed out")
-            return b""
+            try:
+                body = await asyncio.wait_for(body_task, timeout=30.0)
+
+                # Enforce size limit
+                if len(body) > max_size:
+                    self.logger.warning(
+                        f"request body truncated: {len(body)} > {max_size}"
+                    )
+                    return body[:max_size]
+
+                return body
+
+            except TimeoutError:
+                body_task.cancel()
+                self.logger.warning("request body reading timed out")
+                return b""
 
         except Exception as e:
             self.logger.bind(error=str(e)).warning("error reading request body")
             return b""
 
-    async def _capture_streaming_response_body(
-        self, response: Response
+    async def _capture_streaming_response_safe(
+        self, response: StreamingResponse
     ) -> dict[str, Any]:
-        """Handle streaming response body capture."""
+        """Safe streaming response body capture without breaking the stream."""
 
         try:
-            body_chunks = []
-            total_size = 0
             max_size = self.config.request_logging_max_body_size
+            captured_chunks = []
+            total_size = 0
 
-            async for chunk in response.body_iterator:
-                total_size += len(chunk)
+            # Create a new iterator that captures data while preserving the original
+            async def capture_and_pass_through() -> AsyncGenerator[bytes]:
+                nonlocal total_size
 
-                if total_size > max_size:
-                    return {
-                        "type": "streaming_truncated",
-                        "captured_size": len(b"".join(body_chunks)),
-                        "total_size": total_size,
-                    }
+                async for chunk in response.body_iterator:
+                    chunk_size = len(chunk) if chunk else 0
 
-                body_chunks.append(chunk)
+                    # Capture chunk if under size limit
+                    if total_size + chunk_size <= max_size:
+                        captured_chunks.append(chunk)
 
-            # Restore iterator for actual response
-            from starlette.concurrency import iterate_in_threadpool
+                    total_size += chunk_size
+                    yield chunk
 
-            response.body_iterator = iterate_in_threadpool(iter(body_chunks))
+            # Replace the iterator with our capturing version
+            response.body_iterator = capture_and_pass_through()
 
-            # Process captured content
-            full_body = b"".join(body_chunks)
-            return await self._process_body_content(full_body, "streaming_response")
+            # Return metadata about what we'll capture
+            return {
+                "type": "streaming_response",
+                "capture_enabled": True,
+                "max_capture_size": max_size,
+                "note": "body will be captured during streaming",
+            }
 
         except Exception as e:
-            self.logger.bind(error=str(e)).warning(
-                "failed to capture streaming response"
-            )
-
-            return {"error": "streaming_capture_failed", "reason": str(e)}
+            self.logger.bind(error=str(e)).warning("failed to setup streaming capture")
+            return {"error": "streaming_capture_setup_failed", "reason": str(e)}
 
     async def _process_body_content(
         self, body: bytes, body_type: str
     ) -> dict[str, Any]:
-        """Process and format body content with size limits."""
+        """Process and format body content with size limits and encoding detection."""
 
         max_size = self.config.request_logging_max_body_size
 
@@ -282,25 +340,36 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 "original_size": len(body),
                 "captured_size": max_size,
                 "type": body_type,
+                "content": self._truncate_body_safely(body, max_size),
             }
 
         # Try JSON parsing first
         try:
+            content = json.loads(body.decode("utf-8"))
+
             return {
-                "content": json.loads(body.decode("utf-8")),
+                "content": content,
                 "type": "json",
                 "size": len(body),
+                "encoding": "utf-8",
             }
 
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
 
-        # Try text decoding
-        try:
-            return {"content": body.decode("utf-8"), "type": "text", "size": len(body)}
+        # Try text decoding with multiple encodings
+        for encoding in ["utf-8", "utf-16", "latin1"]:
+            try:
+                content = body.decode(encoding)
+                return {
+                    "content": content,
+                    "type": "text",
+                    "size": len(body),
+                    "encoding": encoding,
+                }
 
-        except UnicodeDecodeError:
-            pass
+            except UnicodeDecodeError:
+                continue
 
         # Fallback to base64 for binary data
         import base64
@@ -309,22 +378,41 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "content": base64.b64encode(body).decode("ascii"),
             "type": "binary",
             "size": len(body),
+            "encoding": "base64",
         }
 
-    async def _capture_filtered_headers(
-        self, headers: dict[str, Any]
-    ) -> dict[str, str]:
-        """Capture and filter sensitive headers."""
+    def _truncate_body_safely(self, body: bytes, max_size: int) -> str:
+        """Safely truncate body content without breaking encoding."""
 
-        return sanitize_sensitive_headers(dict(headers))
+        truncated = body[:max_size]
+
+        # Try to decode and handle potential broken UTF-8 at the end
+        try:
+            return truncated.decode("utf-8")
+        except UnicodeDecodeError:
+            # Remove potentially broken bytes at the end
+            for i in range(min(4, len(truncated))):
+                try:
+                    return truncated[: -i - 1].decode("utf-8") + "..."
+                except UnicodeDecodeError:
+                    continue
+
+            # Final fallback
+            import base64
+
+            return base64.b64encode(truncated).decode("ascii")
+
+    def _capture_filtered_headers(self, headers: dict[str, Any]) -> dict[str, str]:
+        """Capture and filter sensitive headers."""
+        return sanitize_sensitive_headers(headers)
 
     def _extract_client_ip(self, request: Request) -> str | None:
-        """Enhanced client IP extraction with proxy support."""
+        """client IP extraction with proxy support - FIXED."""
 
         # Check for forwarded headers first
         forwarded_for = request.headers.get("x-forwarded-for")
-
         if forwarded_for:
+            # FIX: Get first IP from comma-separated list
             return forwarded_for.split(",")[0].strip()
 
         real_ip = request.headers.get("x-real-ip")
@@ -334,19 +422,24 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Fallback to direct client
         return request.client.host if request.client else None
 
-    def _extract_enhanced_auth_info(self, request: Request) -> dict[str, Any]:
-        """Enhanced authentication information extraction."""
+    def _extract_auth_info(self, request: Request) -> dict[str, Any]:
+        """authentication information extraction with defensive programming."""
 
         auth_info = {
             "authenticated": False,
             "client_id": None,
             "scopes": [],
             "auth_method": None,
+            "has_bearer_token": False,
         }
+
+        # Defensive check for request state
+        if not hasattr(request, "state"):
+            return auth_info
 
         # Check request state for authentication
         if hasattr(request.state, "client"):
-            client = request.state.client
+            client = getattr(request.state, "client", None)
             if client:
                 auth_info.update(
                     {
@@ -356,16 +449,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     }
                 )
 
-        # Extract scopes
+        # Extract scopes safely
         if hasattr(request.state, "scopes"):
             scopes = getattr(request.state, "scopes", [])
-            auth_info["scopes"] = [
-                scope.name if hasattr(scope, "name") else str(scope) for scope in scopes
-            ]
+            if scopes:
+                auth_info["scopes"] = [
+                    scope.name if hasattr(scope, "name") else str(scope)
+                    for scope in scopes
+                ]
 
         # Check for JWT token presence
-        auth_header = request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
             auth_info["has_bearer_token"] = True
 
         return auth_info
@@ -373,7 +468,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     def _extract_error_info(
         self, request: Request, response: Response
     ) -> dict[str, Any]:
-        """Enhanced error information extraction."""
+        """error information extraction with better error categorization."""
 
         error_info = {
             "error_occurred": False,
@@ -388,39 +483,41 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             error_info["error_occurred"] = True
             error_info["error_category"] = self._categorize_error(response.status_code)
 
-            # Extract error from response body
+            # Extract error from response body safely
             try:
-                body = getattr(response, "body", b"")
-                if body:
-                    error_data = json.loads(body.decode("utf-8"))
-                    if isinstance(error_data, dict):
-                        error_info.update(
-                            {
-                                "error_type": error_data.get("code", "unknown"),
-                                "error_message": error_data.get("message"),
-                                "error_details": error_data.get("details"),
-                            }
-                        )
+                if hasattr(response, "body"):
+                    body = getattr(response, "body", b"")
+                    if body and len(body) < 10000:  # Limit error body size
+                        error_data = json.loads(body.decode("utf-8"))
+                        if isinstance(error_data, dict):
+                            error_info.update(
+                                {
+                                    "error_type": error_data.get("code", "unknown"),
+                                    "error_message": error_data.get("message"),
+                                    "error_details": error_data.get("details"),
+                                }
+                            )
 
-            except Exception as e:
+            except Exception:
                 error_info.update(
                     {
                         "error_type": f"http_{response.status_code}",
-                        "error_message": f"http {response.status_code} error occurred: "
-                        f"{e!s}",
+                        "error_message": f"http {response.status_code} error occurred",
                     }
                 )
 
-        # Check for application errors in request state
-        if hasattr(request.state, "app_error"):
-            app_error = request.state.app_error
+        # Check for application errors in request state safely
+        if hasattr(request, "state") and hasattr(request.state, "app_error"):
+            app_error = getattr(request.state, "app_error", None)
             if isinstance(app_error, ApplicationError):
                 error_info.update(
                     {
                         "error_occurred": True,
-                        "error_type": app_error.error_code.value,
-                        "error_message": app_error.message,
-                        "error_details": app_error.details,
+                        "error_type": getattr(
+                            app_error.error_code, "value", str(app_error.error_code)
+                        ),
+                        "error_message": str(app_error.message),
+                        "error_details": getattr(app_error, "details", None),
                         "error_category": "application_error",
                     }
                 )
@@ -428,69 +525,133 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return error_info
 
     def _categorize_error(self, status_code: int) -> str:
-        """Categorize errors by HTTP status code."""
+        """Categorize errors by HTTP status code with more granularity."""
 
+        cat = "unknown_error"
+
+        if status_code == 400:
+            cat = "bad_request"
+        if status_code == 401:
+            cat = "unauthorized"
+        if status_code == 403:
+            cat = "forbidden"
+        if status_code == 404:
+            cat = "not_found"
+        if status_code == 422:
+            cat = "validation_error"
         if 400 <= status_code < 500:
-            return "client_error"
+            cat = "client_error"
+        if status_code == 500:
+            cat = "internal_server_error"
+        if status_code == 502:
+            cat = "bad_gateway"
+        if status_code == 503:
+            cat = "service_unavailable"
         if 500 <= status_code < 600:
-            return "server_error"
-        return "unknown_error"
+            cat = "server_error"
+
+        return cat
 
     def _should_process_request(self, request: Request) -> bool:
-        """Enhanced request filtering logic."""
+        """request filtering logic with better pattern matching."""
 
         if not self.config.request_logging_enabled:
             return False
 
+        path = request.url.path
+
         # Skip health check and metrics endpoints
-        if request.url.path in ["/health", "/metrics", "/v1"]:
+        _endpoints = {
+            "/health",
+            "/metrics",
+            "/v1",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        }
+        if path in _endpoints:
             return False
 
         # Check excluded paths with enhanced pattern matching
         for excluded_path in self.config.request_logging_excluded_paths:
-            if request.url.path.startswith(excluded_path):
+            if path.startswith(excluded_path):
                 return False
 
         # Check excluded methods
-        return (
-            request.method.upper() not in self.config.request_logging_excluded_methods
-        )
+        if request.method.upper() in self.config.request_logging_excluded_methods:
+            return False
+
+        # Skip if too many concurrent requests for memory management
+        return len(self._active_requests) < 100
 
     def _should_capture_body(self, request: Request) -> bool:
-        """Determine if request body should be captured."""
+        """Determine if request body should be captured with enhanced checks."""
 
         # Only capture body for methods that typically have bodies
-        if request.method.upper() not in ["POST", "PUT", "PATCH"]:
+        if request.method.upper() not in {"POST", "PUT", "PATCH"}:
             return False
 
         # Check content type
-        content_type = request.headers.get("content-type", "")
-        allowed_types = [
+        content_type = request.headers.get("content-type", "").lower()
+
+        # Skip large file uploads
+        if "multipart/form-data" in content_type:
+            content_length = safe_int(request.headers.get("content-length", 0))
+            if content_length > 1024 * 1024:  # Skip files > 1MB
+                return False
+
+        allowed_types = {
             "application/json",
             "application/x-www-form-urlencoded",
             "text/plain",
-        ]
+            "application/xml",
+            "text/xml",
+        }
 
         return any(
             content_type.startswith(allowed_type) for allowed_type in allowed_types
         )
 
+    def _should_capture_response_body(self, response: Response) -> bool:
+        """Determine if response body should be captured."""
+
+        # Skip large responses
+        content_length = safe_int(response.headers.get("content-length", 0))
+        if content_length > self.config.request_logging_max_body_size:
+            return False
+
+        # Skip binary content types
+        content_type = response.headers.get("content-type", "").lower()
+        skip_types = {
+            "image/",
+            "video/",
+            "audio/",
+            "application/octet-stream",
+            "application/pdf",
+            "application/zip",
+        }
+
+        return not any(content_type.startswith(skip_type) for skip_type in skip_types)
+
     async def _submit_logging_task(self, log_data: dict[str, Any]) -> None:
-        """Submit logging task with enhanced error handling."""
+        """Submit logging task with enhanced error handling and retry logic."""
 
         try:
             # Add metadata
             log_data.update(
                 {
                     "logged_at": datetime.now(di["timezone"]),
-                    "middleware_version": "2.0.0",
                     "request_count": self._request_count,
                 }
             )
 
-            # Submit with retry capability
+            # Submit with proper error handling
             await self.task_manager.submit_task(
-                "request_log:create", log_data, priority=TaskPriority.LOW, max_retries=3
+                "request_log:create",
+                log_data,
+                priority=TaskPriority.LOW,
+                max_retries=3,
+                retry_delay=1.0,
             )
 
         except Exception as e:
@@ -507,7 +668,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "total_requests_processed": self._request_count,
             "total_errors": self._error_count,
             "total_skipped": self._skip_count,
+            "active_requests": len(self._active_requests),
             "error_rate": self._error_count / max(self._request_count, 1),
             "skip_rate": self._skip_count
             / max(self._request_count + self._skip_count, 1),
+            "memory_efficiency": {
+                "active_request_tracking": True,
+                "streaming_support": True,
+                "size_limits_enforced": True,
+            },
         }

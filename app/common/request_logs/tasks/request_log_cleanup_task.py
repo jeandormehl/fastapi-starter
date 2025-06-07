@@ -18,7 +18,7 @@ tm = di[TaskManager]
     priority=TaskPriority.LOW,
     max_retries=2,
     schedule=[
-        {"cron": "0/1 * * * *"}
+        {"cron": "* * * * *"}
     ],  # TODO: CHANGE THIS -> {"cron": f"* */{config.request_logging_cleanup_interval_hours} * * *"}  # noqa: E501
 )
 async def request_log_cleanup_task() -> dict[str, Any]:

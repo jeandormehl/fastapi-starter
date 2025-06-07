@@ -1,6 +1,3 @@
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-
 from bcrypt import gensalt, hashpw
 from kink import di
 from prisma.client import Prisma
@@ -24,18 +21,6 @@ async def disconnect_db() -> None:
 
     if db.is_connected():
         await db.disconnect()
-
-
-@asynccontextmanager
-async def get_db() -> AsyncGenerator[Database]:
-    db = di[Database]
-
-    await connect_db()
-
-    try:
-        yield db
-    finally:
-        await disconnect_db()
 
 
 async def init_db() -> None:

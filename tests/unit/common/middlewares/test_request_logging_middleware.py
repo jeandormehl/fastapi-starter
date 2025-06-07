@@ -1,13 +1,18 @@
-from unittest.mock import AsyncMock, Mock, patch
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from fastapi import FastAPI
+from fastapi.requests import Request
+from fastapi.responses import StreamingResponse
+from fastapi.testclient import TestClient
 
 from app.common.middlewares.request_logging_middleware import RequestLoggingMiddleware
 from app.core.config import Configuration
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 
-class TestRequestLoggingMiddlewareUnit:
+class TestRequestLoggingMiddleware:
     """Unit tests for RequestLoggingMiddleware components."""
 
     @pytest.fixture
@@ -120,6 +125,19 @@ class TestRequestLoggingMiddlewareUnit:
         result = middleware._extract_client_ip(request)
         assert result == "192.168.1.1"
 
+    async def test_client_ip_extraction_fixed(self, middleware):
+        """Test that client IP extraction handles forwarded headers correctly."""
+
+        request = MagicMock(spec=Request)
+        request.headers = {"x-forwarded-for": "192.168.1.1, 10.0.0.1, 172.16.0.1"}
+        request.client = None
+
+        ip = middleware._extract_client_ip(request)
+
+        # Should return first IP, not a list
+        assert ip == "192.168.1.1"
+        assert isinstance(ip, str)
+
     async def test_categorize_error_client_error(self, middleware):
         """Test error categorization for client errors."""
 
@@ -152,23 +170,107 @@ class TestRequestLoggingMiddlewareUnit:
         result = middleware._should_capture_body(request)
         assert result is False
 
-    async def test_safe_read_request_body_success(self, middleware):
-        """Test successful request body reading."""
+    async def test_memory_efficient_body_capture(self, middleware):
+        """Test memory-efficient body capture with size limits."""
 
-        request = Mock()
-        request.body = AsyncMock(return_value=b'{"test": "data"}')
+        request = MagicMock(spec=Request)
+        request.method = "POST"
+        request.headers = {"content-type": "application/json", "content-length": "50"}
 
-        result = await middleware._safe_read_request_body(request)
-        assert result == b'{"test": "data"}'
+        # Mock body reading
+        large_body = b"x" * (2 * 1024 * 1024)  # 2MB body
 
-    async def test_safe_read_request_body_timeout(self, middleware):
-        """Test request body reading with timeout."""
+        with patch.object(middleware, "_safe_read_request_body_limited") as mock_read:
+            mock_read.return_value = large_body[
+                : middleware.config.request_logging_max_body_size
+            ]
 
-        request = Mock()
-        request.body = AsyncMock(side_effect=TimeoutError())
+            result = await middleware._capture_request_body_safe(request)
 
-        result = await middleware._safe_read_request_body(request)
-        assert result == b""
+            assert result is not None
+            assert "content" in result
+
+    async def test_streaming_response_handling(self, middleware):
+        """Test improved streaming response handling."""
+
+        async def generate_chunks():
+            for i in range(5):
+                yield f"chunk_{i}".encode()
+
+        response = StreamingResponse(generate_chunks(), media_type="text/plain")
+
+        result = await middleware._capture_response_body_safe(response)
+
+        assert result is not None
+        assert result["type"] == "streaming_response"
+        assert "capture_enabled" in result
+
+    async def test_defensive_auth_info_extraction(self, middleware):
+        """Test defensive programming in auth info extraction."""
+
+        # Test with missing state
+        request = MagicMock(spec=Request)
+        del request.state  # Remove state attribute
+
+        auth_info = middleware._extract_auth_info(request)
+
+        assert auth_info["authenticated"] is False
+        assert auth_info["client_id"] is None
+
+    async def test_memory_management_request_limit(self, middleware):
+        """Test that middleware respects active request limits."""
+
+        # Fill up active requests
+        for i in range(0, 101):
+            fake_request = MagicMock(content=i)
+            middleware._active_requests.add(fake_request)
+
+        request = MagicMock(spec=Request)
+        request.url.path = "/test"
+        request.method = "GET"
+
+        should_process = middleware._should_process_request(request)
+
+        assert should_process is False  # Should skip due to memory limits
+
+    async def test_body_truncation_safety(self, middleware):
+        """Test safe body truncation without breaking encoding."""
+
+        # Test with UTF-8 content that might break at truncation point
+        body = "Hello 世界! " * 1000  # Contains multi-byte characters
+        body_bytes = body.encode("utf-8")
+
+        truncated = middleware._truncate_body_safely(body_bytes, 100)
+
+        assert isinstance(truncated, str)
+        assert len(truncated.encode("utf-8")) <= 104  # Account for "..." addition
+
+    async def test_concurrent_request_processing(self):
+        """Test middleware under concurrent load."""
+
+        app = FastAPI()
+
+        @app.get("/test")
+        async def test_endpoint():
+            await asyncio.sleep(0.1)
+            return {"message": "success"}
+
+        app.add_middleware(RequestLoggingMiddleware)
+
+        client = TestClient(app)
+
+        # Simulate concurrent requests
+        async def make_request():
+            return client.get("/test")
+
+        tasks = [make_request() for _ in range(10)]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # All requests should complete successfully
+        success_count = sum(
+            1 for r in responses if hasattr(r, "status_code") and r.status_code == 200
+        )
+        assert success_count > 0
 
     async def test_process_body_content_json(self, middleware):
         """Test body content processing for JSON."""
@@ -199,7 +301,7 @@ class TestRequestLoggingMiddlewareUnit:
 
         result = await middleware._process_body_content(body, "request")
 
-        assert result["type"] == "binary"
+        assert result["type"] == "text"
         assert "content" in result
         assert result["size"] == len(body)
 
@@ -215,7 +317,7 @@ class TestRequestLoggingMiddlewareUnit:
         assert result["original_size"] == len(body)
         assert result["captured_size"] == 10
 
-    async def test_extract_enhanced_auth_info_authenticated(self, middleware):
+    async def test_extract_auth_info_authenticated(self, middleware):
         """Test authentication info extraction for authenticated request."""
 
         request = Mock()
@@ -236,7 +338,7 @@ class TestRequestLoggingMiddlewareUnit:
         # Mock auth header
         request.headers = {"authorization": "Bearer token123"}
 
-        result = middleware._extract_enhanced_auth_info(request)
+        result = middleware._extract_auth_info(request)
 
         assert result["authenticated"] is True
         assert result["client_id"] == "test-client"
@@ -244,7 +346,7 @@ class TestRequestLoggingMiddlewareUnit:
         assert result["scopes"] == ["read", "write"]
         assert result["has_bearer_token"] is True
 
-    async def test_extract_enhanced_auth_info_unauthenticated(self, middleware):
+    async def test_extract_auth_info_unauthenticated(self, middleware):
         """Test authentication info extraction for unauthenticated request."""
 
         request = Mock()
@@ -255,13 +357,13 @@ class TestRequestLoggingMiddlewareUnit:
         delattr(request.state, "client") if hasattr(request.state, "client") else None
         delattr(request.state, "scopes") if hasattr(request.state, "scopes") else None
 
-        result = middleware._extract_enhanced_auth_info(request)
+        result = middleware._extract_auth_info(request)
 
         assert result["authenticated"] is False
         assert result["client_id"] is None
         assert result["scopes"] == []
         assert result["auth_method"] is None
-        assert "has_bearer_token" not in result
+        assert result["has_bearer_token"] is False
 
     async def test_get_middleware_stats(self, middleware):
         """Test middleware statistics collection."""

@@ -7,5 +7,6 @@
   "workspaceFolder": "/app",
   "remoteEnv": {
     "SHELL": "/bin/zsh"
-  }
+  },
+  "postStartCommand": "/app/manage.sh db-generate && /app/manage.sh db-deploy"
 }
