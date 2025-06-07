@@ -83,21 +83,41 @@ class Configuration(BaseSettings):
         True, description="Log request/response bodies"
     )
     request_logging_max_body_size: int = Field(
-        10000, description="Maximum body size to log (bytes)"
+        50000, description="Maximum body size to log (bytes)"
     )
     request_logging_excluded_paths: list[str] = Field(
-        default_factory=lambda: ["/health", "/metrics", "/static"],
+        default_factory=lambda: [
+            "/health",
+            "/metrics",
+            "/static",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        ],
         description="Paths to exclude from request logging",
     )
     request_logging_excluded_methods: list[str] = Field(
-        default_factory=lambda: [],
+        default_factory=lambda: ["OPTIONS", "HEAD"],
         description="HTTP methods to exclude from request logging",
     )
     request_logging_retention_days: int = Field(
         30, description="Days to retain request logs before cleanup"
     )
     request_logging_cleanup_interval_hours: int = Field(
-        24, description="Hours between cleanup task runs"
+        6, description="Hours between cleanup task runs"
+    )
+    request_logging_sensitive_headers: list[str] = Field(
+        default_factory=lambda: [
+            "authorization",
+            "cookie",
+            "x-api-key",
+            "x-auth-token",
+            "x-csrf-token",
+        ],
+        description="Headers to exclude from logging for security",
+    )
+    request_logging_performance_monitoring: bool = Field(
+        True, description="Enable performance monitoring for request logging"
     )
 
     @property
@@ -163,3 +183,25 @@ class Configuration(BaseSettings):
             msg = f"Log level must be one of {valid_levels}"
             raise ValueError(msg)
         return value.upper()
+
+    @field_validator("request_logging_max_body_size")
+    @classmethod
+    def validate_max_body_size(cls, v: int) -> int:
+        if v < 0:
+            msg = "max_body_size must be non-negative"
+            raise ValueError(msg)
+        if v > 1_000_000:  # 1MB limit
+            msg = "max_body_size cannot exceed 1MB"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("request_logging_retention_days")
+    @classmethod
+    def validate_retention_days(cls, v: int) -> int:
+        if v < 1:
+            msg = "retention_days must be at least 1"
+            raise ValueError(msg)
+        if v > 365:
+            msg = "retention_days cannot exceed 365"
+            raise ValueError(msg)
+        return v

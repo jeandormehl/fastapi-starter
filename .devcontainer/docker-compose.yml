@@ -45,8 +45,7 @@ services:
       dockerfile: ".devcontainer/Dockerfile"
       target: "build"
     depends_on:
-      - "redis"
-      - "postgres"
+      - "app"
     environment:
       ENVIRONMENT: "${ENVIRONMENT}"
       TZ: "${TZ}"
@@ -61,8 +60,7 @@ services:
       dockerfile: ".devcontainer/Dockerfile"
       target: "build"
     depends_on:
-      - "redis"
-      - "postgres"
+      - "app"
     environment:
       ENVIRONMENT: "${ENVIRONMENT}"
       TZ: "${TZ}"
