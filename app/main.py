@@ -3,13 +3,10 @@ import sys
 import uvicorn
 from fastapi import FastAPI
 
-from app.common.logging import initialize_logging
 from app.core.config import Configuration
 from app.core.container import container
 
 config = container.get_dependency(Configuration)
-initialize_logging(config)
-
 app = container.get_dependency(FastAPI)
 
 if __name__ == "__main__":

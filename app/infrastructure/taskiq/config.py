@@ -65,7 +65,7 @@ class TaskiqConfiguration(BaseSettings):
     # noinspection PyNestedDecorators
     @field_validator("broker_url", mode="after")
     @classmethod
-    def validate_broker_url(cls, value: str, values: ValidationInfo) -> SecretStr:
+    def validate_broker_url(cls, value: SecretStr, values: ValidationInfo) -> SecretStr:
         """Validate broker URL is provided for non-memory brokers."""
 
         if values.data.get("broker_type") != BrokerType.MEMORY and value is None:

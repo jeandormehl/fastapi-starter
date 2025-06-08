@@ -1,7 +1,7 @@
 from bcrypt import checkpw
 from kink import di
 
-from app.common import BaseHandler
+from app.common.base_handler import BaseHandler
 from app.common.errors import AuthenticationError
 from app.domain.v1.auth.requests import AccessTokenCreateRequest
 from app.domain.v1.auth.responses import AccessTokenCreateResponse
