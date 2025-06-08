@@ -139,21 +139,6 @@ class TestApplicationFactory:
             ]
             assert len(static_routes) > 0
 
-    def test_v1_exception_handlers_registration(self, test_config):
-        """Test exception handlers are registered."""
-
-        with patch("app.core.application.EXCEPTION_HANDLERS") as mock_handlers:
-            mock_handlers.items.return_value = [
-                (ValueError, Mock()),
-                (RuntimeError, Mock()),
-            ]
-
-            app = _v1(test_config)
-
-            # Exception handlers should be registered
-            # noinspection PyUnresolvedReferences
-            assert len(app.exception_handlers) >= 2
-
     def test_v1_router_inclusion(self, test_config):
         """Test that v1 router is included."""
 

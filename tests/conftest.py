@@ -56,13 +56,6 @@ def test_config() -> Configuration:
     )
 
 
-@pytest.fixture(autouse=True)
-def setup_logging(test_config):
-    """Fixture to initialize logging for each test function."""
-
-    initialize_logging(test_config)
-
-
 @pytest.fixture(scope="session")
 def test_timezone():
     """Provide test timezone for consistent time handling."""

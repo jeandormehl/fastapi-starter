@@ -1,37 +1,35 @@
 import base64
 import json
-import uuid
-from typing import Any, TypeVar
+from typing import Any
 
 from fastapi.requests import Request
+from pydantic import BaseModel
 
-from app.common import BaseRequest
-
-T = TypeVar("T", bound=BaseRequest)
+from app.common.base_handler import TRequest, TResponse
 
 
-async def build_pydiator_request(
-    request_class: type[T], req: Request, **kwargs: str | int | bool | dict | None
-) -> T:
-    """Build pydiator request with proper trace context."""
+class PydiatorBuilder:
+    """Builds Pydiator request or response with proper trace context."""
 
-    # Extract trace information with fallbacks
-    trace_id = getattr(req.state, "trace_id", None)
-    if not isinstance(trace_id, str):
-        trace_id = str(uuid.uuid4())
+    @classmethod
+    def build(
+        cls,
+        cls_type: type[TRequest | TRequest],
+        req: Request,
+        **kwargs: str | int | bool | dict | BaseModel | None,
+    ) -> TRequest | TResponse:
+        # Extract trace information with fallbacks
+        trace_id = getattr(req.state, "trace_id", None)
+        request_id = getattr(req.state, "request_id", None)
 
-    request_id = getattr(req.state, "request_id", None)
-    if not isinstance(request_id, str):
-        request_id = str(uuid.uuid4())
+        request_data = {
+            "trace_id": trace_id,
+            "request_id": request_id,
+            "req": req,
+            **kwargs,
+        }
 
-    request_data = {
-        "trace_id": trace_id,
-        "request_id": request_id,
-        "req": req,
-        **kwargs,
-    }
-
-    return request_class(**request_data)
+        return cls_type(**request_data)
 
 
 class DataSanitizer:

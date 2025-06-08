@@ -138,7 +138,11 @@ class ErrorMiddleware(BaseHTTPMiddleware):
 
         error_response = ErrorResponseBuilder.internal_server_error(
             message="an unexpected error occurred",
-            details={"exception_type": type(exc).__name__},
+            details={
+                "exception_type": type(exc).__name__,
+                "exception_message": str(exc)[:1000],
+                "exception_module": getattr(exc.__class__, "__module__", "unknown"),
+            },
             trace_id=trace_id,
             request_id=request_id,
         )

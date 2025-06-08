@@ -20,7 +20,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
     def __init__(self) -> None:
         super().__init__()
 
-        self._logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
 
     @abstractmethod
     async def _handle_internal(self, request: TRequest) -> TResponse:
@@ -49,7 +49,7 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
         if event_data:
             event_context["event_data"] = event_data
 
-        log_method = getattr(self._logger.bind(**event_context), level)
+        log_method = getattr(self.logger.bind(**event_context), level)
         log_method(f"business event: {event_name}")
 
     def log_performance_metric(
@@ -72,4 +72,4 @@ class BaseHandler(PydiatorBaseHandler, Generic[TRequest, TResponse], ABC):
         if additional_context:
             metric_context.update(additional_context)
 
-        self._logger.bind(**metric_context).info(f"performance metric: {metric_name}")
+        self.logger.bind(**metric_context).info(f"performance metric: {metric_name}")

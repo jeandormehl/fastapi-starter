@@ -3,7 +3,7 @@ from fastapi.requests import Request
 from prisma.models import Client
 from pydiator_core.mediatr import pydiator
 
-from app.common.utils import build_pydiator_request
+from app.common.utils import PydiatorBuilder
 from app.domain.v1.auth.dependencies import get_client, require_admin_scope
 from app.domain.v1.auth.requests import (
     AccessTokenCreateRequest,
@@ -32,7 +32,7 @@ async def create_new_access_token(
 
     return (
         await pydiator.send(
-            await build_pydiator_request(
+            await PydiatorBuilder.build(
                 AccessTokenCreateRequest, request, data=credentials
             )
         )
@@ -48,7 +48,7 @@ async def refresh_access_token(
 
     return (
         await pydiator.send(
-            await build_pydiator_request(
+            await PydiatorBuilder.build(
                 AccessTokenRefreshRequest, request, client=current_client
             )
         )
@@ -65,7 +65,7 @@ async def create_new_service_client(
 
     return (
         await pydiator.send(
-            await build_pydiator_request(
+            await PydiatorBuilder.build(
                 ClientCreateRequest, request, data=client, client=current_client
             )
         )
@@ -81,7 +81,7 @@ async def get_authenticated_client(
 
     return (
         await pydiator.send(
-            await build_pydiator_request(
+            await PydiatorBuilder.build(
                 ClientFindAuthenticatedRequest, request, client=current_client
             )
         )
@@ -93,5 +93,5 @@ async def get_available_scopes(request: Request) -> list[ScopeOut]:
     """Get available api scopes"""
 
     return (
-        await pydiator.send(await build_pydiator_request(ScopeFindRequest, request))
+        await pydiator.send(await PydiatorBuilder.build(ScopeFindRequest, request))
     ).data

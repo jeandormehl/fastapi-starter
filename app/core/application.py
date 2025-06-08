@@ -10,7 +10,6 @@ from starlette.staticfiles import StaticFiles
 
 from app.api import router_v1
 from app.common.constants import STATIC_PATH
-from app.common.errors import EXCEPTION_HANDLERS
 from app.common.middlewares import register_request_middlewares
 from app.core.config import Configuration
 from app.infrastructure.database import disconnect_db, init_db
@@ -75,10 +74,6 @@ def _v1(config: Configuration) -> FastAPI:
 
     # Add middleware
     register_request_middlewares(config, app)
-
-    # Add exception handlers (order matters - most specific first)
-    for exc_type, handler in EXCEPTION_HANDLERS.items():
-        app.add_exception_handler(exc_type, handler)
 
     # Mount static files
     Path(STATIC_PATH).mkdir(parents=True, exist_ok=True)
