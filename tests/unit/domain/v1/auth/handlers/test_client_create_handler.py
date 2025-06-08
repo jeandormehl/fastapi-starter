@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 from prisma.models import Scope
 
-from app.core.errors.errors import DatabaseError, ValidationError
+from app.common.errors.errors import DatabaseError, ValidationError
 from app.domain.v1.auth.handlers.client_create_handler import ClientCreateHandler
 from app.domain.v1.auth.requests import ClientCreateRequest
 from app.domain.v1.auth.schemas import ClientCreateInput

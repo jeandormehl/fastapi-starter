@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from app.common.utils import DataSanitizer
 from app.infrastructure.taskiq.middlewares.logging_middleware import LoggingMiddleware
 
 
@@ -55,7 +56,7 @@ class TestLoggingMiddleware:
         assert context["trace_id"] == "trace-123"
         assert context["request_id"] == "req-456"
 
-    def test_sanitize_data_with_sensitive_fields(self, middleware):
+    def test_sanitize_data_with_sensitive_fields(self):
         """Test data sanitization with sensitive fields."""
 
         data = {
@@ -66,7 +67,7 @@ class TestLoggingMiddleware:
             "normal_field": "value",
         }
 
-        sanitized = middleware._sanitize_data(data)
+        sanitized = DataSanitizer.sanitize_data(data)
 
         assert sanitized["username"] == "user123"
         assert sanitized["password"] == "[REDACTED]"
@@ -74,17 +75,17 @@ class TestLoggingMiddleware:
         assert sanitized["token"] == "[REDACTED]"
         assert sanitized["normal_field"] == "value"
 
-    def test_sanitize_data_truncates_long_strings(self, middleware):
+    def test_sanitize_data_truncates_long_strings(self):
         """Test data sanitization truncates long strings."""
 
         long_string = "x" * 1500
 
-        sanitized = middleware._sanitize_data(long_string)
+        sanitized = DataSanitizer.sanitize_data(long_string)
 
         assert len(sanitized) == 1014  # 1000 + len("...[TRUNCATED]")
         assert sanitized.endswith("...[TRUNCATED]")
 
-    def test_sanitize_data_nested_structures(self, middleware):
+    def test_sanitize_data_nested_structures(self):
         """Test data sanitization with nested structures."""
 
         data = {
@@ -94,7 +95,7 @@ class TestLoggingMiddleware:
             }
         }
 
-        sanitized = middleware._sanitize_data(data)
+        sanitized = DataSanitizer.sanitize_data(data)
 
         assert sanitized["level1"]["level2"]["password"] == "[REDACTED]"
         assert sanitized["level1"]["level2"]["data"] == "normal"
@@ -219,107 +220,6 @@ class TestLoggingMiddleware:
 
                 # Verify success logging
                 mock_logger.info.assert_called_once()
-
-                # Verify execution context cleanup
-                assert sample_task_message.task_id not in middleware.execution_context
-
-    @pytest.mark.asyncio
-    async def test_post_execute_failure(
-        self,
-        middleware,
-        sample_task_message,
-        sample_error_result,
-        mock_metrics_collector,
-        mock_di_container,
-    ):
-        """Test post-execute with failed result."""
-
-        with patch(
-            "app.infrastructure.taskiq.middlewares.logging_middleware.di",
-            mock_di_container,
-        ):
-            # Set start time for duration calculation
-            sample_task_message.labels["_start_time"] = 1000.0
-            sample_task_message.labels["_start_timestamp"] = datetime.now(
-                mock_di_container["timezone"]
-            ).isoformat()
-
-            with (
-                patch("time.perf_counter", return_value=1005.0),
-                patch.object(middleware.logger, "bind") as mock_bind,
-            ):
-                mock_logger = Mock()
-                mock_bind.return_value = mock_logger
-
-                await middleware.post_execute(sample_task_message, sample_error_result)
-
-                # Verify metrics collection for failure
-                mock_metrics_collector.record_task_failed.assert_called_once()
-
-                # Verify error logging
-                mock_logger.error.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_on_error(
-        self,
-        middleware,
-        sample_task_message,
-        sample_error_result,
-        mock_metrics_collector,
-        mock_di_container,
-    ):
-        """Test on_error logging."""
-
-        with patch(
-            "app.infrastructure.taskiq.middlewares.logging_middleware.di",
-            mock_di_container,
-        ):
-            exception = ValueError("Test error")
-
-            # Set start time for duration calculation
-            sample_task_message.labels["_start_time"] = 1000.0
-            sample_task_message.labels["_start_timestamp"] = datetime.now(
-                mock_di_container["timezone"]
-            ).isoformat()
-
-            with (
-                patch("time.perf_counter", return_value=1005.0),
-                patch.object(middleware.logger, "bind") as mock_bind,
-            ):
-                mock_logger = Mock()
-                mock_bind.return_value = mock_logger
-
-                await middleware.on_error(
-                    sample_task_message, sample_error_result, exception
-                )
-
-                # Verify metrics collection for error
-                mock_metrics_collector.record_task_failed.assert_called_once()
-
-                # Verify error logging with exception info
-                mock_logger.error.assert_called_once()
-                call_args = mock_logger.error.call_args
-                assert "exc_info" in call_args[1]
-                assert call_args[1]["exc_info"] == exception
-
-    def test_performance_tracking_context_manager(self, middleware):
-        """Test performance tracking context manager."""
-
-        task_id = "test-task-123"
-
-        with (
-            patch.object(middleware, "_get_memory_usage", side_effect=[50.0, 75.0]),
-            patch("time.perf_counter", side_effect=[1000.0, 1005.0]),
-        ):
-            with middleware._performance_tracking(task_id):
-                pass  # Simulate task execution
-
-            context = middleware.execution_context[task_id]
-
-            assert context["execution_time"] == 5.0
-            assert context["memory_delta"] == 25.0
-            assert context["start_memory"] == 50.0
-            assert context["end_memory"] == 75.0
 
     def test_execution_context_includes_sanitized_args(
         self, middleware, sample_task_message

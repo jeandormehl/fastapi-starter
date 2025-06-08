@@ -6,8 +6,8 @@ from pydiator_core.interfaces import BaseHandler as PydiatorBaseHandler
 
 from app.common.base_request import BaseRequest
 from app.common.base_response import BaseResponse
-from app.core.errors.errors import ApplicationError, ErrorCode
-from app.core.logging import ContextualLogger, get_logger
+from app.common.errors.errors import ApplicationError, ErrorCode
+from app.common.logging import ContextualLogger, get_logger
 
 TRequest = TypeVar("TRequest", bound=BaseRequest)
 TResponse = TypeVar("TResponse", bound=BaseResponse)

@@ -6,9 +6,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp
 
+from app.common.errors.errors import ApplicationError, ErrorCode
+from app.common.errors.exception_handlers import EXCEPTION_HANDLERS
 from app.common.middlewares.error_middleware import ErrorMiddleware
-from app.core.errors.errors import ApplicationError, ErrorCode
-from app.core.errors.exception_handlers import EXCEPTION_HANDLERS
+from app.common.utils import TraceContextExtractor
 
 
 class TestErrorMiddleware:
@@ -302,7 +303,7 @@ class TestErrorMiddleware:
             mock_request, test_exception, mock_response, 0.5, "trace", "request"
         )
 
-        assert context["client_ip"] == "unknown_ip"
+        assert context["client_ip"] == "unknown"
 
     @pytest.mark.asyncio
     async def test_multiple_exception_types(self, middleware, mock_request):
@@ -426,14 +427,14 @@ class TestErrorMiddleware:
             # Verify structured logging call
             mock_logger.error.assert_called_once_with("request failed with exception")
 
-    async def test_trace_id_generation_fallback(self, middleware):
+    async def test_trace_id_generation_fallback(self):
         """Test trace ID generation when not present in request state."""
 
         request = MagicMock(spec=Request)
         # Remove state entirely
         del request.state
 
-        trace_id = middleware._get_trace_id(request)
+        trace_id = TraceContextExtractor.get_trace_id(request)
 
         assert trace_id == "unknown"
 
@@ -469,19 +470,3 @@ class TestErrorMiddleware:
             assert isinstance(traceback_str, str)
             assert len(traceback_str) <= 2000
             assert "ValueError" in traceback_str
-
-    async def test_safe_request_data_extraction(self, middleware):
-        """Test safe extraction of request data with malformed requests."""
-
-        request = MagicMock(spec=Request)
-        request.method = "GET"
-
-        # Remove url attribute to test safety
-        del request.url
-        del request.client
-
-        path = middleware._safe_get_path(request)
-        ip = middleware._safe_get_client_ip(request)
-
-        assert path == "unknown_path"
-        assert ip == "unknown_ip"

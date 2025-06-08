@@ -5,8 +5,8 @@ import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
+from app.common.logging.parseable_sink import ParseableSink
 from app.core.config import Configuration
-from app.core.logging.parseable_sink import ParseableSink
 
 
 @pytest.fixture
@@ -57,9 +57,9 @@ def mock_loguru_record():
 class TestParseableSinkInitialization:
     """Test ParseableSink initialization and configuration."""
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_init_sets_configuration_correctly(
         self,
         mock_thread,  # noqa: ARG002
@@ -86,9 +86,9 @@ class TestParseableSinkInitialization:
         mock_signal.assert_any_call(signal.SIGINT, sink._signal_handler)
         mock_atexit.assert_called_once_with(sink.cleanup)
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_init_with_default_values(self, mock_thread, mock_signal, mock_atexit):  # noqa: ARG002
         """Test initialization with default configuration values."""
 
@@ -107,9 +107,9 @@ class TestParseableSinkInitialization:
         assert sink.max_retries == 3  # Default from getattr
         assert sink.retry_delay == 1.0  # Default from getattr
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_init_starts_background_thread(
         self,
         mock_thread,
@@ -133,9 +133,9 @@ class TestParseableSinkInitialization:
 class TestLogProcessing:
     """Test log message processing and serialization."""
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_log_processes_basic_record(
         self,
         mock_thread,  # noqa: ARG002
@@ -169,9 +169,9 @@ class TestLogProcessing:
         assert log_entry["thread_id"] == 67890
         assert log_entry["thread_name"] == "MainThread"
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_log_handles_extra_data(
         self,
         mock_thread,  # noqa: ARG002
@@ -200,9 +200,9 @@ class TestLogProcessing:
         assert log_entry["request_id"] == "abc-123"
         assert log_entry["custom_data"] == {"nested": "value"}
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_log_handles_exception_info(
         self,
         mock_thread,  # noqa: ARG002
@@ -237,9 +237,9 @@ class TestLogProcessing:
             "Traceback line 2",
         ]
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_log_handles_non_serializable_objects(
         self,
         mock_thread,  # noqa: ARG002
@@ -270,9 +270,9 @@ class TestLogProcessing:
         assert log_entry["serializable"] == "value"
         assert log_entry["non_serializable"] == "non_serializable_object"
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     @patch("builtins.print")
     def test_log_handles_processing_errors(
         self,
@@ -302,9 +302,9 @@ class TestHTTPCommunication:
     async def test_send_batch_success(self, mock_config, httpx_mock: HTTPXMock):
         """Test successful batch sending."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
         ):
             sink = ParseableSink(mock_config)
             sink._client = httpx.AsyncClient()
@@ -333,9 +333,9 @@ class TestHTTPCommunication:
     async def test_send_batch_with_auth(self, mock_config, httpx_mock: HTTPXMock):
         """Test batch sending with authentication."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
         ):
             sink = ParseableSink(mock_config)
             sink._client = httpx.AsyncClient()
@@ -357,9 +357,9 @@ class TestHTTPCommunication:
     async def test_send_batch_http_error(self, mock_config, httpx_mock: HTTPXMock):
         """Test batch sending with HTTP error response."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
             patch("builtins.print") as mock_print,
         ):
             sink = ParseableSink(mock_config)
@@ -385,9 +385,9 @@ class TestHTTPCommunication:
     async def test_send_batch_request_error(self, mock_config):
         """Test batch sending with request error."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
             patch("builtins.print") as mock_print,
         ):
             sink = ParseableSink(mock_config)
@@ -410,9 +410,9 @@ class TestHTTPCommunication:
     async def test_send_batch_without_client(self, mock_config):
         """Test send_batch raises error when client is not initialized."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
         ):
             sink = ParseableSink(mock_config)
             sink._client = None
@@ -431,9 +431,9 @@ class TestRetryLogic:
     async def test_flush_buffer_retry_on_failure(self, mock_config):
         """Test retry logic when send_batch fails."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
             patch("builtins.print") as mock_print,  # noqa: F841
             patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
         ):
@@ -470,9 +470,9 @@ class TestBackgroundProcessing:
     async def test_background_processor_creates_client(self, mock_config):
         """Test that background processor creates HTTP client."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
         ):
             sink = ParseableSink(mock_config)
             sink._running = False  # Stop immediately to avoid infinite loop
@@ -486,9 +486,9 @@ class TestBackgroundProcessing:
     async def test_background_processor_flushes_periodically(self, mock_config):
         """Test that background processor flushes buffer periodically."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
             patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
         ):
             mock_config.parseable_flush_interval = 0.1
@@ -521,9 +521,9 @@ class TestBackgroundProcessing:
     async def test_background_processor_handles_exceptions(self, mock_config):
         """Test that background processor handles exceptions gracefully."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
             sink = ParseableSink(mock_config)
@@ -541,9 +541,9 @@ class TestBackgroundProcessing:
 class TestThreadSafety:
     """Test thread safety of ParseableSink operations."""
 
-    @patch("app.core.logging.parseable_sink.atexit.register")
-    @patch("app.core.logging.parseable_sink.signal.signal")
-    @patch("app.core.logging.parseable_sink.Thread")
+    @patch("app.common.logging.parseable_sink.atexit.register")
+    @patch("app.common.logging.parseable_sink.signal.signal")
+    @patch("app.common.logging.parseable_sink.Thread")
     def test_concurrent_log_calls(
         self,
         mock_thread,  # noqa: ARG002
@@ -594,9 +594,9 @@ class TestIntegration:
     async def test_end_to_end_logging_flow(self, mock_config, httpx_mock: HTTPXMock):
         """Test complete end-to-end logging flow."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
         ):
             # Configure for small batch and quick flush
             mock_config.parseable_batch_size = 2
@@ -665,9 +665,9 @@ class TestIntegration:
     async def test_error_recovery_and_retry(self, mock_config, httpx_mock: HTTPXMock):
         """Test error recovery and retry behavior."""
         with (
-            patch("app.core.logging.parseable_sink.atexit.register"),
-            patch("app.core.logging.parseable_sink.signal.signal"),
-            patch("app.core.logging.parseable_sink.Thread"),
+            patch("app.common.logging.parseable_sink.atexit.register"),
+            patch("app.common.logging.parseable_sink.signal.signal"),
+            patch("app.common.logging.parseable_sink.Thread"),
             patch("builtins.print"),
         ):
             mock_config.parseable_max_retries = 2

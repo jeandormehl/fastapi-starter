@@ -2,7 +2,7 @@ from taskiq import AsyncBroker, InMemoryBroker
 from taskiq_aio_pika import AioPikaBroker
 from taskiq_redis import ListQueueBroker, RedisAsyncResultBackend
 
-from app.core.logging import get_logger
+from app.common.logging import get_logger
 from app.infrastructure.taskiq.config import TaskiqConfiguration
 from app.infrastructure.taskiq.schemas import BrokerType
 

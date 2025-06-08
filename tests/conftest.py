@@ -8,12 +8,16 @@ from fastapi.requests import Request
 from kink import di
 from prisma.models import Client, Scope
 from pytest_mock import MockerFixture
+from taskiq import AsyncBroker
 
+from app.common.constants import TESTS_PATH
+from app.common.logging import initialize_logging
 from app.core.config import Configuration
-from app.core.constants import TESTS_PATH
-from app.core.logging import initialize_logging
 from app.domain.v1.auth.services import JWTService
 from app.infrastructure.database import Database
+from app.infrastructure.taskiq.broker.broker import Broker
+from app.infrastructure.taskiq.config import TaskiqConfiguration
+from app.infrastructure.taskiq.task_manager import TaskManager
 
 pytest_plugins = ["tests.fixtures.taskiq_fixtures"]
 
@@ -86,8 +90,24 @@ def jwt_service(test_config):
     return JWTService(test_config)
 
 
+@pytest.fixture
+def mock_broker():
+    """Mock broker for testing."""
+
+    broker = Mock()
+    broker.result_backend = Mock()
+    broker.result_backend.get_result = AsyncMock()
+
+    return broker
+
+
 @pytest.fixture(autouse=True)
-def setup_di_container(test_config, test_timezone, mock_database, jwt_service):
+def setup_di_container(
+    test_config,
+    test_timezone,
+    mock_database,
+    jwt_service,
+):
     """Setup dependency injection container for each test."""
 
     # Clear any existing container state
@@ -97,9 +117,14 @@ def setup_di_container(test_config, test_timezone, mock_database, jwt_service):
     di[Configuration] = test_config
     di["timezone"] = test_timezone
 
+    initialize_logging(test_config)
+
     di[Database] = mock_database
 
     di[JWTService] = jwt_service
+
+    di[AsyncBroker] = Broker(TaskiqConfiguration(broker_type="memory")).create_broker()
+    di[TaskManager] = TaskManager(di[AsyncBroker])
 
     yield di
 

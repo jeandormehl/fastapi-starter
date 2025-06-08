@@ -4,8 +4,8 @@ from datetime import UTC, datetime, timedelta
 import jwt
 import pytest
 
+from app.common.errors.errors import AuthenticationError
 from app.core.config import Configuration
-from app.core.errors.errors import AuthenticationError
 from app.domain.v1.auth.services.jwt_service import JWTPayload, JWTService
 
 

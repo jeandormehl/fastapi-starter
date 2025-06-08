@@ -9,10 +9,10 @@ from kink import inject
 from starlette.staticfiles import StaticFiles
 
 from app.api import router_v1
+from app.common.constants import STATIC_PATH
+from app.common.errors import EXCEPTION_HANDLERS
 from app.common.middlewares import register_request_middlewares
 from app.core.config import Configuration
-from app.core.constants import STATIC_PATH
-from app.core.errors.exception_handlers import EXCEPTION_HANDLERS
 from app.infrastructure.database import disconnect_db, init_db
 from app.infrastructure.taskiq.task_manager import TaskManager
 

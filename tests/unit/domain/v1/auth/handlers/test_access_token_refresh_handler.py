@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.core.errors.errors import AuthenticationError
+from app.common.errors.errors import AuthenticationError
 from app.domain.v1.auth.handlers.access_token_refresh_handler import (
     AccessTokenRefreshHandler,
 )

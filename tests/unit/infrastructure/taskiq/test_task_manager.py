@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from app.core.errors.errors import ApplicationError, ErrorCode
+from app.common.errors.errors import ApplicationError, ErrorCode
 from app.infrastructure.taskiq.schemas import TaskPriority, TaskStatus
 from app.infrastructure.taskiq.task_manager import (
     TaskInfo,

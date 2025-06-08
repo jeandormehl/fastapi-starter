@@ -9,8 +9,8 @@ from kink import di
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.errors.errors import ApplicationError, ErrorCode, ErrorDetail
-from app.core.logging import get_logger
+from app.common.errors.errors import ApplicationError, ErrorCode, ErrorDetail
+from app.common.logging import get_logger
 
 
 def create_error_response(

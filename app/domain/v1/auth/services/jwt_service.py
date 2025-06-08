@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 import jwt
 from kink import di
 
+from app.common.errors.errors import AuthenticationError
 from app.core.config import Configuration
-from app.core.errors.errors import AuthenticationError
 from app.domain.v1.auth.schemas import JWTPayload
 
 

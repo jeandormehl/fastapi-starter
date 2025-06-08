@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
+from app.common.constants import TESTS_PATH
 from app.core.config import Configuration
-from app.core.constants import TESTS_PATH
 
 
 class TestConfiguration:

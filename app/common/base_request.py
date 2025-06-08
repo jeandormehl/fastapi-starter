@@ -17,36 +17,3 @@ class BaseRequest(TraceModel, PydiatorBaseRequest, ABC):
     client: Client | None = None
     data: BaseModel | None = None
     req: Request
-
-    @property
-    def trace_context(self) -> dict[str, str]:
-        """Get trace context for logging and monitoring."""
-
-        return {
-            "trace_id": self.trace_id,
-            "request_id": self.request_id,
-        }
-
-    @property
-    def request_info(self) -> dict[str, str]:
-        """Get request information for logging."""
-
-        return {
-            "method": self.req.method,
-            "path": self.req.url.path,
-            "url": str(self.req.url),
-            "http_client_ip": self.req.client.host if self.req.client else "unknown",
-        }
-
-    def get_full_context(self) -> dict[str, str | int]:
-        """Get complete context for logging and error handling."""
-
-        context = {
-            **self.trace_context,
-            **self.request_info,
-        }
-
-        if self.client:
-            context["client_id"] = getattr(self.client, "id", "unknown")
-
-        return context

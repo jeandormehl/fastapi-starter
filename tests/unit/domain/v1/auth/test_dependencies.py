@@ -5,7 +5,7 @@ import pytest
 from fastapi.security import HTTPAuthorizationCredentials, SecurityScopes
 from prisma.models import Client, Scope
 
-from app.core.errors.errors import (
+from app.common.errors.errors import (
     ApplicationError,
     AuthenticationError,
     AuthorizationError,

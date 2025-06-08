@@ -42,9 +42,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
             for key, value in request.headers.items():
                 if key.lower() == header_key:
                     try:
-                        # Validate and return UUID
-                        validated_uuid = uuid.UUID(value)
-                        return str(validated_uuid)
+                        return str(value)
                     except ValueError:
                         # Invalid UUID format, continue searching
                         continue

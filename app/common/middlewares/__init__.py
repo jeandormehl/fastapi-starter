@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware import cors, gzip, trustedhost
 
-from ...core.config import Configuration
+from app.core.config import Configuration
+
 from .error_middleware import ErrorMiddleware
 from .logging_middleware import LoggingMiddleware
 from .tracing_middleware import TracingMiddleware
@@ -13,8 +14,6 @@ __all__ = [
     "register_request_middlewares",
 ]
 
-from .request_logging_middleware import RequestLoggingMiddleware
-
 
 def register_request_middlewares(config: Configuration, app: FastAPI) -> None:
     """Register all request middlewares in correct order.
@@ -23,14 +22,9 @@ def register_request_middlewares(config: Configuration, app: FastAPI) -> None:
     1. TracingMiddleware (outermost - establishes context)
     2. LoggingMiddleware (middle - logs with context)
     3. ErrorMiddleware (innermost - catches errors)
-    4. RequestLoggingMiddleware (
-            innermost - captures request/response state including errors
-        )
     """
 
     # Register in reverse order of desired execution
-    # RequestLoggingMiddleware runs last to capture everything including errors
-    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(ErrorMiddleware)
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(TracingMiddleware)

@@ -5,7 +5,8 @@ from unittest.mock import Mock, patch
 import pytest
 from prisma.errors import ClientNotConnectedError
 
-from app.core.errors.errors import ApplicationError, ErrorCode
+from app.common.errors.errors import ApplicationError, ErrorCode
+from app.common.utils import DataSanitizer
 from app.infrastructure.taskiq.middlewares.error_handling_middleware import (
     CircuitBreaker,
     CircuitBreakerState,
@@ -260,8 +261,8 @@ class TestErrorHandlingMiddleware:
 
             # Verify AppException details are logged
             call_args = mock_bind.call_args[1]
-            assert call_args["app_error_code"] == ErrorCode.VALIDATION_ERROR.value
-            assert call_args["app_error_details"] == {"field": "value"}
+            assert call_args["exception_code"] == ErrorCode.VALIDATION_ERROR.value
+            assert call_args["exception_details"] == {"field": "value"}
 
     @pytest.mark.asyncio
     async def test_post_execute_success(
@@ -319,7 +320,7 @@ class TestErrorHandlingMiddleware:
             assert delay_2 > delay_1
             assert delay_2 <= middleware.config.max_retry_delay
 
-    def test_sanitize_data(self, middleware):
+    def test_sanitize_data(self):
         """Test data sanitization."""
 
         sensitive_data = {
@@ -329,7 +330,7 @@ class TestErrorHandlingMiddleware:
             "nested": {"token": "token123", "data": "normal"},
         }
 
-        sanitized = middleware._sanitize_data(sensitive_data)
+        sanitized = DataSanitizer.sanitize_data(sensitive_data)
 
         assert sanitized["password"] == "[REDACTED]"
         assert sanitized["api_key"] == "[REDACTED]"
@@ -337,12 +338,12 @@ class TestErrorHandlingMiddleware:
         assert sanitized["nested"]["token"] == "[REDACTED]"
         assert sanitized["nested"]["data"] == "normal"
 
-    def test_sanitize_data_lists(self, middleware):
+    def test_sanitize_data_lists(self):
         """Test data sanitization with lists."""
 
         data = [{"password": "secret"}, {"normal": "value"}]
 
-        sanitized = middleware._sanitize_data(data)
+        sanitized = DataSanitizer.sanitize_data(data)
 
         assert sanitized[0]["password"] == "[REDACTED]"
         assert sanitized[1]["normal"] == "value"

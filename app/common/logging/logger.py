@@ -84,7 +84,7 @@ class LoggerManager:
 
         # Add Parseable sink if enabled
         if self.config.enable_parseable:
-            from app.core.logging.parseable_sink import ParseableSink
+            from app.common.logging.parseable_sink import ParseableSink
 
             parseable_sink = ParseableSink(self.config.config)
 

@@ -2,7 +2,7 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.constants import ROOT_PATH
+from app.common.constants import ROOT_PATH
 from app.infrastructure.taskiq.schemas import BrokerType, TaskPriority
 
 

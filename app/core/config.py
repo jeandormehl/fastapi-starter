@@ -4,7 +4,7 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import __version__
-from app.core.constants import ROOT_PATH
+from app.common.constants import ROOT_PATH
 
 
 # noinspection PyNestedDecorators
@@ -79,12 +79,6 @@ class Configuration(BaseSettings):
     request_logging_log_headers: bool = Field(
         False, description="Log request/response headers"
     )
-    request_logging_log_body: bool = Field(
-        True, description="Log request/response bodies"
-    )
-    request_logging_max_body_size: int = Field(
-        50000, description="Maximum body size to log (bytes)"
-    )
     request_logging_excluded_paths: list[str] = Field(
         default_factory=lambda: [
             "/health",
@@ -105,19 +99,6 @@ class Configuration(BaseSettings):
     )
     request_logging_cleanup_interval_hours: int = Field(
         6, description="Hours between cleanup task runs"
-    )
-    request_logging_sensitive_headers: list[str] = Field(
-        default_factory=lambda: [
-            "authorization",
-            "cookie",
-            "x-api-key",
-            "x-auth-token",
-            "x-csrf-token",
-        ],
-        description="Headers to exclude from logging for security",
-    )
-    request_logging_performance_monitoring: bool = Field(
-        True, description="Enable performance monitoring for request logging"
     )
 
     @property
@@ -183,17 +164,6 @@ class Configuration(BaseSettings):
             msg = f"Log level must be one of {valid_levels}"
             raise ValueError(msg)
         return value.upper()
-
-    @field_validator("request_logging_max_body_size")
-    @classmethod
-    def validate_max_body_size(cls, v: int) -> int:
-        if v < 0:
-            msg = "max_body_size must be non-negative"
-            raise ValueError(msg)
-        if v > 1_000_000:  # 1MB limit
-            msg = "max_body_size cannot exceed 1MB"
-            raise ValueError(msg)
-        return v
 
     @field_validator("request_logging_retention_days")
     @classmethod

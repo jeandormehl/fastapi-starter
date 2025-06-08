@@ -2,8 +2,8 @@ from typing import Any
 
 from kink import di
 
+from app.common.logging import get_logger
 from app.core.config import Configuration
-from app.core.logging import get_logger
 from app.infrastructure.database import Database
 from app.infrastructure.taskiq.schemas import TaskPriority
 from app.infrastructure.taskiq.task_manager import TaskManager

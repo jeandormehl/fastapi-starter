@@ -1,6 +1,6 @@
 from fastapi import status
 
-from app.core.errors.errors import (
+from app.common.errors.errors import (
     ApplicationError,
     AuthenticationError,
     AuthorizationError,

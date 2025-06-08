@@ -3,7 +3,7 @@ from kink import di
 from prisma.models import Scope
 
 from app.common import BaseHandler
-from app.core.errors.errors import DatabaseError, ValidationError
+from app.common.errors.errors import DatabaseError, ValidationError
 from app.domain.v1.auth.requests import ClientCreateRequest
 from app.domain.v1.auth.responses import ClientCreateResponse
 from app.domain.v1.auth.schemas import ClientOut

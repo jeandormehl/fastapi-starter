@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, SecurityS
 from kink import di
 from prisma.models import Client
 
-from app.core.errors.errors import (
+from app.common.errors.errors import (
     ApplicationError,
     AuthenticationError,
     AuthorizationError,

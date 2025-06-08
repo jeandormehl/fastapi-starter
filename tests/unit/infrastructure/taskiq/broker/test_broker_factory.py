@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 from taskiq import InMemoryBroker
 
-from app.core.errors.errors import ApplicationError, ErrorCode
+from app.common.errors.errors import ApplicationError, ErrorCode
 from app.infrastructure.taskiq.broker.broker_factory import BrokerFactory
 
 

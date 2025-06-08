@@ -7,7 +7,7 @@ from typing import Any
 from kink import di
 from taskiq import AsyncBroker
 
-from app.core.logging import get_logger
+from app.common.logging import get_logger
 from app.infrastructure.taskiq.schemas import TaskPriority, TaskStatus
 
 

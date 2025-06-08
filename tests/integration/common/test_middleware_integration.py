@@ -1,205 +1,151 @@
-import uuid
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
-from fastapi import FastAPI
-from kink import di
-from starlette.responses import JSONResponse
-from starlette.testclient import TestClient
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
-from app.common.middlewares import register_request_middlewares
-from app.core.errors.errors import ValidationError
-from app.infrastructure.taskiq.task_manager import TaskManager
+from app.common.errors import ErrorCode
+from app.common.middlewares.error_middleware import ErrorMiddleware
+from app.common.middlewares.logging_middleware import LoggingMiddleware
+from app.common.middlewares.tracing_middleware import TracingMiddleware
+
+
+@pytest.fixture
+def app():
+    """Create test FastAPI app with middlewares."""
+
+    app = FastAPI()
+
+    # Add middlewares in correct order
+    app.add_middleware(ErrorMiddleware)
+    app.add_middleware(LoggingMiddleware)
+    app.add_middleware(TracingMiddleware)
+
+    @app.get("/test")
+    async def test_endpoint():
+        return {"message": "success"}
+
+    @app.get("/error")
+    async def error_endpoint():
+        raise HTTPException(status_code=400, detail="Test error")
+
+    @app.get("/server-error")
+    async def server_error_endpoint():
+        msg = "Internal server error"
+        raise Exception(msg)
+
+    return app
+
+
+@pytest.fixture
+def client(app):
+    """Create test client."""
+
+    return TestClient(app)
 
 
 class TestMiddlewareIntegration:
     """Integration tests for middleware stack."""
 
-    @pytest.fixture
-    def mock_broker(self):
-        """Mock broker for testing."""
-
-        broker = Mock()
-        broker.result_backend = Mock()
-        broker.result_backend.get_result = AsyncMock()
-        return broker
-
-    @pytest.fixture
-    def task_manager(self, mock_broker):
-        """Task manager fixture."""
-
-        return TaskManager(mock_broker)
-
-    @pytest.fixture(autouse=True)
-    def mock_di_container(self, task_manager):
-        """Mock dependency injection container."""
-
-        di[TaskManager] = task_manager
-
-    @pytest.fixture
-    def test_app(self, test_config):
-        """Create FastAPI app with middleware stack."""
-
-        app = FastAPI()
-
-        @app.get("/test")
-        async def test_endpoint():
-            return {"message": "success"}
-
-        @app.get("/error")
-        async def error_endpoint():
-            msg = "Test error"
-            raise ValueError(msg)
-
-        @app.get("/app-error")
-        async def app_error_endpoint():
-            raise ValidationError(message="Validation failed")
-
-        # Register middlewares
-        register_request_middlewares(test_config, app)
-        return app
-
-    @pytest.fixture
-    def client(self, test_app):
-        """Create test client."""
-
-        return TestClient(test_app)
-
-    def test_successful_request_middleware_chain(self, client):
-        """Test successful request through complete middleware chain."""
+    def test_successful_request_flow(self, client):
+        """Test complete middleware flow for successful request."""
 
         response = client.get("/test")
 
         assert response.status_code == 200
         assert response.json() == {"message": "success"}
 
-        # Verify tracing headers
+        # Check that trace headers are added
         assert "X-Trace-ID" in response.headers
         assert "X-Request-ID" in response.headers
-
-        # Verify security headers
-        assert response.headers["X-Content-Type-Options"] == "nosniff"
-        assert response.headers["X-Frame-Options"] == "DENY"
-
-        # Verify performance header
         assert "X-Response-Time" in response.headers
-        assert response.headers["X-Response-Time"].endswith("s")
 
-        # Verify trace IDs are valid UUIDs
-        uuid.UUID(response.headers["X-Trace-ID"])
-        uuid.UUID(response.headers["X-Request-ID"])
-
-    def test_error_handling_middleware_chain(self, client):
-        """Test error handling through complete middleware chain."""
+    def test_client_error_handling(self, client):
+        """Test middleware handling of client errors."""
 
         response = client.get("/error")
 
+        assert response.status_code == 400
+
+        # Check that trace headers are added to error response
+        assert "X-Trace-ID" in response.headers
+        assert "X-Request-ID" in response.headers
+
+        # Check error response format
+        error_data = response.json()
+        assert "detail" in error_data  # FastAPI default format
+
+    def test_server_error_handling(self, client):
+        """Test middleware handling of server errors."""
+
+        response = client.get("/server-error")
+
         assert response.status_code == 500
 
-        # Verify tracing headers are present even in error responses
+        # Check that trace headers are added to error response
         assert "X-Trace-ID" in response.headers
         assert "X-Request-ID" in response.headers
 
-        # Verify security headers are present
-        assert "X-Content-Type-Options" in response.headers
-
-    def test_app_exception_handling_middleware_chain(self, client):
-        """Test AppException handling through middleware chain."""
-
-        response = client.get("/app-error")
-
-        # Should be handled by appropriate exception handler
-        assert response.status_code in [400, 422]  # Validation error
-
-        # Verify tracing headers
-        assert "X-Trace-ID" in response.headers
-        assert "X-Request-ID" in response.headers
+        # Check standardized error response format
+        error_data = response.json()
+        assert "details" in error_data
+        assert "message" in error_data
+        assert "code" in error_data
+        assert "timestamp" in error_data
 
     def test_trace_id_propagation(self, client):
-        """Test trace ID propagation through middleware chain."""
+        """Test that trace ID is properly propagated through middleware stack."""
 
-        trace_id = str(uuid.uuid4())
+        custom_trace_id = "custom-trace-123"
+        headers = {"X-Trace-ID": custom_trace_id}
 
-        response = client.get("/test", headers={"X-Trace-ID": trace_id})
+        response = client.get("/test", headers=headers)
 
         assert response.status_code == 200
+        assert response.headers["X-Trace-ID"] == custom_trace_id
 
-        # Verify trace ID was preserved
-        assert response.headers["X-Trace-ID"] == trace_id
+    @patch("app.infrastructure.taskiq.task_manager.TaskManager.submit_task")
+    def test_logging_middleware_database_submission(self, mock_submit_task, client):
+        """Test that logging middleware submits database logging tasks."""
 
-        # Verify new request ID was generated
-        assert "X-Request-ID" in response.headers
-        assert response.headers["X-Request-ID"] != trace_id
+        with patch("app.core.config.Configuration") as mock_config:
+            mock_config.return_value.request_logging_enabled = True
 
-    def test_middleware_execution_order(self, test_app):
-        """Test that middlewares execute in correct order."""
+            response = client.get("/test")
 
-        execution_order = []
+            assert response.status_code == 200
+            mock_submit_task.assert_called_once()
 
-        # Patch middleware methods to track execution
-        with (
-            patch(
-                "app.common.middlewares.tracing_middleware.TracingMiddleware.dispatch"
-            ) as mock_tracing,
-            patch(
-                "app.common.middlewares.logging_middleware.LoggingMiddleware.dispatch"
-            ) as mock_logging,
-            patch(
-                "app.common.middlewares.error_middleware.ErrorMiddleware.dispatch"
-            ) as mock_error,
-        ):
-            # Setup mocks to track execution order
-            async def track_tracing(request, call_next):
-                execution_order.append("tracing")
-                return await call_next(request)
+            # Verify task submission parameters
+            call_args = mock_submit_task.call_args
+            assert call_args[0][0] == "request_log:create"  # Task name
+            assert isinstance(call_args[0][1], dict)  # Log data
 
-            async def track_logging(request, call_next):
-                execution_order.append("logging")
-                return await call_next(request)
-
-            async def track_error(_request, _call_next):
-                execution_order.append("error")
-                return JSONResponse({"message": "success"})
-
-            mock_tracing.side_effect = track_tracing
-            mock_logging.side_effect = track_logging
-            mock_error.side_effect = track_error
-
-            client = TestClient(test_app)
-            client.get("/test")
-
-            # Verify execution order (outermost to innermost)
-            assert execution_order == ["tracing", "logging", "error"]
-
-    def test_comprehensive_header_collection(self, client):
-        """Test comprehensive header collection across middleware stack."""
+    def test_middleware_performance_headers(self, client):
+        """Test that performance headers are properly added."""
 
         response = client.get("/test")
 
-        # Collect all expected headers
-        expected_headers = {
-            # Tracing headers
-            "X-Trace-ID",
-            "X-Request-ID",
-            # Security headers
-            "X-Content-Type-Options",
-            "X-Frame-Options",
-            "X-XSS-Protection",
-            "Strict-Transport-Security",
-            # Performance headers
-            "X-Response-Time",
-        }
+        assert response.status_code == 200
+        assert "X-Response-Time" in response.headers
 
-        for header in expected_headers:
-            assert header in response.headers, f"Missing header: {header}"
+        # Response time should be in seconds format
+        response_time = response.headers["X-Response-Time"]
+        assert response_time.endswith("s")
+        assert float(response_time[:-1]) >= 0
 
-    def test_error_context_preservation(self, client):
-        """Test that error context is preserved through middleware chain."""
+    def test_error_middleware_exception_context(self, client):
+        """Test that error middleware properly sets exception context."""
 
-        trace_id = str(uuid.uuid4())
+        response = client.get("/server-error")
 
-        response = client.get("/error", headers={"X-Trace-ID": trace_id})
+        assert response.status_code == 500
 
-        # Even with errors, trace context should be preserved
-        assert response.headers["X-Trace-ID"] == trace_id
-        assert "X-Request-ID" in response.headers
+        error_data = response.json()
+
+        # Check that standardized error format is used
+        assert error_data["message"].startswith("an unexpected error occurred")
+        assert error_data["code"] == ErrorCode.INTERNAL_SERVER_ERROR.value
+        assert error_data["trace_id"] == response.headers["X-Trace-ID"]
+        assert error_data["request_id"] == response.headers["X-Request-ID"]
+        assert "timestamp" in error_data

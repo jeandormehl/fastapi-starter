@@ -9,9 +9,9 @@ from pydiator_core.mediatr import pydiator
 from pydiator_core.mediatr_container import MediatrContainer
 from taskiq import AsyncBroker
 
+from app.common.logging import initialize_logging
 from app.core.application import get_application
 from app.core.config import Configuration
-from app.core.logging import initialize_logging
 from app.domain.v1.auth.services import JWTService
 from app.domain.v1.request_handler_map import RequestHandlerMap
 from app.infrastructure.database import Database

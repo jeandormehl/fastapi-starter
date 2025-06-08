@@ -1,7 +1,7 @@
 import pytest
 from prisma.models import Scope
 
-from app.core.errors.errors import DatabaseError
+from app.common.errors.errors import DatabaseError
 from app.domain.v1.auth.handlers.scope_find_handler import ScopeFindHandler
 from app.domain.v1.auth.requests import ScopeFindRequest
 

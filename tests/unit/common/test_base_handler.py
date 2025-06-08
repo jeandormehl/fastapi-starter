@@ -6,7 +6,7 @@ from fastapi.requests import Request
 from app.common.base_handler import BaseHandler
 from app.common.base_request import BaseRequest
 from app.common.base_response import BaseResponse
-from app.core.errors.errors import (
+from app.common.errors.errors import (
     ApplicationError,
     AuthenticationError,
     ErrorCode,

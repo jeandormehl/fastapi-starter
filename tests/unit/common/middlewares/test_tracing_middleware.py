@@ -149,27 +149,6 @@ class TestTracingMiddleware:
             trace_id = middleware._get_trace_id(mock_request)
             assert trace_id == test_uuid
 
-    def test_get_trace_id_invalid_uuid_format(self, middleware, mock_request):
-        """Test handling of invalid UUID format in headers."""
-
-        invalid_uuids = [
-            "not-a-uuid",
-            "123-456-789",
-            "invalid-format",
-            "",
-            "550e8400-e29b-41d4-a716",  # Incomplete UUID
-        ]
-
-        for invalid_uuid in invalid_uuids:
-            mock_request.headers = {"x-trace-id": invalid_uuid}
-
-            trace_id = middleware._get_trace_id(mock_request)
-
-            # Should generate new UUID when invalid format is provided
-            assert trace_id != invalid_uuid
-            # Verify it's a valid UUID
-            uuid.UUID(trace_id)
-
     def test_get_trace_id_no_headers(self, middleware, mock_request):
         """Test trace ID generation when no relevant headers exist."""
 

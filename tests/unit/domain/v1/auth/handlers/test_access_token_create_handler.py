@@ -5,7 +5,7 @@ import pytest
 from bcrypt import gensalt, hashpw
 from prisma.models import Client, Scope
 
-from app.core.errors.errors import AuthenticationError, DatabaseError
+from app.common.errors.errors import AuthenticationError, DatabaseError
 from app.domain.v1.auth.handlers.access_token_create_handler import (
     AccessTokenCreateHandler,
 )

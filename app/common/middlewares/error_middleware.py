@@ -3,24 +3,29 @@ import time
 import traceback
 from typing import Any
 
-from fastapi import Request
+from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from app.core.errors.exception_handlers import EXCEPTION_HANDLERS
-from app.core.logging import get_logger
+from app.common.errors import (
+    EXCEPTION_HANDLERS,
+    ErrorResponseBuilder,
+    create_error_response_json,
+)
+from app.common.logging import get_logger
+from app.common.utils import TraceContextExtractor
 
 
-# noinspection PyBroadException
 class ErrorMiddleware(BaseHTTPMiddleware):
     """
-    Middleware for centralized exception handling with comprehensive error logging.
-    Defensive programming and better error context management.
+    Consolidated middleware for centralized exception handling with
+    standardized error responses and comprehensive error logging.
     """
 
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
+
         self._logger = get_logger(__name__)
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
@@ -37,59 +42,36 @@ class ErrorMiddleware(BaseHTTPMiddleware):
             return await self._handle_exception(request, exc)
 
     async def _handle_exception(self, request: Request, exc: Exception) -> Response:
-        """Handle exception with comprehensive logging and response generation."""
+        """Handle exception with standardized responses and comprehensive logging."""
 
         # Calculate request duration safely
         start_time = getattr(request.state, "start_time", time.time())
         duration = time.time() - start_time
 
-        # Extract tracing context with defaults
-        trace_id = self._get_trace_id(request)
-        request_id = self._get_request_id(request)
+        # Extract tracing context
+        trace_id = TraceContextExtractor.get_trace_id(request)
+        request_id = TraceContextExtractor.get_request_id(request)
 
-        # Set trace variables on exception if it's an AppException (defensive)
+        # Set trace variables on exception if supported
         self._set_exception_context(exc, request_id, trace_id)
 
-        # Find appropriate exception handler
+        # Find appropriate exception handler and generate standardized response
         handler = self._find_exception_handler(exc)
-
-        # Generate error response
         response = await handler(request, exc)
 
-        # Log error with comprehensive context
+        # Create comprehensive error context for logging
         error_context = self._create_error_context(
             request, exc, response, duration, trace_id, request_id
         )
 
+        # Log error with appropriate severity
         self._logger.bind(**error_context).error("request failed with exception")
 
-        # Add trace headers to error response
+        # Add standard trace headers to error response
         response.headers["X-Trace-ID"] = trace_id
         response.headers["X-Request-ID"] = request_id
 
         return response
-
-    def _get_trace_id(self, request: Request) -> str:
-        """Safely extract trace ID from request state."""
-
-        if hasattr(request, "state") and hasattr(request.state, "trace_id"):
-            trace_id = getattr(request.state, "trace_id", None)
-            if trace_id:
-                return str(trace_id)
-
-        # Generate fallback trace ID
-        return "unknown"
-
-    def _get_request_id(self, request: Request) -> str:
-        """Safely extract request ID from request state."""
-
-        if hasattr(request, "state") and hasattr(request.state, "request_id"):
-            request_id = getattr(request.state, "request_id", None)
-            if request_id:
-                return str(request_id)
-
-        # Generate fallback request ID
-        return "unknown"
 
     def _set_exception_context(
         self, exc: Exception, request_id: str, trace_id: str
@@ -97,7 +79,6 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         """Safely set trace context on exception if supported."""
 
         try:
-            # Only set if the exception has these attributes and they're not already set
             if hasattr(exc, "request_id") and not getattr(exc, "request_id", None):
                 exc.request_id = request_id
 
@@ -105,35 +86,37 @@ class ErrorMiddleware(BaseHTTPMiddleware):
                 exc.trace_id = trace_id
 
         except Exception:
-            # Ignore errors in setting context to prevent masking the original exception
             contextlib.suppress(Exception)
 
     def _find_exception_handler(self, exc: Exception) -> Any:
         """Find appropriate exception handler for the given exception."""
 
-        # Find specific handler for exception type
         for exc_type, exc_handler in EXCEPTION_HANDLERS.items():
             if isinstance(exc, exc_type):
                 return exc_handler
 
-        # Fallback to generic Exception handler
         return EXCEPTION_HANDLERS.get(Exception, self._default_exception_handler)
 
     async def _default_exception_handler(
-        self, _request: Request, _exc: Exception
-    ) -> Response:
-        """Default exception handler for cases where no specific handler is found."""
+        self, request: Request, exc: Exception
+    ) -> JSONResponse:
+        """Default exception handler with standardized response format."""
 
-        from starlette.responses import JSONResponse
+        trace_id = TraceContextExtractor.get_trace_id(request)
+        request_id = TraceContextExtractor.get_request_id(request)
 
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "internal server error",
-                "message": "an unexpected error occurred",
-                "code": "internal_server_error",
-            },
+        error_response = ErrorResponseBuilder.internal_server_error(
+            message="an unexpected error occurred",
+            details={"exception_type": type(exc).__name__},
+            trace_id=trace_id,
+            request_id=request_id,
         )
+
+        response_data = create_error_response_json(
+            error_response, status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+        return JSONResponse(**response_data)
 
     def _create_error_context(
         self,
@@ -144,7 +127,9 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         trace_id: str,
         request_id: str,
     ) -> dict[str, Any]:
-        """Create comprehensive error context for logging with safety."""
+        """Create comprehensive error context for logging."""
+
+        from app.common.utils import ClientIPExtractor, DataSanitizer
 
         error_context = {
             "trace_id": trace_id,
@@ -156,23 +141,18 @@ class ErrorMiddleware(BaseHTTPMiddleware):
             "exception_module": getattr(exc.__class__, "__module__", "unknown"),
             "request_path": self._safe_get_path(request),
             "request_method": getattr(request, "method", "UNKNOWN"),
-            "client_ip": self._safe_get_client_ip(request),
+            "client_ip": ClientIPExtractor.extract_client_ip(request),
             "event": "request_failed",
             "traceback": self._get_limited_traceback(exc),
         }
 
-        # Add limited stack trace for debugging (prevent memory issues)
-
-        # Add request headers safely
+        # Add sanitized request headers
         if hasattr(request, "headers"):
             try:
-                # Only include non-sensitive headers
-                safe_headers = {
-                    k: v
-                    for k, v in request.headers.items()
-                    if k.lower() not in {"authorization", "cookie", "x-api-key"}
-                }
-                error_context["request_headers"] = dict(safe_headers)
+                error_context["request_headers"] = DataSanitizer.sanitize_headers(
+                    dict(request.headers)
+                )
+
             except Exception:
                 error_context["request_headers"] = "error_reading_headers"
 
@@ -180,39 +160,28 @@ class ErrorMiddleware(BaseHTTPMiddleware):
 
     def _safe_get_path(self, request: Request) -> str:
         """Safely extract request path."""
-
         try:
             if hasattr(request, "url") and hasattr(request.url, "path"):
                 return str(request.url.path)
+
         except Exception:
             contextlib.suppress(Exception)
 
         return "unknown_path"
-
-    def _safe_get_client_ip(self, request: Request) -> str:
-        """Safely extract client IP address."""
-
-        try:
-            if hasattr(request, "client") and request.client:
-                return getattr(request.client, "host", "unknown")
-        except Exception:
-            contextlib.suppress(Exception)
-
-        return "unknown_ip"
 
     def _get_limited_traceback(self, exc: Exception) -> str:
         """Get limited traceback to prevent memory issues."""
 
         try:
             if hasattr(exc, "__traceback__") and exc.__traceback__:
-                # Limit traceback to last 10 frames and 2000 characters
                 tb_lines = traceback.format_exc().split("\n")
-                limited_tb = "\n".join(tb_lines[-20:])  # Last 20 lines
+                limited_tb = "\n".join(tb_lines[-20:])
 
                 if len(limited_tb) > 2000:
                     limited_tb = limited_tb[:2000] + "... (truncated)"
 
                 return limited_tb
+
         except Exception:
             contextlib.suppress(Exception)
 

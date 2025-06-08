@@ -3,7 +3,7 @@ from fastapi.requests import Request
 from prisma.models import Client
 from pydiator_core.mediatr import pydiator
 
-from app.core.utils import build_pydiator_request
+from app.common.utils import build_pydiator_request
 from app.domain.v1.auth.dependencies import get_client, require_admin_scope
 from app.domain.v1.auth.requests import (
     AccessTokenCreateRequest,

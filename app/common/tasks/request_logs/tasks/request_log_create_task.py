@@ -4,7 +4,7 @@ from typing import Any
 from kink import di
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.logging import get_logger
+from app.common.logging import get_logger
 from app.infrastructure.database import Database
 from app.infrastructure.taskiq.task_manager import TaskManager
 
