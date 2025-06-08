@@ -379,7 +379,7 @@ class TestHTTPCommunication:
 
             # Verify error was logged
             mock_print.assert_called()
-            assert "HTTP error 500" in str(mock_print.call_args)
+            assert "http error 500" in str(mock_print.call_args)
 
     @pytest.mark.asyncio
     async def test_send_batch_request_error(self, mock_config):
@@ -404,7 +404,7 @@ class TestHTTPCommunication:
 
             # Verify error was logged
             mock_print.assert_called()
-            assert "Request error" in str(mock_print.call_args)
+            assert "request error" in str(mock_print.call_args)
 
     @pytest.mark.asyncio
     async def test_send_batch_without_client(self, mock_config):

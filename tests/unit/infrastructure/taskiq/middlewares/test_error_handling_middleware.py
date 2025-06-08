@@ -302,24 +302,6 @@ class TestErrorHandlingMiddleware:
                 "high error frequency: 10 errors in 5 minutes",
             )
 
-    def test_calculate_adaptive_delay(self, middleware, mock_di_container):
-        """Test adaptive delay calculation."""
-
-        with patch(
-            "app.infrastructure.taskiq.middlewares.error_handling_middleware.di",
-            mock_di_container,
-        ):
-            task_name = "test_task"
-
-            # Test exponential backoff
-            delay_0 = middleware._calculate_adaptive_delay(task_name, 0)
-            delay_1 = middleware._calculate_adaptive_delay(task_name, 1)
-            delay_2 = middleware._calculate_adaptive_delay(task_name, 2)
-
-            assert delay_1 > delay_0
-            assert delay_2 > delay_1
-            assert delay_2 <= middleware.config.max_retry_delay
-
     def test_sanitize_data(self):
         """Test data sanitization."""
 

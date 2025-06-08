@@ -1,4 +1,3 @@
-import secrets
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from enum import Enum
@@ -28,7 +27,7 @@ class CircuitBreakerState(Enum):
 
 
 class CircuitBreaker:
-    """Circuit breaker for task execution."""
+    """Circuit breaker for task execution with adaptive behavior."""
 
     def __init__(
         self,
@@ -119,8 +118,8 @@ class CircuitBreaker:
 
 class ErrorHandlingMiddleware(TaskiqMiddleware):
     """
-    Error handling middleware with standardized error responses,
-    improved circuit breaker, and consolidated error context creation.
+    Error handling middleware for Taskiq that provides standardized
+    error responses, circuit breaker functionality, and comprehensive error tracking.
     """
 
     def __init__(self, config: TaskiqConfiguration) -> None:
@@ -136,7 +135,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             )
         )
 
-        # Error tracking
+        # Error tracking with time-based cleanup
         self.error_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
         self.error_patterns: dict[str, dict[str, int]] = defaultdict(
             lambda: defaultdict(int)
@@ -155,6 +154,106 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             lambda: {"avg_duration": 0.0, "max_duration": 0.0, "total_executions": 0}
         )
 
+    async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:
+        """Pre-execution validation and circuit breaker checks."""
+
+        task_name = message.task_name
+
+        # Check quarantine status
+        if task_name in self.quarantined_tasks:
+            quarantine_end = self.quarantine_until.get(task_name)
+
+            if quarantine_end and datetime.now(di["timezone"]) < quarantine_end:
+                reason = self.quarantine_reasons.get(task_name, "unknown reason")
+
+                msg = (
+                    f"task {task_name} is quarantined until {quarantine_end}: {reason}"
+                )
+                raise Exception(msg)
+
+            # Remove from quarantine if expired
+            self._remove_from_quarantine(task_name)
+
+        # Circuit breaker check
+        circuit_breaker = self.circuit_breakers[task_name]
+        if not circuit_breaker.can_execute():
+            state_info = circuit_breaker.get_state_info()
+            msg = (
+                f"circuit breaker is {circuit_breaker.state.value} for task "
+                f"{task_name}: {state_info}"
+            )
+            raise Exception(msg)
+
+        # Rate limiting check
+        if self._is_rate_limited(task_name):
+            recent_errors = len(self._get_recent_errors(task_name, minutes=1))
+
+            msg = f"task {task_name} is rate limited ({recent_errors} recent errors)"
+            raise Exception(msg)
+
+        # Store execution start time
+        message.labels["execution_start"] = datetime.now(di["timezone"]).isoformat()
+
+        return message
+
+    async def on_error(
+        self, message: TaskiqMessage, result: TaskiqResult[Any], exception: Exception
+    ) -> None:
+        """Comprehensive error handling with standardized responses."""
+
+        task_name = message.task_name
+
+        # Update error tracking
+        self._update_error_patterns(task_name, exception)
+
+        # Update circuit breaker
+        self.circuit_breakers[task_name].record_failure()
+
+        # Check for quarantine conditions
+        should_quarantine, quarantine_reason = self._should_quarantine_task(
+            task_name, exception
+        )
+        if should_quarantine:
+            self._quarantine_task(task_name, quarantine_reason)
+
+        # Update performance metrics
+        self._update_performance_metrics(message, exception)
+
+        # Create comprehensive error context
+        error_context = self._create_comprehensive_error_context(
+            message, exception, result
+        )
+
+        # Create standardized error response
+        error_response = self._create_standardized_error_response(
+            message, exception, result
+        )
+
+        # Store error response in result metadata
+        if hasattr(result, "metadata"):
+            result.metadata = result.metadata or {}
+            result.metadata["error_response"] = error_response.model_dump()
+
+        # Log with appropriate severity
+        severity = self._determine_error_severity(exception)
+        log_method = getattr(
+            self.logger.bind(**error_context),
+            "critical" if severity == ErrorSeverity.CRITICAL else "error",
+        )
+        log_method(f"task '{task_name}' execution failed: {exception}")
+
+    async def post_execute(
+        self, message: TaskiqMessage, result: TaskiqResult[Any]
+    ) -> None:
+        """Post-execution success handling."""
+
+        if not result.is_err:
+            # Record success in circuit breaker
+            self.circuit_breakers[message.task_name].record_success()
+
+            # Update performance metrics for successful executions
+            self._update_success_metrics(message)
+
     def _should_quarantine_task(
         self, task_name: str, exception: Exception
     ) -> tuple[bool, str]:
@@ -165,10 +264,12 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         if error_type in QUARANTINE_ERRORS:
             return True, f"error type {error_type} is in quarantine list"
 
-        # Check for connection issues
+        # Check for connection/infrastructure issues
         error_message = str(exception).lower()
-        if "connection" in error_message or "timeout" in error_message:
-            return True, "database/connection related error detected"
+        if any(
+            keyword in error_message for keyword in ["connection", "timeout", "network"]
+        ):
+            return True, "infrastructure-related error detected"
 
         # Quarantine based on error frequency
         now = datetime.now(di["timezone"])
@@ -200,117 +301,6 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
 
         return False, ""
 
-    def _calculate_adaptive_delay(self, task_name: str, retry_count: int) -> int:
-        """Calculate adaptive retry delay with performance-based adjustments."""
-
-        base_delay = self.config.default_retry_delay
-
-        # Exponential backoff with jitter
-        exponential_delay = min(
-            base_delay * (2**retry_count), self.config.max_retry_delay
-        )
-
-        # Performance-based adjustment
-        performance = self.task_performance.get(task_name, {})
-        avg_duration = performance.get("avg_duration", 0)
-
-        if avg_duration > 30:  # 30 seconds
-            exponential_delay = int(exponential_delay * 1.5)
-
-        # Adjust based on recent error rate
-        recent_errors = self._get_recent_errors(task_name, minutes=10)
-        if len(recent_errors) > 5:
-            exponential_delay *= 2
-
-        # Circuit breaker state adjustment
-        circuit_breaker = self.circuit_breakers[task_name]
-        if circuit_breaker.state == CircuitBreakerState.OPEN:
-            exponential_delay *= 3
-
-        # Add secure jitter (±25%)
-        jitter_range = int(exponential_delay * 0.25)
-        jitter = secrets.randbelow(jitter_range * 2 + 1) - jitter_range
-
-        return max(1, exponential_delay + jitter)
-
-    def _get_recent_errors(self, task_name: str, minutes: int = 10) -> list:
-        """Get recent errors within specified time window."""
-
-        cutoff = datetime.now(di["timezone"]) - timedelta(minutes=minutes)
-
-        return [
-            error
-            for error in self.error_history[task_name]
-            if error["timestamp"] >= cutoff
-        ]
-
-    def _is_rate_limited(self, task_name: str) -> bool:
-        """Check if task is rate limited using sliding window."""
-
-        now = datetime.now(di["timezone"])
-        minute_ago = now - timedelta(minutes=1)
-
-        # Clean old entries
-        rate_limit_queue = self.rate_limits[task_name]
-        while rate_limit_queue and rate_limit_queue[0] < minute_ago:
-            rate_limit_queue.popleft()
-
-        # Dynamic rate limit based on task characteristics
-        max_failures_per_minute = self._calculate_rate_limit(task_name)
-
-        return len(rate_limit_queue) >= max_failures_per_minute
-
-    def _calculate_rate_limit(self, task_name: str) -> int:
-        """Calculate dynamic rate limit based on task characteristics."""
-
-        base_limit = 30
-
-        performance = self.task_performance.get(task_name, {})
-        total_executions = performance.get("total_executions", 0)
-
-        if total_executions > 1000:  # High-volume task
-            return base_limit * 2
-        if total_executions < 10:  # New or rare task
-            return max(5, base_limit // 2)
-
-        return base_limit
-
-    def _update_error_patterns(self, task_name: str, exception: Exception) -> None:
-        """Update error pattern analysis."""
-
-        error_type = type(exception).__name__
-        error_message = str(exception)
-
-        # Update error patterns
-        self.error_patterns[task_name][error_type] += 1
-
-        # Add to error history
-        error_entry = {
-            "timestamp": datetime.now(di["timezone"]),
-            "error_type": error_type,
-            "error_message": error_message[:500],
-            "error_module": getattr(exception.__class__, "__module__", "unknown"),
-            "circuit_breaker_state": self.circuit_breakers[task_name].state.value,
-        }
-
-        self.error_history[task_name].append(error_entry)
-
-        # Update rate limiting
-        self.rate_limits[task_name].append(datetime.now(di["timezone"]))
-
-        # Periodic cleanup
-        if len(self.error_history[task_name]) % 50 == 0:
-            self._cleanup_old_patterns(task_name)
-
-    def _cleanup_old_patterns(self, task_name: str) -> None:
-        """Clean up old error patterns to prevent memory growth."""
-
-        cutoff = datetime.now(di["timezone"]) - timedelta(hours=24)
-
-        error_queue = self.error_history[task_name]
-        while error_queue and error_queue[0]["timestamp"] < cutoff:
-            error_queue.popleft()
-
     def _create_standardized_error_response(
         self,
         message: TaskiqMessage,
@@ -321,15 +311,13 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
 
         trace_id = message.kwargs.get("trace_id", "unknown")
         request_id = message.kwargs.get("request_id", "unknown")
-
-        # Determine error severity
         severity = self._determine_error_severity(exception)
+        error_code = getattr(exception, "error_code", ErrorCode.INTERNAL_SERVER_ERROR)
 
-        # Create standardized error response
         return StandardErrorResponse.create(
             error="task execution error",
             message=str(exception)[:500],
-            code=getattr(exception, "code", ErrorCode.INTERNAL_SERVER_ERROR.value),
+            code=error_code.value,
             details={
                 "task_name": message.task_name,
                 "task_id": message.task_id,
@@ -337,12 +325,12 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
                 "exception_module": getattr(
                     exception.__class__, "__module__", "unknown"
                 ),
+                "exception_details": getattr(exception, "details", {}),
                 "retry_count": message.labels.get("retry_count", 0),
                 "circuit_breaker_state": self.circuit_breakers[
                     message.task_name
                 ].state.value,
                 "is_quarantined": message.task_name in self.quarantined_tasks,
-                "task_error_details": getattr(exception, "details", {}),
             },
             trace_id=trace_id,
             request_id=request_id,
@@ -370,10 +358,11 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         # Connection/timeout errors are critical
         error_message = str(exception).lower()
 
-        if "connection" in error_message or "timeout" in error_message:
+        if any(
+            keyword in error_message for keyword in ["connection", "timeout", "network"]
+        ):
             return ErrorSeverity.CRITICAL
 
-        # Default to medium severity
         return ErrorSeverity.MEDIUM
 
     def _create_comprehensive_error_context(
@@ -389,6 +378,8 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         error_code = getattr(exception, "error_code", ErrorCode.INTERNAL_SERVER_ERROR)
 
         context = {
+            "trace_id": message.kwargs.get("trace_id"),
+            "request_id": message.kwargs.get("request_id"),
             "circuit_breaker": circuit_breaker.get_state_info(),
             "exception_code": error_code.value,
             "exception_details": getattr(exception, "details", {}),
@@ -397,14 +388,12 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             "exception_type": type(exception).__name__,
             "is_quarantined": message.task_name in self.quarantined_tasks,
             "recent_error_count": len(self._get_recent_errors(message.task_name)),
-            "request_id": message.kwargs.get("request_id"),
             "retry_count": message.labels.get("retry_count", 0),
             "severity": severity.value,
             "task_id": message.task_id,
             "task_name": message.task_name,
             "task_performance": self.task_performance.get(message.task_name, {}),
             "timestamp": datetime.now(di["timezone"]).isoformat(),
-            "trace_id": message.kwargs.get("trace_id"),
         }
 
         # Add error pattern analysis
@@ -431,82 +420,75 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
 
         return context
 
-    async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:
-        """Pre-execution checks with validation."""
+    def _update_error_patterns(self, task_name: str, exception: Exception) -> None:
+        """Update error pattern analysis with cleanup."""
 
-        task_name = message.task_name
+        error_type = type(exception).__name__
+        error_message = str(exception)
 
-        # Check quarantine status
-        if task_name in self.quarantined_tasks:
-            quarantine_end = self.quarantine_until.get(task_name)
-            if quarantine_end and datetime.now(di["timezone"]) < quarantine_end:
-                reason = self.quarantine_reasons.get(task_name, "Unknown reason")
-                msg = (
-                    f"task {task_name} is quarantined until {quarantine_end}: {reason}"
-                )
-                raise Exception(msg)
+        # Update error patterns
+        self.error_patterns[task_name][error_type] += 1
 
-            # Remove from quarantine
-            self._remove_from_quarantine(task_name)
+        # Add to error history
+        error_entry = {
+            "timestamp": datetime.now(di["timezone"]),
+            "error_type": error_type,
+            "error_message": error_message[:500],
+            "error_module": getattr(exception.__class__, "__module__", "unknown"),
+            "circuit_breaker_state": self.circuit_breakers[task_name].state.value,
+        }
 
-        # Circuit breaker check
-        circuit_breaker = self.circuit_breakers[task_name]
-        if not circuit_breaker.can_execute():
-            state_info = circuit_breaker.get_state_info()
-            msg = (
-                f"circuit breaker is {circuit_breaker.state.value} for task "
-                f"{task_name}: {state_info}"
-            )
-            raise Exception(msg)
+        self.error_history[task_name].append(error_entry)
 
-        # Rate limiting
-        if self._is_rate_limited(task_name):
-            recent_errors = len(self._get_recent_errors(task_name, minutes=1))
-            msg = f"task {task_name} is rate limited ({recent_errors} recent errors)"
-            raise Exception(msg)
+        # Update rate limiting
+        self.rate_limits[task_name].append(datetime.now(di["timezone"]))
 
-        # Track execution start
-        message.labels["execution_start"] = datetime.now(di["timezone"]).isoformat()
+        # Periodic cleanup
+        if len(self.error_history[task_name]) % 50 == 0:
+            self._cleanup_old_patterns(task_name)
 
-        return message
+    def _get_recent_errors(self, task_name: str, minutes: int = 10) -> list:
+        """Get recent errors within specified time window."""
 
-    async def on_error(
-        self, message: TaskiqMessage, result: TaskiqResult[Any], exception: Exception
-    ) -> None:
-        """Error handling with standardized responses."""
+        cutoff = datetime.now(di["timezone"]) - timedelta(minutes=minutes)
+        return [
+            error
+            for error in self.error_history[task_name]
+            if error["timestamp"] >= cutoff
+        ]
 
-        task_name = message.task_name
+    def _is_rate_limited(self, task_name: str) -> bool:
+        """Check if task is rate limited using sliding window."""
 
-        # Update error tracking
-        self._update_error_patterns(task_name, exception)
+        now = datetime.now(di["timezone"])
+        minute_ago = now - timedelta(minutes=1)
 
-        # Update circuit breaker
-        self.circuit_breakers[task_name].record_failure()
+        # Clean old entries
+        rate_limit_queue = self.rate_limits[task_name]
+        while rate_limit_queue and rate_limit_queue[0] < minute_ago:
+            rate_limit_queue.popleft()
 
-        # Check for quarantine
-        should_quarantine, quarantine_reason = self._should_quarantine_task(
-            task_name, exception
-        )
-        if should_quarantine:
-            self._quarantine_task(task_name, quarantine_reason)
+        # Dynamic rate limit based on task characteristics
+        max_failures_per_minute = self._calculate_rate_limit(task_name)
+        return len(rate_limit_queue) >= max_failures_per_minute
 
-        # Update performance metrics
-        self._update_performance_metrics(message, exception)
+    def _calculate_rate_limit(self, task_name: str) -> int:
+        """Calculate dynamic rate limit based on task characteristics."""
 
-        # Create comprehensive error context
-        error_context = self._create_comprehensive_error_context(
-            message, exception, result
-        )
+        base_limit = 30
+        performance = self.task_performance.get(task_name, {})
+        total_executions = performance.get("total_executions", 0)
 
-        # Log with appropriate level
-        logger = self.logger.bind(**error_context)
-        logger.error(
-            f"task '{task_name}' execution failed: {exception}",
-            exc_info=True,
-        )
+        if total_executions > 1000:  # High-volume task
+            return base_limit * 2
+        if total_executions < 10:  # New or rare task
+            return max(5, base_limit // 2)
+
+        return base_limit
 
     def _quarantine_task(self, task_name: str, reason: str) -> None:
         """Quarantine task with detailed tracking."""
+
         quarantine_duration = timedelta(minutes=30)
         quarantine_end = datetime.now(di["timezone"]) + quarantine_duration
 
@@ -515,7 +497,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         self.quarantine_reasons[task_name] = reason
 
         self.logger.warning(
-            f"Task {task_name} quarantined: {reason}",
+            f"task {task_name} quarantined: {reason}",
             extra={
                 "quarantine_until": quarantine_end.isoformat(),
                 "quarantine_reason": reason,
@@ -535,7 +517,6 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             extra={"previous_quarantine_reason": reason},
         )
 
-    # noinspection DuplicatedCode
     def _update_performance_metrics(
         self, message: TaskiqMessage, _exception: Exception
     ) -> None:
@@ -563,18 +544,6 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             except (ValueError, TypeError) as e:
                 self.logger.debug(f"failed to update performance metrics: {e}")
 
-    async def post_execute(
-        self, message: TaskiqMessage, result: TaskiqResult[Any]
-    ) -> None:
-        """Post-execution success handling."""
-        if not result.is_err:
-            # Record success in circuit breaker
-            self.circuit_breakers[message.task_name].record_success()
-
-            # Update performance metrics for successful executions
-            self._update_success_metrics(message)
-
-    # noinspection DuplicatedCode
     def _update_success_metrics(self, message: TaskiqMessage) -> None:
         """Update metrics for successful task execution."""
 
@@ -598,6 +567,15 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
 
             except (ValueError, TypeError) as e:
                 self.logger.debug(f"failed to update success metrics: {e}")
+
+    def _cleanup_old_patterns(self, task_name: str) -> None:
+        """Clean up old error patterns to prevent memory growth."""
+
+        cutoff = datetime.now(di["timezone"]) - timedelta(hours=24)
+        error_queue = self.error_history[task_name]
+
+        while error_queue and error_queue[0]["timestamp"] < cutoff:
+            error_queue.popleft()
 
     def get_error_statistics(self) -> dict[str, Any]:
         """Get comprehensive error statistics."""

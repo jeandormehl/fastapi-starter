@@ -17,9 +17,8 @@ from app.infrastructure.taskiq.task_manager import TaskManager
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     """
-    Unified logging middleware that handles both basic request logging
-    and comprehensive database logging based on configuration.
-    Eliminates overlap between multiple logging middlewares.
+    Logging middleware that handles comprehensive request/response logging
+    with database persistence and performance tracking.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -31,13 +30,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         # Performance tracking
         self._request_count = 0
-        self._error_count = 0
         self._skip_count = 0
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         """Process request with unified logging capabilities."""
 
-        # Quick skip check
+        # Quick skip check for non-business endpoints
         if not self._should_process_request(request):
             self._skip_count += 1
             return await call_next(request)
@@ -52,7 +50,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Create request context for logging
             request_context = self._create_request_context(request, start_datetime)
 
-            # Basic request logging
+            # Log request start
             self.logger.bind(**request_context).info("request started")
 
             # Process request
@@ -66,31 +64,32 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 request, response, end_datetime, duration
             )
 
-            # Basic response logging
-            self.logger.bind(**response_context).info("request completed successfully")
+            # Log successful completion
+            complete_context = {**request_context, **response_context}
+            self.logger.bind(**complete_context).info("request completed successfully")
 
             # Database logging if enabled
             if self.config.request_logging_enabled:
-                await self._submit_database_logging(
-                    {**request_context, **response_context}
-                )
+                await self._submit_database_logging(complete_context)
 
-            # Add performance header
+            # Add performance headers
             response.headers["X-Response-Time"] = f"{duration:.3f}s"
+            response.headers["X-Request-Count"] = str(self._request_count)
 
             self._request_count += 1
             return response
 
         except Exception as exc:
-            self._error_count += 1
+            # Log middleware failure but don't interfere with error handling
             self.logger.bind(
                 trace_id=TraceContextExtractor.get_trace_id(request),
                 request_id=TraceContextExtractor.get_request_id(request),
                 error=str(exc),
-            ).error("critical error in logging middleware")
+                middleware="logging",
+            ).error("logging middleware encountered an error")
 
-            # Continue request processing even if logging fails
-            return await call_next(request)
+            # Re-raise to let error middleware handle it
+            raise
 
     def _create_request_context(
         self, request: Request, start_datetime: datetime
@@ -115,18 +114,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "event": "request_started",
         }
 
-        # Add headers if configured
+        # Add sanitized headers if configured
         if self.config.request_logging_log_headers:
             context["headers"] = DataSanitizer.sanitize_headers(dict(request.headers))
 
-        # Add authentication info
+        # Add authentication context
         context.update(self._extract_auth_info(request))
 
         return context
 
     def _create_response_context(
         self,
-        request: Request,
+        _request: Request,
         response: Response,
         end_datetime: datetime,
         duration: float,
@@ -134,12 +133,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         """Create comprehensive response context for logging."""
 
         context = {
-            "status_code": response.status_code,
-            "response_size": self._safe_int(response.headers.get("content-length")),
-            "end_time": end_datetime,
             "duration_ms": round(duration * 1000, 2),
-            "response_type": response.__class__.__name__,
+            "end_time": end_datetime,
             "event": "request_completed",
+            "response_size": self._safe_int(response.headers.get("content-length")),
+            "response_type": response.__class__.__name__,
+            "status_code": response.status_code,
+            "success": 200 <= response.status_code < 400,
         }
 
         # Add response headers if configured
@@ -148,21 +148,21 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 dict(response.headers)
             )
 
-        # Add error information for non-2xx responses
+        # Add error categorization for non-2xx responses
         if response.status_code >= 400:
-            context.update(self._extract_error_info(request, response))
+            context.update(self._categorize_error_response(response.status_code))
 
         return context
 
     def _extract_auth_info(self, request: Request) -> dict[str, Any]:
-        """Extract authentication information with defensive programming."""
+        """Extract authentication information safely."""
 
         auth_info = {
+            "auth_method": None,
             "authenticated": False,
             "client_id": None,
-            "scopes": [],
-            "auth_method": None,
             "has_bearer_token": False,
+            "scopes": [],
         }
 
         # Check request state for authentication
@@ -178,29 +178,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
                 scopes = getattr(client, "scopes", [])
                 if scopes:
-                    auth_info["scopes"] = [scope.name for scope in client.scopes]
+                    auth_info["scopes"] = [scope.name for scope in scopes]
 
         # Check for JWT token presence
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
+            auth_info["auth_method"] = "jwt_bearer"
             auth_info["has_bearer_token"] = True
 
         return auth_info
 
-    def _extract_error_info(
-        self, _request: Request, response: Response
-    ) -> dict[str, Any]:
-        """Extract error information for failed requests."""
-
-        return {
-            "error_occurred": True,
-            "error_category": self._categorize_error(response.status_code),
-            "error_type": f"http_{response.status_code}",
-            "error_message": f"http {response.status_code} error occurred",
-        }
-
-    def _categorize_error(self, status_code: int) -> str:
-        """Categorize errors by HTTP status code."""
+    def _categorize_error_response(self, status_code: int) -> dict[str, Any]:
+        """Categorize error responses for analysis."""
 
         error_categories = {
             400: "bad_request",
@@ -208,21 +197,30 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             403: "forbidden",
             404: "not_found",
             422: "validation_error",
+            429: "rate_limited",
             500: "internal_server_error",
             502: "bad_gateway",
             503: "service_unavailable",
+            504: "gateway_timeout",
         }
 
-        if status_code in error_categories:
-            return error_categories[status_code]
+        category = error_categories.get(status_code)
 
-        if 400 <= status_code < 500:
-            return "client_error"
+        if not category:
+            if 400 <= status_code < 500:
+                category = "client_error"
 
-        if 500 <= status_code < 600:
-            return "server_error"
+            elif 500 <= status_code < 600:
+                category = "server_error"
 
-        return "unknown_error"
+            else:
+                category = "unknown_error"
+
+        return {
+            "error_occurred": True,
+            "error_category": category,
+            "error_type": f"http_{status_code}",
+        }
 
     async def _submit_database_logging(self, log_data: dict[str, Any]) -> None:
         """Submit comprehensive logging task for database storage."""
@@ -233,10 +231,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 {
                     "logged_at": datetime.now(di["timezone"]),
                     "request_count": self._request_count,
+                    "service_version": getattr(
+                        self.config, "service_version", "unknown"
+                    ),
                 }
             )
 
-            # Submit with proper error handling
+            # Submit with error handling
             await self.task_manager.submit_task(
                 "request_log:create",
                 log_data,
@@ -265,14 +266,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "/docs",
             "/redoc",
             "/openapi.json",
-            "/static",
+            "/favicon.ico",
         }
 
-        if path in skip_endpoints:
+        if path in skip_endpoints or path.startswith("/static/"):
             return False
 
-        # Check excluded paths
-        for excluded_path in getattr(self.config, "request_logging_excluded_paths", []):
+        # Check excluded paths from configuration
+        excluded_paths = getattr(self.config, "request_logging_excluded_paths", [])
+        for excluded_path in excluded_paths:
             if path.startswith(excluded_path):
                 return False
 
@@ -298,9 +300,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         return {
             "total_requests_processed": self._request_count,
-            "total_errors": self._error_count,
             "total_skipped": self._skip_count,
-            "error_rate": self._error_count / max(self._request_count, 1),
             "skip_rate": self._skip_count
             / max(self._request_count + self._skip_count, 1),
         }

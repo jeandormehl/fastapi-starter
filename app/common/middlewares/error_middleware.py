@@ -17,10 +17,11 @@ from app.common.logging import get_logger
 from app.common.utils import TraceContextExtractor
 
 
+# noinspection PyBroadException
 class ErrorMiddleware(BaseHTTPMiddleware):
     """
-    Consolidated middleware for centralized exception handling with
-    standardized error responses and comprehensive error logging.
+    Error handling middleware that provides standardized error responses,
+    comprehensive error logging, and trace context management across all requests.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -65,7 +66,9 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         )
 
         # Log error with appropriate severity
-        self._logger.bind(**error_context).error("request failed with exception")
+        severity = self._determine_log_severity(exc)
+        log_method = getattr(self._logger.bind(**error_context), severity)
+        log_method("request failed with exception")
 
         # Add standard trace headers to error response
         response.headers["X-Trace-ID"] = trace_id
@@ -81,7 +84,6 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         try:
             if hasattr(exc, "request_id") and not getattr(exc, "request_id", None):
                 exc.request_id = request_id
-
             if hasattr(exc, "trace_id") and not getattr(exc, "trace_id", None):
                 exc.trace_id = trace_id
 
@@ -96,6 +98,35 @@ class ErrorMiddleware(BaseHTTPMiddleware):
                 return exc_handler
 
         return EXCEPTION_HANDLERS.get(Exception, self._default_exception_handler)
+
+    def _determine_log_severity(self, exc: Exception) -> str:
+        """Determine appropriate log severity based on exception type."""
+
+        from app.common.errors.errors import ApplicationError, ErrorCode
+
+        if isinstance(exc, ApplicationError):
+            if exc.error_code in {
+                ErrorCode.VALIDATION_ERROR,
+                ErrorCode.RESOURCE_NOT_FOUND,
+            }:
+                return "info"
+
+            if exc.error_code in {
+                ErrorCode.AUTHENTICATION_ERROR,
+                ErrorCode.AUTHORIZATION_ERROR,
+            }:
+                return "warning"
+
+            return "error"
+
+        # Network/connection errors are critical
+        error_msg = str(exc).lower()
+        if any(
+            keyword in error_msg for keyword in ["connection", "timeout", "network"]
+        ):
+            return "critical"
+
+        return "error"
 
     async def _default_exception_handler(
         self, request: Request, exc: Exception
@@ -160,6 +191,7 @@ class ErrorMiddleware(BaseHTTPMiddleware):
 
     def _safe_get_path(self, request: Request) -> str:
         """Safely extract request path."""
+
         try:
             if hasattr(request, "url") and hasattr(request.url, "path"):
                 return str(request.url.path)

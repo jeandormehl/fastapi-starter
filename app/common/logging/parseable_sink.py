@@ -221,13 +221,13 @@ class ParseableSink:
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
             print(
-                f"parseable_sink: HTTP error "
+                f"parseable_sink: http error "
                 f"{e.response.status_code}: {e.response.text}",
                 file=sys.stderr,
             )
             raise
         except httpx.RequestError as e:
-            print(f"parseable_sink: Request error: {e}", file=sys.stderr)
+            print(f"parseable_sink: request error: {e}", file=sys.stderr)
             raise
 
     def cleanup(self) -> None:

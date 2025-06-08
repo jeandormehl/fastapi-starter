@@ -13,6 +13,8 @@ T = TypeVar("T", bound=BaseRequest)
 async def build_pydiator_request(
     request_class: type[T], req: Request, **kwargs: str | int | bool | dict | None
 ) -> T:
+    """Build pydiator request with proper trace context."""
+
     # Extract trace information with fallbacks
     trace_id = getattr(req.state, "trace_id", None)
     if not isinstance(trace_id, str):
@@ -82,12 +84,12 @@ class ClientIPExtractor:
 
     @staticmethod
     def extract_client_ip(request: Request) -> str:
-        """Extract client IP with proper proxy support"""
+        """Extract client IP with proper proxy support."""
 
         # Check for forwarded headers first
         forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
-            # FIX: Get first IP from comma-separated list
+            # Get first IP from comma-separated list
             return forwarded_for.split(",")[0].strip()
 
         real_ip = request.headers.get("x-real-ip")
@@ -187,6 +189,7 @@ class TraceContextExtractor:
 
             if trace_id:
                 return str(trace_id)
+
         return "unknown"
 
     @staticmethod
@@ -198,4 +201,5 @@ class TraceContextExtractor:
 
             if request_id:
                 return str(request_id)
+
         return "unknown"
