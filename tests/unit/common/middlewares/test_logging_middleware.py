@@ -115,7 +115,7 @@ class TestLoggingMiddleware:
 
     async def test_skip_health_check_endpoints(self, middleware, mock_logger):
         """Test that health check endpoints are skipped."""
-        request = MockRequest(path="/health")
+        request = MockRequest(path="/v1/health")
 
         async def mock_call_next(_req):
             return Response(content="OK", status_code=200)
@@ -128,7 +128,7 @@ class TestLoggingMiddleware:
 
     async def test_skip_docs_endpoints(self, middleware, mock_logger):
         """Test that documentation endpoints are skipped."""
-        paths_to_skip = ["/docs", "/redoc", "/openapi.json", "/v1"]
+        paths_to_skip = ["/v1/docs", "/v1/redoc", "/v1/openapi.json"]
 
         for path in paths_to_skip:
             request = MockRequest(path=path)

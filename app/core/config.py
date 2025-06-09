@@ -44,9 +44,7 @@ class Configuration(BaseSettings):
     )
 
     # Database settings
-    database_url: SecretStr = Field(
-        SecretStr("sqlite:///:memory:"), description="Database connection string"
-    )
+    database_url: SecretStr = Field(None, description="Database connection string")
 
     # Logging settings
     log_level: str = Field("INFO", description="Log level")

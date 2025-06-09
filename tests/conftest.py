@@ -46,6 +46,7 @@ def test_config() -> Configuration:
         app_environment="test",
         app_secret_key="test-secret-key-very-long-and-secure-for-testing",
         app_timezone="Africa/Harare",
+        database_url="sqlite:///:memory:",
         log_enable_json="False",
         log_file_path=f"{TESTS_PATH}/logs/test.log",
         log_level="DEBUG",

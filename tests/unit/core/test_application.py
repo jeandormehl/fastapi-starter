@@ -19,8 +19,10 @@ class TestApplicationLifespan:
         app = FastAPI()
 
         with (
-            patch("app.core.application.init_db") as mock_init,
-            patch("app.core.application.disconnect_db") as mock_disconnect,
+            patch("app.infrastructure.database.db.Database.init_db") as mock_init,
+            patch(
+                "app.infrastructure.database.db.Database.disconnect_db"
+            ) as mock_disconnect,
         ):
             mock_init.return_value = AsyncMock()
             mock_disconnect.return_value = AsyncMock()
@@ -71,7 +73,7 @@ class TestApplicationFactory:
         test_config.app_environment = "dev"
         app = _v1(test_config)
 
-        assert app.docs_url == "/"
+        assert app.docs_url == "/docs"
         assert app.redoc_url is None
 
     # noinspection PyUnresolvedReferences

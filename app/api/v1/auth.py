@@ -32,9 +32,7 @@ async def create_new_access_token(
 
     return (
         await pydiator.send(
-            await PydiatorBuilder.build(
-                AccessTokenCreateRequest, request, data=credentials
-            )
+            PydiatorBuilder.build(AccessTokenCreateRequest, request, data=credentials)
         )
     ).data
 
@@ -48,7 +46,7 @@ async def refresh_access_token(
 
     return (
         await pydiator.send(
-            await PydiatorBuilder.build(
+            PydiatorBuilder.build(
                 AccessTokenRefreshRequest, request, client=current_client
             )
         )
@@ -65,7 +63,7 @@ async def create_new_service_client(
 
     return (
         await pydiator.send(
-            await PydiatorBuilder.build(
+            PydiatorBuilder.build(
                 ClientCreateRequest, request, data=client, client=current_client
             )
         )
@@ -81,7 +79,7 @@ async def get_authenticated_client(
 
     return (
         await pydiator.send(
-            await PydiatorBuilder.build(
+            PydiatorBuilder.build(
                 ClientFindAuthenticatedRequest, request, client=current_client
             )
         )
@@ -92,6 +90,4 @@ async def get_authenticated_client(
 async def get_available_scopes(request: Request) -> list[ScopeOut]:
     """Get available api scopes"""
 
-    return (
-        await pydiator.send(await PydiatorBuilder.build(ScopeFindRequest, request))
-    ).data
+    return (await pydiator.send(PydiatorBuilder.build(ScopeFindRequest, request))).data

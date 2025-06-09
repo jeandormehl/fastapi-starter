@@ -30,32 +30,23 @@ async def request_log_cleanup_task() -> dict[str, Any]:
     try:
         from datetime import datetime, timedelta
 
+        await db.connect()
+
         # Calculate cutoff date
         retention_days = config.request_logging_retention_days
         cutoff_date = datetime.now(di["timezone"]) - timedelta(days=retention_days)
 
-        # Batch delete for better performance
-        batch_size = 1000
-        total_deleted = 0
+        result = await db.requestlog.delete_many(
+            where={"created_at": {"lt": cutoff_date}}
+        )
 
-        while True:
-            # Delete in batches to avoid long-running transactions
-            result = await db.requestlog.delete_many(
-                where={"created_at": {"lt": cutoff_date}}, limit=batch_size
-            )
-
-            deleted_count = getattr(result, "count", 0)
-            total_deleted += deleted_count
-
-            if deleted_count < batch_size:
-                break
+        total_deleted = getattr(result, "count", 0)
 
         # Log cleanup statistics
         logger.bind(
             cutoff_date=cutoff_date.isoformat(),
             total_deleted=total_deleted,
             retention_days=retention_days,
-            batch_size=batch_size,
         ).info("completed request logs cleanup")
 
         return {

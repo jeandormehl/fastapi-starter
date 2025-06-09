@@ -242,8 +242,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 "request_log:create",
                 log_data,
                 priority=TaskPriority.LOW,
-                max_retries=3,
-                retry_delay=1.0,
             )
 
         except Exception as e:
@@ -260,13 +258,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         # Skip health check, docs and metrics endpoints
         skip_endpoints = {
-            "/health",
-            "/metrics",
-            "/v1",
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-            "/favicon.ico",
+            "/v1/health",
+            "/v1/metrics",
+            "/v1/docs",
+            "/v1/redoc",
+            "/v1/openapi.json",
+            "/v1/favicon.ico",
         }
 
         if path in skip_endpoints or path.startswith("/static/"):

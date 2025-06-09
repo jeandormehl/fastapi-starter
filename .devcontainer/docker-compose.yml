@@ -38,36 +38,36 @@ services:
     volumes:
       - ".:/app"
     command: "/start.sh app"
-
-  worker:
-    build:
-      context: ".."
-      dockerfile: ".devcontainer/Dockerfile"
-      target: "build"
-    depends_on:
-      - "app"
-    environment:
-      ENVIRONMENT: "${ENVIRONMENT}"
-      TZ: "${TZ}"
-    networks:
-      - "deps"
-    restart: "unless-stopped"
-    command: "/start.sh worker"
-
-  scheduler:
-    build:
-      context: ".."
-      dockerfile: ".devcontainer/Dockerfile"
-      target: "build"
-    depends_on:
-      - "app"
-    environment:
-      ENVIRONMENT: "${ENVIRONMENT}"
-      TZ: "${TZ}"
-    networks:
-      - "deps"
-    restart: "unless-stopped"
-    command: "/start.sh scheduler"
+#
+#  worker:
+#    build:
+#      context: ".."
+#      dockerfile: ".devcontainer/Dockerfile"
+#      target: "build"
+#    depends_on:
+#      - "app"
+#    environment:
+#      ENVIRONMENT: "${ENVIRONMENT}"
+#      TZ: "${TZ}"
+#    networks:
+#      - "deps"
+#    restart: "unless-stopped"
+#    command: "/start.sh worker"
+#
+#  scheduler:
+#    build:
+#      context: ".."
+#      dockerfile: ".devcontainer/Dockerfile"
+#      target: "build"
+#    depends_on:
+#      - "app"
+#    environment:
+#      ENVIRONMENT: "${ENVIRONMENT}"
+#      TZ: "${TZ}"
+#    networks:
+#      - "deps"
+#    restart: "unless-stopped"
+#    command: "/start.sh scheduler"
 
   postgres:
     image: "bitnami/postgresql:latest"

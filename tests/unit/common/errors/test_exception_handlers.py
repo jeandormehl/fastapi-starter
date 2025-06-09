@@ -19,6 +19,7 @@ from app.common.errors.exception_handlers import (
 class MockRequest:
     """Mock request object for testing."""
 
+    # noinspection HttpUrlsUsage
     def __init__(self, method="GET", path="/test"):
         self.method = method
         self.url = Mock()

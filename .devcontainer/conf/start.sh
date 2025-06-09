@@ -15,7 +15,6 @@ worker() {
   if [[ -n "${ENVIRONMENT:-}" && "$ENVIRONMENT" = "local" ]]; then
     # Add desired parameter(s) here for the local environment
     local_params+="--reload"
-
   fi
 
   taskiq worker app.infrastructure.taskiq.worker:app \
@@ -24,6 +23,7 @@ worker() {
     -w 2 \
     --tasks-pattern "**/*_task.py" \
     -fsd \
+    --wait-tasks-timeout 30 \
     "${local_params}"
 }
 

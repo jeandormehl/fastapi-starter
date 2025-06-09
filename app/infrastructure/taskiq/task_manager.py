@@ -1,14 +1,17 @@
 import asyncio
 import contextlib
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 from kink import di
+from pydantic import Field
+from pydantic.dataclasses import dataclass
 from taskiq import AsyncBroker
 
+from app.common.constants import APP_PATH, ROOT_PATH
 from app.common.logging import get_logger
 from app.infrastructure.taskiq.schemas import TaskPriority, TaskStatus
+from app.infrastructure.taskiq.utils import TaskAutodiscovery
 
 
 @dataclass
@@ -25,7 +28,7 @@ class TaskInfo:
     retry_count: int = 0
     error_message: str | None = None
     result: Any = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskManagerError(Exception):
@@ -61,8 +64,14 @@ class TaskManager:
 
         try:
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+            # run the autodiscovery
+            auto_discovery = TaskAutodiscovery(self.broker, APP_PATH, ROOT_PATH)
+            auto_discovery.discover_and_register_tasks()
+
             self._is_running = True
             self.logger.info("task manager started successfully")
+
         except Exception as e:
             self.logger.error(f"failed to start task manager: {e}")
             raise
@@ -88,9 +97,6 @@ class TaskManager:
         self,
         task_name: str,
         *args: Any,
-        priority: TaskPriority = TaskPriority.NORMAL,
-        delay: int | None = None,
-        eta: datetime | None = None,
         **kwargs: Any,
     ) -> str:
         """Submit task with comprehensive validation and error handling."""
@@ -100,35 +106,16 @@ class TaskManager:
             raise TaskManagerError(msg)
 
         # Validate task exists in broker
-        task_func = getattr(self.broker, task_name, None)
+        task_func = self.broker.local_task_registry.get(task_name, None)
+        task_labels = task_func.labels
         if not task_func:
             msg = f"task {task_name} not found in broker"
             raise TaskNotFoundError(msg)
 
-        # Validate parameters
-        if delay is not None and delay < 0:
-            msg = "delay must be non-negative"
-            raise ValueError(msg)
-
-        if eta is not None and eta <= datetime.now(di["timezone"]):
-            msg = "eta must be in the future"
-            raise ValueError(msg)
-
         try:
-            # Prepare task options
-            task_options = {
-                "priority": priority.value,
-                "queue": f"{priority.value}_priority",
-            }
-
-            if delay:
-                task_options["countdown"] = delay
-            if eta:
-                task_options["eta"] = eta
-
             # Submit task with timeout
             task_result = await asyncio.wait_for(
-                task_func.kiq(*args, **kwargs, **task_options), timeout=30.0
+                task_func.kiq(*args, **kwargs), timeout=30.0
             )
             task_id = task_result.task_id
 
@@ -138,11 +125,11 @@ class TaskManager:
                 task_name=task_name,
                 status=TaskStatus.PENDING,
                 created_at=datetime.now(di["timezone"]),
-                priority=priority,
+                priority=task_labels.get("priority", None),
                 metadata={
                     "args": args,
                     "kwargs": kwargs,
-                    "options": task_options,
+                    "labels": task_labels,
                     "submitted_at": datetime.now(di["timezone"]).isoformat(),
                 },
             )
@@ -154,9 +141,7 @@ class TaskManager:
                 f"task submitted successfully: {task_name}",
                 extra={
                     "task_id": task_id,
-                    "priority": priority.value,
-                    "delay": delay,
-                    "eta": eta.isoformat() if eta else None,
+                    "labels": task_labels,
                 },
             )
 
@@ -275,9 +260,7 @@ class TaskManager:
                 return None
 
             # Submit new task
-            new_task_id = await self.submit_task(
-                task_info.task_name, *args, priority=task_info.priority, **kwargs
-            )
+            new_task_id = await self.submit_task(task_info.task_name, *args, **kwargs)
 
             # Update retry information
             new_task_info = self.task_registry[new_task_id]
@@ -449,6 +432,7 @@ class TaskManager:
             except asyncio.CancelledError:
                 self.logger.info("cleanup loop cancelled")
                 break
+
             except Exception as e:
                 consecutive_errors += 1
                 self.logger.error(
@@ -532,6 +516,7 @@ class TaskManager:
             # If we still need to remove more, remove any tasks
             if removed_count < tasks_to_remove:
                 remaining_to_remove = tasks_to_remove - removed_count
+                # noinspection PyPep8
                 for task_id, _ in sorted_tasks[
                     removed_count : removed_count + remaining_to_remove
                 ]:

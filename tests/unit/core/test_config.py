@@ -30,6 +30,7 @@ class TestConfiguration:
         monkeypatch.setenv("APP_DEBUG", "false")
         monkeypatch.setenv("APP_SECRET_KEY", "test-secret-key-from-env")
         monkeypatch.setenv("ADMIN_PASSWORD", "admin-password-from-env")
+        monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
 
         config = Configuration(_env_file=None)
 

@@ -14,7 +14,7 @@ COPY ./.devcontainer/conf/start.sh /start.sh
 
 WORKDIR /app
 
-RUN  apt-get update && apt-get install -y --no-install-recommends zsh \
+RUN  apt-get update && apt-get install -y --no-install-recommends zsh curl \
   && pip install --no-cache-dir --upgrade pip \
   && pip install --no-cache-dir poetry \
   && poetry update \
@@ -28,7 +28,7 @@ RUN  apt-get update && apt-get install -y --no-install-recommends zsh \
 FROM build AS build-dev
 
 # nano, ZSH and various other plugins for local development
-RUN apt-get update && apt-get install -y --no-install-recommends zsh git curl nano sudo \
+RUN apt-get update && apt-get install -y --no-install-recommends git nano \
   && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
   && git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions \
   && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting \

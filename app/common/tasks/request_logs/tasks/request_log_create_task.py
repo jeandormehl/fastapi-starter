@@ -6,13 +6,16 @@ from pydantic import ValidationError as PydanticValidationError
 
 from app.common.logging import get_logger
 from app.infrastructure.database import Database
+from app.infrastructure.taskiq.schemas import TaskPriority
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 db = di[Database]
 tm = di[TaskManager]
 
 
-@tm.broker.task("request_log:create", max_retries=3, retry_delay=5.0)
+@tm.broker.task(
+    "request_log:create", max_retries=3, retry_delay=5.0, priority=TaskPriority.LOW
+)
 async def request_log_create_task(data: dict[str, Any]) -> dict[str, Any]:
     """
     Task for creating request logs with better error handling and validation.

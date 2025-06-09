@@ -12,7 +12,7 @@ from app.api import router_v1
 from app.common.constants import STATIC_PATH
 from app.common.middlewares import register_request_middlewares
 from app.core.config import Configuration
-from app.infrastructure.database import disconnect_db, init_db
+from app.infrastructure.database import Database
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 
@@ -25,7 +25,7 @@ async def lifespan(
     """Application lifespan manager."""
 
     # Startup
-    await init_db()
+    await Database.init_db()
     await task_manager.start()
 
     yield
@@ -34,7 +34,7 @@ async def lifespan(
     # Shutdown
     try:
         await task_manager.stop()
-        await disconnect_db()
+        await Database.disconnect_db()
 
     except Exception:
         contextlib.suppress(Exception)
@@ -65,7 +65,7 @@ def _v1(config: Configuration) -> FastAPI:
     app = FastAPI(
         debug=config.app_debug,
         description=config.app_description,
-        docs_url="/" if config.app_environment != "prod" else None,
+        docs_url="/docs" if config.app_environment != "prod" else None,
         redoc_url=None,
         swagger_ui_parameters={"defaultModelsExpandDepth": -1},
         title=config.app_name,
