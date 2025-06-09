@@ -4,31 +4,12 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from kink import di
-from pydantic import Field
-from pydantic.dataclasses import dataclass
 from taskiq import AsyncBroker
 
 from app.common.constants import APP_PATH, ROOT_PATH
 from app.common.logging import get_logger
-from app.infrastructure.taskiq.schemas import TaskPriority, TaskStatus
+from app.infrastructure.taskiq.schemas import TaskInfo, TaskPriority, TaskStatus
 from app.infrastructure.taskiq.utils import TaskAutodiscovery
-
-
-@dataclass
-class TaskInfo:
-    """Task information for management."""
-
-    task_id: str
-    task_name: str
-    status: TaskStatus
-    created_at: datetime
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    priority: TaskPriority = TaskPriority.NORMAL
-    retry_count: int = 0
-    error_message: str | None = None
-    result: Any = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskManagerError(Exception):
@@ -44,7 +25,7 @@ class TaskSubmissionError(TaskManagerError):
 
 
 class TaskManager:
-    """Task management and monitoring with error handling."""
+    """Task monitoring and management with simplified architecture."""
 
     def __init__(self, broker: AsyncBroker, max_registry_size: int = 10000) -> None:
         self.broker = broker
@@ -56,16 +37,16 @@ class TaskManager:
         self._is_running = False
 
     async def start(self) -> None:
-        """Start task manager with proper initialization."""
-
+        """Start task manager with autodiscovery."""
         if self._is_running:
             self.logger.warning("task manager is already running")
             return
 
         try:
+            # Start cleanup task
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
-            # run the autodiscovery
+            # Run autodiscovery to register tasks
             auto_discovery = TaskAutodiscovery(self.broker, APP_PATH, ROOT_PATH)
             auto_discovery.discover_and_register_tasks()
 
@@ -93,39 +74,35 @@ class TaskManager:
 
         self.logger.info("task manager stopped successfully")
 
-    async def submit_task(
-        self,
-        task_name: str,
-        *args: Any,
-        **kwargs: Any,
-    ) -> str:
-        """Submit task with comprehensive validation and error handling."""
+    async def submit_task(self, task_name: str, *args: Any, **kwargs: Any) -> str:
+        """Submit task using Taskiq's built-in functionality."""
 
         if not self._is_running:
             msg = "task manager is not running"
             raise TaskManagerError(msg)
 
-        # Validate task exists in broker
-        task_func = self.broker.local_task_registry.get(task_name, None)
-        task_labels = task_func.labels
+        # Get task function from broker registry
+        task_func = self.broker.local_task_registry.get(task_name)
+
         if not task_func:
             msg = f"task {task_name} not found in broker"
             raise TaskNotFoundError(msg)
 
         try:
-            # Submit task with timeout
-            task_result = await asyncio.wait_for(
-                task_func.kiq(*args, **kwargs), timeout=30.0
-            )
+            # Submit task using Taskiq's kiq method
+            task_result = await task_func.kiq(*args, **kwargs)
             task_id = task_result.task_id
 
-            # Register task with validation
+            # Register task for monitoring
+            task_labels = task_func.labels or {}
             task_info = TaskInfo(
                 task_id=task_id,
                 task_name=task_name,
                 status=TaskStatus.PENDING,
                 created_at=datetime.now(di["timezone"]),
-                priority=task_labels.get("priority", None),
+                priority=TaskPriority(
+                    task_labels.get("priority", TaskPriority.NORMAL.value)
+                ),
                 metadata={
                     "args": args,
                     "kwargs": kwargs,
@@ -139,29 +116,21 @@ class TaskManager:
 
             self.logger.info(
                 f"task submitted successfully: {task_name}",
-                extra={
-                    "task_id": task_id,
-                    "labels": task_labels,
-                },
+                extra={"task_id": task_id, "labels": task_labels},
             )
 
             return task_id
 
-        except TimeoutError:
-            error_msg = f"task submission timeout for {task_name}"
-            self.logger.error(error_msg)
-            raise TaskSubmissionError(error_msg)
-
         except Exception as e:
             error_msg = f"failed to submit task {task_name}: {e}"
             self.logger.error(error_msg, exc_info=True)
+
             raise TaskSubmissionError(error_msg) from e
 
     async def get_task_status(self, task_id: str) -> TaskInfo | None:
         """Get task status with result backend integration."""
 
         task_info = self.task_registry.get(task_id)
-
         if not task_info:
             return None
 
@@ -173,7 +142,7 @@ class TaskManager:
         ]:
             return task_info
 
-        # Try to get updated status from broker
+        # Try to get updated status from result backend
         try:
             if hasattr(self.broker, "result_backend") and self.broker.result_backend:
                 result = await asyncio.wait_for(
@@ -187,24 +156,15 @@ class TaskManager:
                     task_info.completed_at = datetime.now(di["timezone"])
                     task_info.result = result.return_value
 
-                    if result.is_err:
-                        task_info.error_message = result.log[
-                            :1000
-                        ]  # Limit error message size
-
-        except TimeoutError:
-            self.logger.debug(f"timeout fetching result for task {task_id}")
-
-        except Exception as e:
+        except (TimeoutError, Exception) as e:
             self.logger.debug(f"could not fetch result for task {task_id}: {e}")
 
         return task_info
 
     async def cancel_task(self, task_id: str) -> bool:
-        """Cancel a pending task with proper validation."""
+        """Cancel a task if supported by the broker."""
 
         task_info = self.task_registry.get(task_id)
-
         if not task_info:
             self.logger.warning(f"attempted to cancel non-existent task: {task_id}")
             return False
@@ -231,65 +191,9 @@ class TaskManager:
             self.logger.error(f"failed to cancel task {task_id}: {e}", exc_info=True)
             return False
 
-    async def retry_failed_task(self, task_id: str, force: bool = False) -> str | None:
-        """Retry a failed task with validation."""
-
-        task_info = self.task_registry.get(task_id)
-
-        if not task_info:
-            self.logger.warning(f"attempted to retry non-existent task: {task_id}")
-            return None
-
-        if not force and task_info.status != TaskStatus.FAILED:
-            self.logger.info(
-                f"cannot retry task {task_id} with status {task_info.status}"
-            )
-            return None
-
-        try:
-            # Extract original parameters
-            args = task_info.metadata.get("args", ())
-            kwargs = task_info.metadata.get("kwargs", {})
-
-            # Check retry limits
-            max_retries = 5  # Could be configurable
-            if task_info.retry_count >= max_retries:
-                self.logger.warning(
-                    f"task {task_id} has exceeded maximum retry attempts"
-                )
-                return None
-
-            # Submit new task
-            new_task_id = await self.submit_task(task_info.task_name, *args, **kwargs)
-
-            # Update retry information
-            new_task_info = self.task_registry[new_task_id]
-            new_task_info.retry_count = task_info.retry_count + 1
-            new_task_info.metadata.update(
-                {
-                    "original_task_id": task_id,
-                    "retry_reason": task_info.error_message,
-                    "retried_at": datetime.now(di["timezone"]).isoformat(),
-                }
-            )
-
-            self.logger.info(
-                f"task retried successfully: {task_info.task_name}",
-                extra={
-                    "original_task_id": task_id,
-                    "new_task_id": new_task_id,
-                    "retry_count": new_task_info.retry_count,
-                },
-            )
-
-            return new_task_id
-
-        except Exception as e:
-            self.logger.error(f"failed to retry task {task_id}: {e}", exc_info=True)
-            return None
-
+    # noinspection PyUnresolvedReferences
     async def get_task_statistics(self) -> dict[str, Any]:
-        """Get comprehensive task statistics with performance optimization."""
+        """Get comprehensive task statistics."""
 
         if not self.task_registry:
             return self._empty_statistics()
@@ -305,16 +209,13 @@ class TaskManager:
         day_stats = dict.fromkeys(TaskStatus, 0)
         task_name_stats = {}
 
-        # Single pass through tasks for efficiency
         total_duration = 0
         completed_tasks = 0
 
         for task_info in self.task_registry.values():
-            # Status and priority counts
             status_counts[task_info.status] += 1
             priority_counts[task_info.priority] += 1
 
-            # Time-based counts
             if task_info.created_at >= last_hour:
                 hour_stats[task_info.status] += 1
             if task_info.created_at >= last_day:
@@ -328,8 +229,6 @@ class TaskManager:
                     "success": 0,
                     "failed": 0,
                     "avg_duration": 0.0,
-                    "total_duration": 0.0,
-                    "completed_count": 0,
                 }
 
             stats = task_name_stats[task_name]
@@ -341,21 +240,16 @@ class TaskManager:
                 stats["failed"] += 1
 
             # Calculate duration if completed
-            if task_info.completed_at and task_info.started_at:
+            if (
+                task_info.completed_at
+                and task_info.started_at
+                and task_info.status in [TaskStatus.SUCCESS, TaskStatus.FAILED]
+            ):
                 duration = (
                     task_info.completed_at - task_info.started_at
                 ).total_seconds()
-                stats["total_duration"] += duration
-                stats["completed_count"] += 1
                 total_duration += duration
                 completed_tasks += 1
-
-        # Calculate average durations
-        for stats in task_name_stats.values():
-            if stats["completed_count"] > 0:
-                stats["avg_duration"] = (
-                    stats["total_duration"] / stats["completed_count"]
-                )
 
         # Calculate success rate
         total_tasks = len(self.task_registry)
@@ -365,7 +259,6 @@ class TaskManager:
             else 0
         )
 
-        # noinspection PyUnresolvedReferences
         return {
             "total_tasks": total_tasks,
             "registry_size_limit": self.max_registry_size,
@@ -422,12 +315,11 @@ class TaskManager:
         while self._is_running:
             try:
                 await asyncio.sleep(self.cleanup_interval)
-
                 if not self._is_running:
                     break
 
                 await self._cleanup_old_tasks()
-                consecutive_errors = 0  # Reset on success
+                consecutive_errors = 0
 
             except asyncio.CancelledError:
                 self.logger.info("cleanup loop cancelled")
@@ -446,40 +338,30 @@ class TaskManager:
                     )
                     break
 
-                # Exponential backoff on errors
                 await asyncio.sleep(min(60 * consecutive_errors, 300))
 
     async def _cleanup_old_tasks(self) -> None:
-        """Clean up old completed task records with batch processing."""
+        """Clean up old completed task records."""
 
         try:
             cutoff_time = datetime.now(di["timezone"]) - timedelta(days=7)
 
-            # Batch process for large registries
-            old_task_ids = []
-            batch_size = 1000
-
-            for task_id, task_info in self.task_registry.items():
+            old_task_ids = [
+                task_id
+                for task_id, task_info in self.task_registry.items()
                 if (
                     task_info.completed_at
                     and task_info.completed_at < cutoff_time
                     and task_info.status
                     in [TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.CANCELLED]
-                ):
-                    old_task_ids.append(task_id)
+                )
+            ]
 
-                    if len(old_task_ids) >= batch_size:
-                        break
-
-            # Remove old tasks
-            removed_count = 0
             for task_id in old_task_ids:
-                if task_id in self.task_registry:
-                    del self.task_registry[task_id]
-                    removed_count += 1
+                self.task_registry.pop(task_id, None)
 
-            if removed_count > 0:
-                self.logger.info(f"cleaned up {removed_count} old task records")
+            if old_task_ids:
+                self.logger.info(f"cleaned up {len(old_task_ids)} old task records")
 
         except Exception as e:
             self.logger.error(f"failed to cleanup old tasks: {e}", exc_info=True)
@@ -492,19 +374,21 @@ class TaskManager:
             return
 
         try:
-            # Fixed: Sort by task_info.created_at, not item.created_at
+            # FIXED: Properly access created_at from TaskInfo object
+
             sorted_tasks = sorted(
                 self.task_registry.items(),
-                key=lambda item: item[1].created_at,
-                # Fixed: item[1] is the TaskInfo object
+                key=lambda item: item[1].created_at,  # item[1] is the TaskInfo object
             )
 
-            # Remove oldest tasks to get back under the limit
             tasks_to_remove = len(self.task_registry) - self.max_registry_size
             removed_count = 0
 
-            for task_id, task_info in sorted_tasks[:tasks_to_remove]:
-                # Prefer removing completed tasks over active ones
+            # Prefer removing completed tasks over active ones
+            for task_id, task_info in sorted_tasks:
+                if removed_count >= tasks_to_remove:
+                    break
+
                 if task_info.status in [
                     TaskStatus.SUCCESS,
                     TaskStatus.FAILED,
@@ -513,7 +397,7 @@ class TaskManager:
                     del self.task_registry[task_id]
                     removed_count += 1
 
-            # If we still need to remove more, remove any tasks
+            # Remove remaining tasks if needed
             if removed_count < tasks_to_remove:
                 remaining_to_remove = tasks_to_remove - removed_count
                 # noinspection PyPep8

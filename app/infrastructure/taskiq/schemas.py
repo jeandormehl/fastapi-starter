@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
+from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 
@@ -31,6 +32,21 @@ class TaskStatus(str, Enum):
     FAILED = "failed"
     RETRYING = "retrying"
     CANCELLED = "cancelled"
+
+
+@dataclass
+class TaskInfo:
+    """Task information for monitoring and management."""
+
+    task_id: str
+    task_name: str
+    status: TaskStatus
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    priority: TaskPriority = TaskPriority.NORMAL
+    result: Any = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 @dataclass
