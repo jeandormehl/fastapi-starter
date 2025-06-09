@@ -11,7 +11,6 @@ from starlette.types import ASGIApp
 from app.common.logging import get_logger
 from app.common.utils import ClientIPExtractor, DataSanitizer, TraceContextExtractor
 from app.core.config import Configuration
-from app.infrastructure.taskiq.schemas import TaskPriority
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 
@@ -241,7 +240,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             await self.task_manager.submit_task(
                 "request_log:create",
                 log_data,
-                priority=TaskPriority.LOW,
             )
 
         except Exception as e:

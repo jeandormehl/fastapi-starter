@@ -32,6 +32,8 @@ async def request_log_create_task(data: dict[str, Any]) -> dict[str, Any]:
     request_id = data.get("request_id", "unknown")
 
     try:
+        await db.connect()
+
         # Validate and sanitize data
         sanitized_data = await _sanitize_log_data(data)
 

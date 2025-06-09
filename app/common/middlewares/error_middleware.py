@@ -109,12 +109,6 @@ class ErrorMiddleware(BaseHTTPMiddleware):
                 ErrorCode.VALIDATION_ERROR,
                 ErrorCode.RESOURCE_NOT_FOUND,
             }:
-                return "info"
-
-            if exc.error_code in {
-                ErrorCode.AUTHENTICATION_ERROR,
-                ErrorCode.AUTHORIZATION_ERROR,
-            }:
                 return "warning"
 
             return "error"
