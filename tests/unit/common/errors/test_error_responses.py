@@ -1,13 +1,12 @@
-import json
-
 from fastapi import status
 
-from app.common.errors import (
+from app.common.errors.error_response import (
     ErrorResponseBuilder,
     ErrorSeverity,
     StandardErrorResponse,
     create_error_response_json,
 )
+from app.common.errors.errors import ErrorCode
 
 
 class TestStandardErrorResponse:
@@ -34,7 +33,7 @@ class TestStandardErrorResponse:
         response = StandardErrorResponse.create(
             error="Validation Error",
             message="Invalid input",
-            code="validation_error",
+            code=ErrorCode.VALIDATION_ERROR,
             details=details,
             trace_id="test-trace-123",
             request_id="test-request-456",
@@ -43,7 +42,7 @@ class TestStandardErrorResponse:
 
         assert response.error == "Validation Error"
         assert response.message == "Invalid input"
-        assert response.code == "validation_error"
+        assert response.code == ErrorCode.VALIDATION_ERROR.value
         assert response.details == details
         assert response.trace_id == "test-trace-123"
         assert response.request_id == "test-request-456"
@@ -64,7 +63,7 @@ class TestErrorResponseBuilder:
 
         assert response.error == "validation error"
         assert response.message == "Invalid email format"
-        assert response.code == "validation_error"
+        assert response.code == ErrorCode.VALIDATION_ERROR.value
         assert response.details == {"field": "email"}
         assert response.trace_id == "trace-123"
         assert response.severity == ErrorSeverity.LOW
@@ -78,7 +77,7 @@ class TestErrorResponseBuilder:
 
         assert response.error == "authentication error"
         assert response.message == "authentication required"
-        assert response.code == "authentication_error"
+        assert response.code == ErrorCode.AUTHENTICATION_ERROR.value
         assert response.trace_id == "trace-123"
         assert response.request_id == "request-456"
         assert response.severity == ErrorSeverity.MEDIUM
@@ -92,7 +91,7 @@ class TestErrorResponseBuilder:
 
         assert response.error == "resource not found"
         assert response.message == "User not found"
-        assert response.code == "not_found"
+        assert response.code == ErrorCode.RESOURCE_NOT_FOUND.value
         assert response.trace_id == "trace-123"
         assert response.severity == ErrorSeverity.LOW
 
@@ -106,7 +105,7 @@ class TestErrorResponseBuilder:
 
         assert response.error == "internal server error"
         assert response.message == "database connection failed"
-        assert response.code == "internal_server_error"
+        assert response.code == ErrorCode.INTERNAL_SERVER_ERROR.value
         assert response.details == details
         assert response.trace_id == "trace-123"
         assert response.severity == ErrorSeverity.CRITICAL
@@ -119,7 +118,7 @@ class TestErrorResponseBuilder:
 
         assert response.error == "rate limit exceeded"
         assert response.message == "Too many requests"
-        assert response.code == "rate_limit_exceeded"
+        assert response.code == ErrorCode.RATE_LIMIT_EXCEEDED.value
         assert response.details == {"retry_after_seconds": 60}
         assert response.trace_id == "trace-123"
         assert response.severity == ErrorSeverity.MEDIUM
@@ -140,15 +139,17 @@ class TestCreateErrorResponseJson:
 
         assert json_response["status_code"] == status.HTTP_400_BAD_REQUEST
 
-        resp = json.loads(json_response["content"])
+        resp = json_response["content"]
 
         assert resp["error"] == "validation error"
         assert resp["message"] == "Invalid input"
-        assert resp["code"] == "validation_error"
+        assert resp["code"] == ErrorCode.VALIDATION_ERROR.value
 
         assert json_response["headers"]["X-Trace-ID"] == "trace-123"
         assert json_response["headers"]["X-Request-ID"] == "request-456"
-        assert json_response["headers"]["X-Error-Code"] == "validation_error"
+        assert (
+            json_response["headers"]["X-Error-Code"] == ErrorCode.VALIDATION_ERROR.value
+        )
 
     def test_create_json_response_unknown_ids(self):
         """Test creating JSON response with unknown trace/request IDs."""

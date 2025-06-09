@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from app.common.errors import ErrorCode
+from app.common.errors.errors import ErrorCode
 from app.common.middlewares.error_middleware import ErrorMiddleware
 from app.common.middlewares.logging_middleware import LoggingMiddleware
 from app.common.middlewares.tracing_middleware import TracingMiddleware

@@ -3,8 +3,11 @@ from enum import Enum
 from typing import Any
 
 from fastapi import status
+from fastapi.encoders import jsonable_encoder
 from kink import di
 from pydantic import BaseModel
+
+from app.common.errors.errors import ErrorCode
 
 
 class ErrorSeverity(Enum):
@@ -62,7 +65,7 @@ class ErrorResponseBuilder:
         return StandardErrorResponse.create(
             error="validation error",
             message=message,
-            code="validation_error",
+            code=ErrorCode.VALIDATION_ERROR.value,
             details=details,
             trace_id=trace_id,
             request_id=request_id,
@@ -78,7 +81,7 @@ class ErrorResponseBuilder:
         return StandardErrorResponse.create(
             error="authentication error",
             message=message,
-            code="authentication_error",
+            code=ErrorCode.AUTHENTICATION_ERROR.value,
             trace_id=trace_id,
             request_id=request_id,
             severity=ErrorSeverity.MEDIUM,
@@ -93,7 +96,7 @@ class ErrorResponseBuilder:
         return StandardErrorResponse.create(
             error="authorization error",
             message=message,
-            code="authorization_error",
+            code=ErrorCode.AUTHORIZATION_ERROR.value,
             trace_id=trace_id,
             request_id=request_id,
             severity=ErrorSeverity.MEDIUM,
@@ -106,7 +109,7 @@ class ErrorResponseBuilder:
         return StandardErrorResponse.create(
             error="resource not found",
             message=f"{resource} not found",
-            code="not_found",
+            code=ErrorCode.RESOURCE_NOT_FOUND.value,
             trace_id=trace_id,
             request_id=request_id,
             severity=ErrorSeverity.LOW,
@@ -122,7 +125,7 @@ class ErrorResponseBuilder:
         return StandardErrorResponse.create(
             error="internal server error",
             message=message,
-            code="internal_server_error",
+            code=ErrorCode.INTERNAL_SERVER_ERROR.value,
             details=details,
             trace_id=trace_id,
             request_id=request_id,
@@ -140,7 +143,7 @@ class ErrorResponseBuilder:
         return StandardErrorResponse.create(
             error="rate limit exceeded",
             message=message,
-            code="rate_limit_exceeded",
+            code=ErrorCode.RATE_LIMIT_EXCEEDED.value,
             details=details,
             trace_id=trace_id,
             request_id=request_id,
@@ -156,7 +159,7 @@ def create_error_response_json(
 
     return {
         "status_code": status_code,
-        "content": error_response.model_dump_json(),
+        "content": jsonable_encoder(error_response),
         "headers": {
             "X-Trace-ID": error_response.trace_id or "unknown",
             "X-Request-ID": error_response.request_id or "unknown",

@@ -3,16 +3,20 @@ import time
 import traceback
 from typing import Any
 
-from fastapi import Request, status
+from fastapi import HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from app.common.errors import (
-    EXCEPTION_HANDLERS,
+from app.common.errors.error_response import (
     ErrorResponseBuilder,
+    ErrorSeverity,
+    StandardErrorResponse,
     create_error_response_json,
 )
+from app.common.errors.errors import ApplicationError, ErrorCode
 from app.common.logging import get_logger
 from app.common.utils import TraceContextExtractor
 
@@ -20,8 +24,9 @@ from app.common.utils import TraceContextExtractor
 # noinspection PyBroadException
 class ErrorMiddleware(BaseHTTPMiddleware):
     """
-    Error handling middleware that provides standardized error responses,
-    comprehensive error logging, and trace context management across all requests.
+    Error handling middleware that provides standardized error responses
+    using StandardErrorResponse, comprehensive error logging, and
+    trace context management across all requests.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -56,9 +61,17 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         # Set trace variables on exception if supported
         self._set_exception_context(exc, request_id, trace_id)
 
-        # Find appropriate exception handler and generate standardized response
-        handler = self._find_exception_handler(exc)
-        response = await handler(request, exc)
+        # Create standardized error response based on exception type
+        error_response = self._create_standardized_error_response(
+            exc, trace_id, request_id
+        )
+
+        # Determine HTTP status code
+        status_code = self._determine_status_code(exc)
+
+        # Create JSON response
+        response_data = create_error_response_json(error_response, status_code)
+        response = JSONResponse(**response_data)
 
         # Create comprehensive error context for logging
         error_context = self._create_error_context(
@@ -70,11 +83,165 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         log_method = getattr(self._logger.bind(**error_context), severity)
         log_method("request failed with exception")
 
-        # Add standard trace headers to error response
-        response.headers["X-Trace-ID"] = trace_id
-        response.headers["X-Request-ID"] = request_id
-
         return response
+
+    def _create_standardized_error_response(
+        self, exc: Exception, trace_id: str, request_id: str
+    ) -> StandardErrorResponse:
+        """Create standardized error response based on exception type."""
+
+        if isinstance(exc, ApplicationError):
+            return self._handle_application_error(exc, trace_id, request_id)
+
+        if isinstance(exc, HTTPException):
+            return self._handle_http_exception(exc, trace_id, request_id)
+
+        if isinstance(exc, RequestValidationError | ValidationError):
+            return self._handle_validation_error(exc, trace_id, request_id)
+
+        return self._handle_general_exception(exc, trace_id, request_id)
+
+    def _handle_application_error(
+        self, exc: ApplicationError, trace_id: str, request_id: str
+    ) -> StandardErrorResponse:
+        """Handle custom application errors."""
+
+        error_code_mapping = {
+            ErrorCode.VALIDATION_ERROR: "validation_error",
+            ErrorCode.AUTHENTICATION_ERROR: "authentication_error",
+            ErrorCode.AUTHORIZATION_ERROR: "authorization_error",
+            ErrorCode.RESOURCE_NOT_FOUND: "not_found",
+            ErrorCode.RATE_LIMIT_EXCEEDED: "rate_limit_exceeded",
+            ErrorCode.INTERNAL_SERVER_ERROR: "internal_server_error",
+        }
+
+        severity_mapping = {
+            ErrorCode.VALIDATION_ERROR: ErrorSeverity.LOW,
+            ErrorCode.AUTHENTICATION_ERROR: ErrorSeverity.MEDIUM,
+            ErrorCode.AUTHORIZATION_ERROR: ErrorSeverity.MEDIUM,
+            ErrorCode.RESOURCE_NOT_FOUND: ErrorSeverity.LOW,
+            ErrorCode.RATE_LIMIT_EXCEEDED: ErrorSeverity.MEDIUM,
+            ErrorCode.INTERNAL_SERVER_ERROR: ErrorSeverity.CRITICAL,
+        }
+
+        return StandardErrorResponse.create(
+            error=error_code_mapping.get(exc.error_code, "application_error"),
+            message=exc.message,
+            code=exc.error_code.value,
+            details=exc.details or {},
+            trace_id=trace_id,
+            request_id=request_id,
+            severity=severity_mapping.get(exc.error_code, ErrorSeverity.MEDIUM),
+        )
+
+    def _handle_http_exception(
+        self, exc: HTTPException, trace_id: str, request_id: str
+    ) -> StandardErrorResponse:
+        """Handle FastAPI HTTP exceptions."""
+
+        if exc.status_code == 400:
+            return ErrorResponseBuilder.validation_error(
+                message=str(exc.detail),
+                trace_id=trace_id,
+                request_id=request_id,
+            )
+        if exc.status_code == 401:
+            return ErrorResponseBuilder.authentication_error(
+                message=str(exc.detail),
+                trace_id=trace_id,
+                request_id=request_id,
+            )
+        if exc.status_code == 403:
+            return ErrorResponseBuilder.authorization_error(
+                message=str(exc.detail),
+                trace_id=trace_id,
+                request_id=request_id,
+            )
+        if exc.status_code == 404:
+            return ErrorResponseBuilder.not_found_error(
+                resource="Resource",
+                trace_id=trace_id,
+                request_id=request_id,
+            )
+        if exc.status_code == 429:
+            return ErrorResponseBuilder.rate_limit_error(
+                message=str(exc.detail),
+                trace_id=trace_id,
+                request_id=request_id,
+            )
+        return ErrorResponseBuilder.internal_server_error(
+            message=str(exc.detail),
+            details={
+                "status_code": exc.status_code,
+                "exception_type": type(exc).__name__,
+            },
+            trace_id=trace_id,
+            request_id=request_id,
+        )
+
+    def _handle_validation_error(
+        self, exc: Exception, trace_id: str, request_id: str
+    ) -> StandardErrorResponse:
+        """Handle validation errors from Pydantic or FastAPI."""
+
+        if isinstance(exc, RequestValidationError):
+            validation_errors = []
+            for error in exc.errors():
+                field_path = " -> ".join(str(x) for x in error["loc"][1:])
+                validation_errors.append(
+                    {
+                        "field": field_path or "root",
+                        "message": error["msg"],
+                        "type": error["type"],
+                        "input_value": str(error.get("input", ""))[:100],
+                    }
+                )
+
+            return ErrorResponseBuilder.validation_error(
+                message=f"validation failed for {len(validation_errors)} field(s)",
+                details={
+                    "validation_errors": validation_errors,
+                    "total_errors": len(validation_errors),
+                },
+                trace_id=trace_id,
+                request_id=request_id,
+            )
+        return ErrorResponseBuilder.validation_error(
+            message="validation error occurred",
+            details={
+                "exception_type": type(exc).__name__,
+                "exception_message": str(exc)[:500],
+            },
+            trace_id=trace_id,
+            request_id=request_id,
+        )
+
+    def _handle_general_exception(
+        self, exc: Exception, trace_id: str, request_id: str
+    ) -> StandardErrorResponse:
+        """Handle general Python exceptions."""
+
+        return ErrorResponseBuilder.internal_server_error(
+            message="an unexpected error occurred",
+            details={
+                "exception_type": type(exc).__name__,
+                "exception_message": str(exc)[:1000],
+                "exception_module": getattr(exc.__class__, "__module__", "unknown"),
+            },
+            trace_id=trace_id,
+            request_id=request_id,
+        )
+
+    def _determine_status_code(self, exc: Exception) -> int:
+        """Determine appropriate HTTP status code for exception."""
+
+        if isinstance(exc, ApplicationError | HTTPException):
+            return exc.status_code
+
+        if isinstance(exc, RequestValidationError | ValidationError):
+            return status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        return status.HTTP_500_INTERNAL_SERVER_ERROR
 
     def _set_exception_context(
         self, exc: Exception, request_id: str, trace_id: str
@@ -90,62 +257,34 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         except Exception:
             contextlib.suppress(Exception)
 
-    def _find_exception_handler(self, exc: Exception) -> Any:
-        """Find appropriate exception handler for the given exception."""
-
-        for exc_type, exc_handler in EXCEPTION_HANDLERS.items():
-            if isinstance(exc, exc_type):
-                return exc_handler
-
-        return EXCEPTION_HANDLERS.get(Exception, self._default_exception_handler)
-
     def _determine_log_severity(self, exc: Exception) -> str:
         """Determine appropriate log severity based on exception type."""
 
-        from app.common.errors.errors import ApplicationError, ErrorCode
+        severity = "error"
 
         if isinstance(exc, ApplicationError):
             if exc.error_code in {
                 ErrorCode.VALIDATION_ERROR,
                 ErrorCode.RESOURCE_NOT_FOUND,
             }:
-                return "warning"
+                severity = "warning"
+            else:
+                severity = "error"
 
-            return "error"
+        if isinstance(exc, HTTPException):
+            severity = "warning" if exc.status_code < 500 else "error"
+
+        if isinstance(exc, RequestValidationError | ValidationError):
+            severity = "warning"
 
         # Network/connection errors are critical
         error_msg = str(exc).lower()
         if any(
             keyword in error_msg for keyword in ["connection", "timeout", "network"]
         ):
-            return "critical"
+            severity = "critical"
 
-        return "error"
-
-    async def _default_exception_handler(
-        self, request: Request, exc: Exception
-    ) -> JSONResponse:
-        """Default exception handler with standardized response format."""
-
-        trace_id = TraceContextExtractor.get_trace_id(request)
-        request_id = TraceContextExtractor.get_request_id(request)
-
-        error_response = ErrorResponseBuilder.internal_server_error(
-            message="an unexpected error occurred",
-            details={
-                "exception_type": type(exc).__name__,
-                "exception_message": str(exc)[:1000],
-                "exception_module": getattr(exc.__class__, "__module__", "unknown"),
-            },
-            trace_id=trace_id,
-            request_id=request_id,
-        )
-
-        response_data = create_error_response_json(
-            error_response, status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-        return JSONResponse(**response_data)
+        return severity
 
     def _create_error_context(
         self,

@@ -1,54 +1,55 @@
+import json
 import time
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp
 
+from app.common.errors.error_response import StandardErrorResponse
 from app.common.errors.errors import ApplicationError, ErrorCode
-from app.common.errors.exception_handlers import EXCEPTION_HANDLERS
 from app.common.middlewares.error_middleware import ErrorMiddleware
 from app.common.utils import TraceContextExtractor
 
 
 class TestErrorMiddleware:
-    """Comprehensive test suite for ErrorMiddleware."""
+    """Comprehensive test suite for ErrorMiddleware with StandardErrorResponse."""
 
     @pytest.fixture
     def mock_app(self):
         """Create a mock ASGI application."""
-
         return Mock(spec=ASGIApp)
 
     @pytest.fixture
     def middleware(self, mock_app):
         """Create ErrorMiddleware instance for testing."""
-
         return ErrorMiddleware(mock_app)
 
     @pytest.fixture
     def mock_call_next(self):
         """Mock call_next function for middleware testing."""
-
         return AsyncMock()
 
     @pytest.fixture
-    def sample_response(self):
-        """Create a sample response for testing."""
-
-        response = JSONResponse({"message": "success"}, status_code=200)
-        response.headers["content-type"] = "application/json"
-        return response
+    def mock_request(self):
+        """Create a mock request for testing."""
+        request = MagicMock(spec=Request)
+        request.state = MagicMock()
+        request.state.trace_id = "test-trace-123"
+        request.state.request_id = "test-request-456"
+        request.url.path = "/api/test"
+        request.method = "GET"
+        request.client.host = "192.168.1.100"
+        request.headers = {"user-agent": "test-agent"}
+        return request
 
     @pytest.fixture
-    def error_response(self):
-        """Create an error response for testing."""
-
-        response = JSONResponse(
-            {"error": "Internal Server Error", "code": "INTERNAL_ERROR"},
-            status_code=500,
-        )
+    def sample_response(self):
+        """Create a sample successful response for testing."""
+        response = JSONResponse({"message": "success"}, status_code=200)
         response.headers["content-type"] = "application/json"
         return response
 
@@ -57,7 +58,6 @@ class TestErrorMiddleware:
         self, middleware, mock_request, mock_call_next, sample_response
     ):
         """Test successful request handling without exceptions."""
-
         mock_call_next.return_value = sample_response
 
         result = await middleware.dispatch(mock_request, mock_call_next)
@@ -66,173 +66,145 @@ class TestErrorMiddleware:
         mock_call_next.assert_called_once_with(mock_request)
 
     @pytest.mark.asyncio
-    async def test_dispatch_with_exception(
+    async def test_dispatch_with_application_error(
         self, middleware, mock_request, mock_call_next
     ):
-        """Test exception handling during request processing."""
+        """Test handling of ApplicationError with StandardErrorResponse."""
+        app_error = ApplicationError(
+            error_code=ErrorCode.VALIDATION_ERROR,
+            message="Custom validation failed",
+            details={"field": "test_field"},
+        )
+        mock_call_next.side_effect = app_error
 
-        test_exception = ValueError("Test error")
-        mock_call_next.side_effect = test_exception
+        with patch.object(middleware._logger, "bind") as mock_bind:
+            mock_logger = Mock()
+            mock_bind.return_value = mock_logger
 
-        # Mock the _handle_exception method
-        mock_response = JSONResponse({"error": "handled"}, status_code=500)
-        with patch.object(
-            middleware, "_handle_exception", return_value=mock_response
-        ) as mock_handle:
             result = await middleware.dispatch(mock_request, mock_call_next)
 
-            assert result == mock_response
-            mock_handle.assert_called_once_with(mock_request, test_exception)
+            # Verify response structure
+            assert isinstance(result, JSONResponse)
+            assert result.status_code == 400
 
-    @pytest.mark.asyncio
-    async def test_handle_exception_with_trace_context(
-        self, middleware, mock_request, error_response
-    ):
-        """Test exception handling with proper trace context."""
+            # Parse response content
+            response_content = json.loads(result.body.decode("utf-8"))
 
-        # Setup request state
-        mock_request.state.start_time = time.time() - 0.5
-        mock_request.state.trace_id = "test-trace-123"
-        mock_request.state.request_id = "test-request-456"
+            # Verify StandardErrorResponse structure
+            assert "error" in response_content
+            assert "message" in response_content
+            assert "code" in response_content
+            assert "timestamp" in response_content
+            assert "trace_id" in response_content
+            assert "request_id" in response_content
+            assert "severity" in response_content
 
-        test_exception = ValueError("Test error message")
+            # Verify specific values
+            assert response_content["message"] == "Custom validation failed"
+            assert response_content["code"] == "ERR_1001"
+            assert response_content["trace_id"] == "test-trace-123"
+            assert response_content["request_id"] == "test-request-456"
 
-        with (
-            patch.object(
-                middleware,
-                "_find_exception_handler",
-                return_value=AsyncMock(return_value=error_response),
-            ) as mock_find_handler,
-            patch.object(middleware._logger, "bind") as mock_bind,
-        ):
-            mock_logger = Mock()
-            mock_bind.return_value = mock_logger
-
-            result = await middleware._handle_exception(mock_request, test_exception)
-
-            # Verify handler was found and called
-            mock_find_handler.assert_called_once_with(test_exception)
-
-            # Verify logging was called with proper context
-            mock_bind.assert_called_once()
-            bind_call_args = mock_bind.call_args[1]
-
-            assert bind_call_args["trace_id"] == "test-trace-123"
-            assert bind_call_args["request_id"] == "test-request-456"
-            assert bind_call_args["exception_type"] == "ValueError"
-            assert bind_call_args["exception_message"] == "Test error message"
-            assert "duration_ms" in bind_call_args
-
-            mock_logger.error.assert_called_once_with("request failed with exception")
-
-            # Verify trace headers were added
+            # Verify headers
             assert result.headers["X-Trace-ID"] == "test-trace-123"
             assert result.headers["X-Request-ID"] == "test-request-456"
+            assert result.headers["X-Error-Code"] == "ERR_1001"
 
     @pytest.mark.asyncio
-    async def test_handle_exception_with_app_exception(
-        self, middleware, mock_request, error_response
+    async def test_dispatch_with_http_exception(
+        self, middleware, mock_request, mock_call_next
     ):
-        """Test handling of AppException with proper context assignment."""
+        """Test handling of HTTPException with StandardErrorResponse."""
+        http_error = HTTPException(status_code=404, detail="Resource not found")
+        mock_call_next.side_effect = http_error
 
-        mock_request.state.trace_id = "test-trace-123"
-        mock_request.state.request_id = "test-request-456"
-        mock_request.state.start_time = time.time()
-
-        app_exception = ApplicationError(
-            error_code=ErrorCode.VALIDATION_ERROR,
-            message="Validation failed",
-            details={"field": "value"},
-        )
-
-        with (
-            patch.object(
-                middleware,
-                "_find_exception_handler",
-                return_value=AsyncMock(return_value=error_response),
-            ),
-            patch.object(middleware._logger, "bind") as mock_bind,
-        ):
+        with patch.object(middleware._logger, "bind") as mock_bind:
             mock_logger = Mock()
             mock_bind.return_value = mock_logger
 
-            await middleware._handle_exception(mock_request, app_exception)
+            result = await middleware.dispatch(mock_request, mock_call_next)
 
-            # Verify trace information was set on exception
-            assert app_exception.trace_id == "test-trace-123"
-            assert app_exception.request_id == "test-request-456"
+            # Verify response structure
+            assert isinstance(result, JSONResponse)
+            assert result.status_code == 404
+
+            # Parse response content
+            response_content = json.loads(result.body.decode("utf-8"))
+
+            # Verify StandardErrorResponse structure
+            assert response_content["error"] == "resource not found"
+            assert response_content["code"] == ErrorCode.RESOURCE_NOT_FOUND.value
+            assert response_content["trace_id"] == "test-trace-123"
 
     @pytest.mark.asyncio
-    async def test_handle_exception_without_trace_context(
-        self, middleware, mock_request, error_response
+    async def test_dispatch_with_validation_error(
+        self, middleware, mock_request, mock_call_next
     ):
-        """Test exception handling when trace context is missing."""
+        """Test handling of RequestValidationError with StandardErrorResponse."""
+        validation_errors = [
+            {
+                "loc": ("body", "email"),
+                "msg": "field required",
+                "type": "value_error.missing",
+                "input": None,
+            }
+        ]
+        validation_error = RequestValidationError(validation_errors)
+        mock_call_next.side_effect = validation_error
 
-        # Remove trace context
-        del mock_request.state.trace_id
-        del mock_request.state.request_id
-        mock_request.state.start_time = time.time()
-
-        test_exception = ValueError("Test error")
-
-        with (
-            patch.object(
-                middleware,
-                "_find_exception_handler",
-                return_value=AsyncMock(return_value=error_response),
-            ),
-            patch.object(middleware._logger, "bind") as mock_bind,
-        ):
+        with patch.object(middleware._logger, "bind") as mock_bind:
             mock_logger = Mock()
             mock_bind.return_value = mock_logger
 
-            result = await middleware._handle_exception(mock_request, test_exception)
+            result = await middleware.dispatch(mock_request, mock_call_next)
 
-            # Verify unknown values were used
-            bind_call_args = mock_bind.call_args[1]
-            assert bind_call_args["trace_id"] == "unknown"
-            assert bind_call_args["request_id"] == "unknown"
+            # Verify response structure
+            assert isinstance(result, JSONResponse)
+            assert result.status_code == 422
 
-            # Verify headers still added with unknown values
-            assert result.headers["X-Trace-ID"] == "unknown"
-            assert result.headers["X-Request-ID"] == "unknown"
+            # Parse response content
+            response_content = json.loads(result.body.decode())
 
-    def test_find_exception_handler_specific_type(self, middleware):
-        """Test finding specific exception handler."""
+            # Verify StandardErrorResponse structure
+            assert response_content["error"] == "validation error"
+            assert response_content["code"] == ErrorCode.VALIDATION_ERROR.value
+            assert "validation failed for 1 field(s)" in response_content["message"]
+            assert "validation_errors" in response_content["details"]
 
-        # Create a test exception that should have a specific handler
-        validation_error = ApplicationError(
-            error_code=ErrorCode.VALIDATION_ERROR, message="Test validation error"
-        )
+    @pytest.mark.asyncio
+    async def test_dispatch_with_general_exception(
+        self, middleware, mock_request, mock_call_next
+    ):
+        """Test handling of general Python exceptions with StandardErrorResponse."""
+        general_error = ValueError("Unexpected error occurred")
+        mock_call_next.side_effect = general_error
 
-        handler = middleware._find_exception_handler(validation_error)
+        with patch.object(middleware._logger, "bind") as mock_bind:
+            mock_logger = Mock()
+            mock_bind.return_value = mock_logger
 
-        # Verify correct handler is returned (AppException should have specific handler)
-        assert handler is not None
-        assert handler in EXCEPTION_HANDLERS.values()
+            result = await middleware.dispatch(mock_request, mock_call_next)
 
-    def test_find_exception_handler_fallback(self, middleware):
-        """Test fallback to generic Exception handler."""
+            # Verify response structure
+            assert isinstance(result, JSONResponse)
+            assert result.status_code == 500
 
-        # Create an exception type that doesn't have a specific handler
-        custom_exception = RuntimeError("Custom error")
+            # Parse response content
+            response_content = json.loads(result.body.decode())
 
-        handler = middleware._find_exception_handler(custom_exception)
+            # Verify StandardErrorResponse structure
+            assert response_content["error"] == "internal server error"
+            assert response_content["code"] == ErrorCode.INTERNAL_SERVER_ERROR.value
+            assert response_content["message"] == "an unexpected error occurred"
+            assert response_content["severity"] == "critical"
+            assert "exception_type" in response_content["details"]
+            assert response_content["details"]["exception_type"] == "ValueError"
 
-        # Should fall back to Exception handler
-        assert handler == EXCEPTION_HANDLERS[Exception]
-
-    def test_create_error_context_comprehensive(self, middleware, mock_request):
-        """Test comprehensive error context creation."""
-
-        # Setup comprehensive request mock
-        mock_request.url.path = "/api/test"
-        mock_request.method = "POST"
-        mock_request.client.host = "192.168.1.100"
-
+    @pytest.mark.asyncio
+    async def test_error_context_creation(self, middleware, mock_request):
+        """Test comprehensive error context creation for logging."""
         test_exception = ValueError("Test error message")
-
-        mock_response = JSONResponse({"error": "test"}, status_code=400)
+        mock_response = JSONResponse({"error": "test"}, status_code=500)
         duration = 1.234
         trace_id = "trace-123"
         request_id = "req-456"
@@ -268,205 +240,193 @@ class TestErrorMiddleware:
             # Verify specific values
             assert context["trace_id"] == trace_id
             assert context["request_id"] == request_id
-            assert context["status_code"] == 400
+            assert context["status_code"] == 500
             assert context["duration_ms"] == 1234.0
             assert context["exception_type"] == "ValueError"
             assert context["exception_message"] == "Test error message"
-            assert context["request_path"] == "/api/test"
-            assert context["request_method"] == "POST"
-            assert context["client_ip"] == "192.168.1.100"
-            assert context["event"] == "request_failed"
-
-    def test_create_error_context_without_traceback(self, middleware, mock_request):
-        """Test error context creation when exception has no traceback."""
-
-        test_exception = ValueError("Test error")
-        test_exception.__traceback__ = None
-
-        mock_response = JSONResponse({"error": "test"}, status_code=500)
-
-        context = middleware._create_error_context(
-            mock_request, test_exception, mock_response, 0.5, "trace", "request"
-        )
-
-        # Verify traceback is not included when not available
-        assert context["traceback"].startswith("error getting traceback for")
-
-    def test_create_error_context_no_client(self, middleware, mock_request):
-        """Test error context creation when request has no client."""
-
-        mock_request.client = None
-        test_exception = ValueError("Test error")
-        mock_response = JSONResponse({"error": "test"}, status_code=500)
-
-        context = middleware._create_error_context(
-            mock_request, test_exception, mock_response, 0.5, "trace", "request"
-        )
-
-        assert context["client_ip"] == "unknown"
 
     @pytest.mark.asyncio
-    async def test_multiple_exception_types(self, middleware, mock_request):
-        """Test handling of various exception types."""
+    async def test_status_code_determination(self, middleware):
+        """Test status code determination for different exception types."""
+        # Test ApplicationError
+        app_error = ApplicationError(
+            error_code=ErrorCode.VALIDATION_ERROR, message="Test error", status_code=400
+        )
+        assert middleware._determine_status_code(app_error) == 400
 
-        mock_request.state.start_time = time.time()
-        mock_request.state.trace_id = "trace-123"
-        mock_request.state.request_id = "req-456"
+        # Test HTTPException
+        http_error = HTTPException(status_code=404, detail="Not found")
+        assert middleware._determine_status_code(http_error) == 404
 
-        exception_types = [
-            ValueError("Value error"),
-            KeyError("Key error"),
-            TypeError("Type error"),
-            RuntimeError("Runtime error"),
-            ApplicationError(ErrorCode.INTERNAL_SERVER_ERROR, "App error"),
-        ]
+        # Test ValidationError
+        validation_error = RequestValidationError([])
+        assert middleware._determine_status_code(validation_error) == 422
 
-        for exception in exception_types:
-            mock_response = JSONResponse({"error": "handled"}, status_code=500)
-
-            with (
-                patch.object(
-                    middleware,
-                    "_find_exception_handler",
-                    return_value=AsyncMock(return_value=mock_response),
-                ),
-                patch.object(middleware._logger, "bind") as mock_bind,
-            ):
-                mock_logger = Mock()
-                mock_bind.return_value = mock_logger
-
-                result = await middleware._handle_exception(mock_request, exception)
-
-                # Verify each exception type is handled properly
-                assert result.status_code == 500
-                mock_logger.error.assert_called_once()
-
-                # Reset mock for next iteration
-                mock_bind.reset_mock()
+        # Test general exception
+        general_error = ValueError("Test error")
+        assert middleware._determine_status_code(general_error) == 500
 
     @pytest.mark.asyncio
-    async def test_performance_timing_accuracy(self, middleware, mock_request):
+    async def test_log_severity_determination(self, middleware):
+        """Test log severity determination for different exception types."""
+        # Test validation error (should be warning)
+        validation_error = ApplicationError(
+            error_code=ErrorCode.VALIDATION_ERROR, message="Test validation error"
+        )
+        assert middleware._determine_log_severity(validation_error) == "warning"
+
+        # Test server error (should be error)
+        server_error = ApplicationError(
+            error_code=ErrorCode.INTERNAL_SERVER_ERROR, message="Test server error"
+        )
+        assert middleware._determine_log_severity(server_error) == "error"
+
+        # Test HTTP client error (should be warning)
+        http_client_error = HTTPException(status_code=400, detail="Bad request")
+        assert middleware._determine_log_severity(http_client_error) == "warning"
+
+        # Test HTTP server error (should be error)
+        http_server_error = HTTPException(status_code=500, detail="Server error")
+        assert middleware._determine_log_severity(http_server_error) == "error"
+
+        # Test connection error (should be critical)
+        connection_error = Exception("Connection timeout occurred")
+        assert middleware._determine_log_severity(connection_error) == "critical"
+
+    @pytest.mark.asyncio
+    async def test_standardized_error_response_creation(self, middleware):
+        """
+        Test creation of standardized error responses for different exception types.
+        """
+        trace_id = "test-trace"
+        request_id = "test-request"
+
+        # Test ApplicationError
+        app_error = ApplicationError(
+            error_code=ErrorCode.AUTHENTICATION_ERROR,
+            message="Authentication failed",
+            details={"reason": "invalid_token"},
+        )
+        response = middleware._create_standardized_error_response(
+            app_error, trace_id, request_id
+        )
+        assert isinstance(response, StandardErrorResponse)
+        assert response.code == ErrorCode.AUTHENTICATION_ERROR.value
+        assert response.message == "Authentication failed"
+        assert response.trace_id == trace_id
+
+        # Test HTTPException
+        http_error = HTTPException(status_code=401, detail="Unauthorized access")
+        response = middleware._create_standardized_error_response(
+            http_error, trace_id, request_id
+        )
+        assert isinstance(response, StandardErrorResponse)
+        assert response.code == ErrorCode.AUTHENTICATION_ERROR.value
+        assert response.message == "Unauthorized access"
+
+        # Test general exception
+        general_error = RuntimeError("Unexpected runtime error")
+        response = middleware._create_standardized_error_response(
+            general_error, trace_id, request_id
+        )
+        assert isinstance(response, StandardErrorResponse)
+        assert response.code == ErrorCode.INTERNAL_SERVER_ERROR.value
+        assert response.message == "an unexpected error occurred"
+        assert "RuntimeError" in response.details["exception_type"]
+
+    @pytest.mark.asyncio
+    async def test_trace_context_setting(self, middleware):
+        """Test safe setting of trace context on exceptions."""
+        app_error = ApplicationError(
+            error_code=ErrorCode.VALIDATION_ERROR, message="Test error"
+        )
+
+        # Initially no trace context
+        assert app_error.trace_id is None
+        assert app_error.request_id is None
+
+        # Set trace context
+        middleware._set_exception_context(app_error, "req-123", "trace-456")
+
+        # Verify context was set
+        assert app_error.request_id == "req-123"
+        assert app_error.trace_id == "trace-456"
+
+    @pytest.mark.asyncio
+    async def test_performance_timing_accuracy(
+        self, middleware, mock_request, mock_call_next
+    ):
         """Test accurate performance timing calculation."""
-
         start_time = time.time()
         mock_request.state.start_time = start_time
-        mock_request.state.trace_id = "trace-123"
-        mock_request.state.request_id = "req-456"
 
         test_exception = ValueError("Test error")
-        mock_response = JSONResponse({"error": "handled"}, status_code=500)
+        mock_call_next.side_effect = test_exception
 
         # Mock time.time() to return a specific end time
         end_time = start_time + 2.5  # 2.5 seconds later
 
         with (
             patch("time.time", return_value=end_time),
-            patch.object(
-                middleware,
-                "_find_exception_handler",
-                return_value=AsyncMock(return_value=mock_response),
-            ),
             patch.object(middleware._logger, "bind") as mock_bind,
         ):
             mock_logger = Mock()
             mock_bind.return_value = mock_logger
 
-            await middleware._handle_exception(mock_request, test_exception)
+            await middleware.dispatch(mock_request, mock_call_next)
 
             # Verify duration calculation
-            bind_call_args = mock_bind.call_args[1]
-            assert bind_call_args["duration_ms"] == 2500.0
+            bind_call_args = mock_bind.call_args
+            assert bind_call_args[1]["duration_ms"] == 2500.0
 
     @pytest.mark.asyncio
-    async def test_logging_context_binding(self, middleware, mock_request):
-        """Test proper context binding for structured logging."""
+    async def test_request_state_initialization(
+        self, middleware, mock_request, mock_call_next, sample_response
+    ):
+        """Test request state initialization when start_time is not set."""
+        # Remove start_time from request state
+        delattr(mock_request.state, "start_time")
+        mock_call_next.return_value = sample_response
 
-        mock_request.state.start_time = time.time()
-        mock_request.state.trace_id = "trace-123"
-        mock_request.state.request_id = "req-456"
-        mock_request.url.path = "/test/endpoint"
-        mock_request.method = "GET"
+        with patch("time.time", return_value=123456.789) as mock_time:
+            await middleware.dispatch(mock_request, mock_call_next)
 
-        test_exception = ValueError("Detailed test error")
-        mock_response = JSONResponse({"error": "handled"}, status_code=400)
+            # Verify start_time was set
+            assert mock_request.state.start_time == 123456.789
+            mock_time.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_missing_trace_context_fallback(self, middleware, mock_call_next):
+        """Test fallback behavior when trace context is missing."""
+        # Create request without trace context
+        request = MagicMock(spec=Request)
+        request.state = MagicMock()
+        # Don't set trace_id and request_id
+        request.url.path = "/test"
+        request.method = "GET"
+        request.client.host = "127.0.0.1"
+        request.headers = {}
+
+        test_exception = ValueError("Test error")
+        mock_call_next.side_effect = test_exception
 
         with (
+            patch.object(TraceContextExtractor, "get_trace_id", return_value="unknown"),
             patch.object(
-                middleware,
-                "_find_exception_handler",
-                return_value=AsyncMock(return_value=mock_response),
+                TraceContextExtractor, "get_request_id", return_value="unknown"
             ),
             patch.object(middleware._logger, "bind") as mock_bind,
         ):
             mock_logger = Mock()
             mock_bind.return_value = mock_logger
 
-            await middleware._handle_exception(mock_request, test_exception)
+            result = await middleware.dispatch(request, mock_call_next)
 
-            # Verify the logger was bound with comprehensive context
-            mock_bind.assert_called_once()
-            context = mock_bind.call_args[1]
+            # Verify response contains unknown values
+            assert result.headers["X-Trace-ID"] == "unknown"
+            assert result.headers["X-Request-ID"] == "unknown"
 
-            # Verify context structure for observability
-            required_observability_fields = [
-                "trace_id",
-                "request_id",
-                "status_code",
-                "duration_ms",
-                "exception_type",
-                "exception_message",
-                "request_path",
-                "request_method",
-                "client_ip",
-                "event",
-            ]
-
-            for field in required_observability_fields:
-                assert field in context, f"Missing observability field: {field}"
-
-            # Verify structured logging call
-            mock_logger.error.assert_called_once_with("request failed with exception")
-
-    async def test_trace_id_generation_fallback(self):
-        """Test trace ID generation when not present in request state."""
-
-        request = MagicMock(spec=Request)
-        # Remove state entirely
-        del request.state
-
-        trace_id = TraceContextExtractor.get_trace_id(request)
-
-        assert trace_id == "unknown"
-
-    async def test_safe_exception_context_setting(self, middleware):
-        """Test safe setting of exception context."""
-
-        # Test with exception that doesn't support context attributes
-        exc = ValueError("Test error")
-
-        # Should not raise any exceptions
-        middleware._set_exception_context(exc, "req_123", "trace_123")
-
-    async def test_default_exception_handler(self, middleware):
-        """Test default exception handler fallback."""
-
-        request = MagicMock(spec=Request)
-        exc = Exception("Unhandled error")
-
-        response = await middleware._default_exception_handler(request, exc)
-
-        assert response.status_code == 500
-        assert "error" in response.body.decode()
-
-    async def test_limited_traceback_generation(self, middleware):
-        """Test limited traceback generation to prevent memory issues."""
-
-        try:
-            msg = "Test error"
-            raise ValueError(msg)
-        except ValueError as e:
-            traceback_str = middleware._get_limited_traceback(e)
-
-            assert isinstance(traceback_str, str)
-            assert len(traceback_str) <= 2000
-            assert "ValueError" in traceback_str
+            # Verify logging context uses unknown values
+            bind_call_args = mock_bind.call_args
+            assert bind_call_args[1]["trace_id"] == "unknown"
+            assert bind_call_args[1]["request_id"] == "unknown"

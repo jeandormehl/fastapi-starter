@@ -64,7 +64,7 @@ class ApplicationError(Exception):
         self,
         error_code: ErrorCode,
         message: str,
-        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code: int = status.HTTP_400_BAD_REQUEST,
         details: dict[str, Any] | None = None,
         trace_id: str | None = None,
         request_id: str | None = None,

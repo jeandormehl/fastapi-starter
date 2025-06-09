@@ -7,11 +7,10 @@ from kink import di
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.common.constants import QUARANTINE_ERRORS
-from app.common.errors import (
+from app.common.errors.error_response import ErrorSeverity, StandardErrorResponse
+from app.common.errors.errors import (
     ApplicationError,
     ErrorCode,
-    ErrorSeverity,
-    StandardErrorResponse,
 )
 from app.common.logging import get_logger
 from app.common.utils import DataSanitizer
@@ -216,8 +215,8 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
         if should_quarantine:
             self._quarantine_task(task_name, quarantine_reason)
 
-        # Update performance metrics
-        self._update_performance_metrics(message, exception)
+        # Update performance metrics for failed executions
+        self._update_execution_metrics(message)
 
         # Create comprehensive error context
         error_context = self._create_comprehensive_error_context(
@@ -252,7 +251,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             self.circuit_breakers[message.task_name].record_success()
 
             # Update performance metrics for successful executions
-            self._update_success_metrics(message)
+            self._update_execution_metrics(message)
 
     def _should_quarantine_task(
         self, task_name: str, exception: Exception
@@ -517,10 +516,10 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
             extra={"previous_quarantine_reason": reason},
         )
 
-    def _update_performance_metrics(
-        self, message: TaskiqMessage, _exception: Exception
-    ) -> None:
-        """Update task performance metrics."""
+    def _update_execution_metrics(self, message: TaskiqMessage) -> None:
+        """
+        Update task performance metrics for both successful and failed executions.
+        """
 
         task_name = message.task_name
         start_time_str = message.labels.get("execution_start")
@@ -542,31 +541,7 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
                 performance["max_duration"] = max(performance["max_duration"], duration)
 
             except (ValueError, TypeError) as e:
-                self.logger.debug(f"failed to update performance metrics: {e}")
-
-    def _update_success_metrics(self, message: TaskiqMessage) -> None:
-        """Update metrics for successful task execution."""
-
-        task_name = message.task_name
-        start_time_str = message.labels.get("execution_start")
-
-        if start_time_str:
-            try:
-                start_time = datetime.fromisoformat(start_time_str)
-                duration = (datetime.now(di["timezone"]) - start_time).total_seconds()
-
-                performance = self.task_performance[task_name]
-                performance["total_executions"] += 1
-
-                current_avg = performance["avg_duration"]
-                total_execs = performance["total_executions"]
-                performance["avg_duration"] = (
-                    current_avg * (total_execs - 1) + duration
-                ) / total_execs
-                performance["max_duration"] = max(performance["max_duration"], duration)
-
-            except (ValueError, TypeError) as e:
-                self.logger.debug(f"failed to update success metrics: {e}")
+                self.logger.debug(f"failed to update execution metrics: {e}")
 
     def _cleanup_old_patterns(self, task_name: str) -> None:
         """Clean up old error patterns to prevent memory growth."""

@@ -76,7 +76,7 @@ class TestAppException:
 
         assert exc.error_code == ErrorCode.INTERNAL_SERVER_ERROR
         assert exc.message == "Test error"
-        assert exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert exc.status_code == status.HTTP_400_BAD_REQUEST
         assert exc.trace_id == "test-trace"
         assert exc.request_id == "test-request"
         assert str(exc) == "Test error"
