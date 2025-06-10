@@ -38,7 +38,13 @@ services:
     volumes:
       - ".:/app"
     command: "/start.sh app"
-#
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health/liveness"]
+#      interval: "30s"
+#      timeout: "10s"
+#      retries: "3"
+#      start_period: "60s"
+
 #  worker:
 #    build:
 #      context: ".."
@@ -83,6 +89,11 @@ services:
     restart: "unless-stopped"
     volumes:
       - "postgres_data:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: "10s"
+      timeout: "5s"
+      retries: "5"
 
   redis:
     image: "bitnami/redis:latest"
@@ -94,6 +105,11 @@ services:
     restart: "unless-stopped"
     volumes:
       - "redis_data:/data"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: "10s"
+      timeout: "5s"
+      retries: "5"
 
   parseable:
     image: containers.parseable.com/parseable/parseable:latest

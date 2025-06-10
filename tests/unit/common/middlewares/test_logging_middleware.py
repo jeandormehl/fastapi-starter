@@ -296,7 +296,7 @@ class TestLoggingMiddleware:
     async def test_middleware_stats(self, middleware):
         """Test middleware statistics collection."""
         request1 = MockRequest(path="/api/test")
-        request2 = MockRequest(path="/health")  # Should be skipped
+        request2 = MockRequest(path="/v1/health")  # Should be skipped
 
         async def mock_call_next(_req):
             return Response(content="OK", status_code=200)

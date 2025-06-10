@@ -435,14 +435,44 @@ class TaskManager:
         ]
 
     async def health_check(self) -> dict[str, Any]:
-        """Perform health check on task manager."""
+        """
+        Health check that provides comprehensive task manager status
+        """
 
-        return {
-            "is_running": self._is_running,
-            "registry_size": len(self.task_registry),
-            "registry_limit": self.max_registry_size,
-            "cleanup_task_running": self._cleanup_task is not None
-            and not self._cleanup_task.done(),
-            "broker_connected": hasattr(self.broker, "is_connected")
-            and getattr(self.broker, "is_connected", lambda: True)(),
-        }
+        try:
+            broker_health = await self._check_broker_health()
+
+            return {
+                "is_running": self._is_running,
+                "cleanup_task_running": self._cleanup_task is not None
+                and not self._cleanup_task.done(),
+                "registry_size": len(self.task_registry),
+                "registry_limit": self.max_registry_size,
+                "broker_health": broker_health,
+                "last_check": datetime.now(di["timezone"]).isoformat(),
+            }
+
+        except Exception as e:
+            return {
+                "is_running": False,
+                "error": str(e),
+                "status": "unhealthy",
+                "last_check": datetime.now(di["timezone"]).isoformat(),
+            }
+
+    async def _check_broker_health(self) -> dict[str, Any]:
+        """Check the health of the TaskIQ broker"""
+
+        try:
+            if hasattr(self.broker, "ping"):
+                await self.broker.ping()
+
+                return {"status": "healthy", "connected": True}
+            # For brokers without ping, check if they're properly initialized
+            return {
+                "status": "healthy" if self.broker else "unhealthy",
+                "connected": self.broker is not None,
+            }
+
+        except Exception as e:
+            return {"status": "unhealthy", "connected": False, "error": str(e)}

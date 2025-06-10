@@ -14,10 +14,15 @@ from app.domain.v1.auth.requests import (
     ClientFindAuthenticatedRequest,
     ScopeFindRequest,
 )
+from app.domain.v1.health.handlers import HealthCheckHandler
+from app.domain.v1.health.requests import HealthCheckRequest
 
 
 class RequestHandlerMap(Enum):
     """Contains all handler registrations"""
+
+    # health
+    HEALTCH_CHECK = (HealthCheckRequest, HealthCheckHandler)
 
     # auth
     AUTH_ACCESS_TOKEN_CREATE = (AccessTokenCreateRequest, AccessTokenCreateHandler)

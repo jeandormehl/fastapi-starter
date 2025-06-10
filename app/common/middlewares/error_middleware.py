@@ -159,7 +159,7 @@ class ErrorMiddleware(BaseHTTPMiddleware):
             )
         if exc.status_code == 404:
             return ErrorResponseBuilder.not_found_error(
-                resource="Resource",
+                resource="resource",
                 trace_id=trace_id,
                 request_id=request_id,
             )
@@ -184,18 +184,31 @@ class ErrorMiddleware(BaseHTTPMiddleware):
     ) -> StandardErrorResponse:
         """Handle validation errors from Pydantic or FastAPI."""
 
-        if isinstance(exc, RequestValidationError):
-            validation_errors = []
-            for error in exc.errors():
-                field_path = " -> ".join(str(x) for x in error["loc"][1:])
-                validation_errors.append(
+        def _build_validation_errors(
+            e: ValidationError | RequestValidationError,
+        ) -> dict[str, Any]:
+            _errors = []
+            for error in e.errors():
+                field_path = " -> ".join(str(x) for x in error["loc"])
+                last_path = error["loc"][-1]
+                _input = (
+                    getattr(error["input"], last_path, None)
+                    if isinstance(e, ValidationError)
+                    else getattr(error, "input", None)
+                )
+                _errors.append(
                     {
+                        "model": e.title if isinstance(e, ValidationError) else None,
                         "field": field_path or "root",
-                        "message": error["msg"],
+                        "message": error["msg"].lower(),
                         "type": error["type"],
-                        "input_value": str(error.get("input", ""))[:100],
+                        "input_value": _input[:100] if _input else None,
                     }
                 )
+            return _errors
+
+        if isinstance(exc, RequestValidationError | ValidationError):
+            validation_errors = _build_validation_errors(exc)
 
             return ErrorResponseBuilder.validation_error(
                 message=f"validation failed for {len(validation_errors)} field(s)",

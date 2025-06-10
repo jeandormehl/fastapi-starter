@@ -13,6 +13,7 @@ from app.common.logging import initialize_logging
 from app.core.application import get_application
 from app.core.config import Configuration
 from app.domain.v1.auth.services import JWTService
+from app.domain.v1.health.services import HealthService
 from app.domain.v1.request_handler_map import RequestHandlerMap
 from app.infrastructure.database import Database
 from app.infrastructure.taskiq.broker.broker import get_broker
@@ -71,6 +72,7 @@ class Container:
 
     def _wire_services(self) -> None:
         di[JWTService] = JWTService(di[Configuration])
+        di[HealthService] = HealthService(di[Configuration])
 
     def _wire_pydiator(self) -> None:
         """Configure pydiator mediator."""
