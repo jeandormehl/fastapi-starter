@@ -37,13 +37,14 @@ class ParseableSink:
         self._running = True
         self._loop: asyncio.AbstractEventLoop | None = None
 
-        # Start background processing
-        self._start_background_processing()
+        if config.parseable_enabled:
+            # Start background processing
+            self._start_background_processing()
 
-        # Register cleanup handlers
-        atexit.register(self.cleanup)
-        signal.signal(signal.SIGTERM, self._signal_handler)
-        signal.signal(signal.SIGINT, self._signal_handler)
+            # Register cleanup handlers
+            atexit.register(self.cleanup)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            signal.signal(signal.SIGINT, self._signal_handler)
 
     # noinspection PyUnusedLocal
     def _signal_handler(self, _signum: Any, _frame: Any) -> None:
