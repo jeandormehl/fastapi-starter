@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from pydantic import ValidationError
 
@@ -103,3 +105,43 @@ class TestConfiguration:
                 admin_password="test-admin-pass",
             )
             assert config.request_logging_retention_days == retention_days
+
+
+class TestConfigurationExtended:
+    """Extended tests for Configuration class."""
+
+    def test_configuration_defaults(self, test_config: Configuration):
+        """Test configuration default values."""
+        assert test_config.app_name == "Test FastAPI Starter"
+        assert test_config.app_environment == "test"
+        assert test_config.app_timezone == "UTC"
+        assert test_config.database_url.get_secret_value() == "sqlite:///:memory:"
+        assert test_config.log_level == "CRITICAL"
+        assert not test_config.log_to_file
+        assert not test_config.parseable_enabled
+
+    def test_configuration_jwt_settings(self, test_config: Configuration):
+        """Test JWT-related configuration."""
+        assert test_config.jwt_algorithm == "HS256"
+        assert test_config.jwt_access_token_expire_minutes == 30
+        assert len(test_config.app_secret_key) >= 32
+
+    @patch.dict(
+        "os.environ",
+        {
+            "APP_NAME": "Override App",
+            "LOG_LEVEL": "DEBUG",
+            "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": "60",
+        },
+    )
+    def test_configuration_environment_override(self):
+        """Test configuration overrides from environment."""
+        config = Configuration()
+        assert config.app_name == "Override App"
+        assert config.log_level == "DEBUG"
+        assert config.jwt_access_token_expire_minutes == 60
+
+    def test_configuration_validation_errors(self):
+        """Test configuration validation for invalid values."""
+        with pytest.raises(ValueError):  # noqa: PT011
+            Configuration(app_secret_key="too_short")

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import sys
 from collections.abc import AsyncGenerator, Generator
@@ -75,14 +74,6 @@ def suppress_logging():
         mock_logger.critical = Mock()
 
         yield mock_logger
-
-
-@pytest.fixture(autouse=True, scope="session")
-def event_loop():
-    """Create event loop for async tests."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture

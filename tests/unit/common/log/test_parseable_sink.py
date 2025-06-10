@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 from app.common.logging.parseable_sink import ParseableSink
 
 
-# noinspection HttpUrlsUsage
+# noinspection HttpUrlsUsage,PyUnusedLocal
 class TestParseableSink:
     """Test Parseable sink functionality."""
 

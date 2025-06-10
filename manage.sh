@@ -138,7 +138,7 @@ case "$CMD" in
     ;;
   lint)
     echo "${BOLD}${BLUE}Linting codebase with Ruff...${RESET}"
-    ruff check . --fix
+    ruff check . --fix --unsafe-fixes
     echo "${GREEN}Linting complete.${RESET}"
     ;;
   format)

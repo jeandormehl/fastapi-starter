@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 from fastapi import status
+from httpx import AsyncClient
+from starlette.testclient import TestClient
 
 from tests.utils import APITestHelper
 
@@ -40,3 +42,52 @@ class TestHealthEndpoint:
         json_data = response.json()
         assert json_data["status"] == "healthy"
         assert "timestamp" in json_data
+
+
+class TestHealthEndpointExtended:
+    """Extended tests for health endpoint."""
+
+    def test_health_endpoint_sync_client(self, client: TestClient):
+        """Test health endpoint with synchronous client."""
+        response = client.get("/v1/health")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert data["status"] in ["degraded"]
+
+    async def test_health_endpoint_async_client(self, async_client: AsyncClient):
+        """Test health endpoint with asynchronous client."""
+        response = await async_client.get("/v1/health")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert "timestamp" in data
+        assert "version" in data["services"]["application"]
+
+    async def test_health_endpoint_performance(self, async_client: AsyncClient):
+        """Test health endpoint performance."""
+        import time
+
+        start_time = time.time()
+        response = await async_client.get("/v1/health")
+        end_time = time.time()
+
+        assert response.status_code == 200
+        assert (end_time - start_time) < 1.0  # Should respond within 1 second
+
+    async def test_health_endpoint_concurrent_requests(self, async_client: AsyncClient):
+        """Test health endpoint with concurrent requests."""
+        import asyncio
+
+        async def make_request():
+            return await async_client.get("/v1/health")
+
+        # Make 10 concurrent requests
+        tasks = [make_request() for _ in range(10)]
+        responses = await asyncio.gather(*tasks)
+
+        # All requests should succeed
+        for response in responses:
+            assert response.status_code == 200

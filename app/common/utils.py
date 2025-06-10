@@ -40,15 +40,23 @@ class DataSanitizer:
         """Recursively sanitize sensitive data."""
 
         if isinstance(data, dict):
-            return {
-                key: "[REDACTED]"
-                if cls._is_sensitive_key(key)
-                else cls.sanitize_data(value, max_length)
-                for key, value in data.items()
-            }
+            sanitized_dict = {}
+
+            for key, value in data.items():
+                if cls._is_sensitive_key(key):
+                    if isinstance(value, dict):
+                        sanitized_dict[key] = cls.sanitize_data(value, max_length)
+                        break
+                    if isinstance(value, list | tuple):
+                        sanitized_dict[key] = cls._redact_inner(value)
+                    else:
+                        sanitized_dict[key] = "[REDACTED]"
+                else:
+                    sanitized_dict[key] = cls.sanitize_data(value, max_length)
+            return sanitized_dict
 
         if isinstance(data, list | tuple):
-            return [cls.sanitize_data(item, max_length) for item in data]
+            return [cls._redact_inner(item) for item in data]
 
         if isinstance(data, str) and len(data) > max_length:
             return data[:max_length] + "...[TRUNCATED]"
@@ -63,6 +71,15 @@ class DataSanitizer:
 
         key_lower = key.lower()
         return any(pattern in key_lower for pattern in SENSITIVE_PATTERNS)
+
+    @classmethod
+    def _redact_inner(cls, data: Any) -> Any:
+        """Recursively redacts all values within a given data structure."""
+        if isinstance(data, dict):
+            return dict.fromkeys(data, "[REDACTED]")
+        if isinstance(data, list | tuple):
+            return ["[REDACTED]" for _ in data]
+        return "[REDACTED]"
 
     @classmethod
     def sanitize_headers(cls, headers: dict[str, Any]) -> dict[str, str]:
@@ -107,26 +124,56 @@ class BodyProcessor:
     ) -> dict[str, Any]:
         """Process and format body content with size limits."""
 
+        # List of common binary content types
+        binary_types = [
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "application/octet-stream",
+            "application/pdf",
+            "audio/mpeg",
+            "video/mp4",
+        ]
+
+        # 1. Prioritize binary handling if body_type indicates binary content
+        if body_type.lower() in binary_types:
+            content = base64.b64encode(body).decode("ascii")
+            if len(body) > max_size:
+                return {
+                    "truncated": True,
+                    "original_size": len(body),
+                    "captured_size": max_size,
+                    "type": "binary",
+                    "content": base64.b64encode(body[:max_size]).decode("ascii")
+                    + "...",
+                    "encoding": "base64",
+                }
+            return {
+                "content": content,
+                "type": "binary",
+                "size": len(body),
+                "encoding": "base64",
+            }
+
+        # Handle truncation for non-binary types before attempting decoding
         if len(body) > max_size:
             return {
                 "truncated": True,
                 "original_size": len(body),
                 "captured_size": max_size,
-                "type": body_type,
+                "type": body_type,  # Keep original body_type for truncated text/json
                 "content": BodyProcessor._truncate_body_safely(body, max_size),
             }
 
-        # Try JSON parsing first
+        # Try JSON parsing
         try:
             content = json.loads(body.decode("utf-8"))
-
             return {
                 "content": content,
                 "type": "json",
                 "size": len(body),
                 "encoding": "utf-8",
             }
-
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
 
@@ -134,18 +181,17 @@ class BodyProcessor:
         for encoding in ["utf-8", "utf-16", "latin1"]:
             try:
                 content = body.decode(encoding)
-
                 return {
                     "content": content,
                     "type": "text",
                     "size": len(body),
                     "encoding": encoding,
                 }
-
             except UnicodeDecodeError:
                 continue
 
-        # Fallback to base64 for binary data
+        # Fallback to base64 for any remaining undecodable data
+        # (should ideally be caught by binary_types check)
         return {
             "content": base64.b64encode(body).decode("ascii"),
             "type": "binary",
@@ -155,24 +201,17 @@ class BodyProcessor:
 
     @staticmethod
     def _truncate_body_safely(body: bytes, max_size: int) -> str:
-        """Safely truncate body content without breaking encoding."""
+        """Truncate body content safely for display."""
 
-        truncated = body[:max_size]
-
+        # This is a simplified truncation. For actual binary, you might
+        # still want to base64 encode the truncated part.
         try:
-            return truncated.decode("utf-8")
+            # Try to decode if it's likely text
+            return body[:max_size].decode("utf-8", errors="ignore") + "..."
 
         except UnicodeDecodeError:
-            # Remove potentially broken bytes at the end
-            for i in range(min(4, len(truncated))):
-                try:
-                    return truncated[: -i - 1].decode("utf-8") + "..."
-
-                except UnicodeDecodeError:
-                    continue
-
-            # Final fallback
-            return base64.b64encode(truncated).decode("ascii")
+            # If not text, represent as hex or base64 of the truncated part
+            return base64.b64encode(body[:max_size]).decode("ascii") + "..."
 
 
 class TraceContextExtractor:
