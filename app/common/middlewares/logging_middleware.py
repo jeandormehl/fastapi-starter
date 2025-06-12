@@ -177,6 +177,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         trace_id = TraceContextExtractor.get_trace_id(request)
         request_id = TraceContextExtractor.get_request_id(request)
 
+        query_params = self._format_params(dict(request.query_params))
+        path_params = self._format_params(dict(request.path_params))
+
         context = {
             "trace_id": trace_id,
             "request_id": request_id,
@@ -184,7 +187,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "method": request.method,
             "url": str(request.url),
             "path": request.url.path,
-            "query_params": str(request.query_params) if request.query_params else None,
+            "path_params": path_params,
+            "query_params": query_params,
             "content_type": request.headers.get("content-type"),
             "content_length": self._safe_int(request.headers.get("content-length")),
             "client_ip": ClientIPExtractor.extract_client_ip(request),
@@ -223,10 +227,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "response_body": response_body,
         }
 
-        # Add response headers if configured
+        # Add response headers if configured - with hyphen replacement
         if self.config.request_logging_log_headers:
+            # Fix the response headers as well
+            response_headers = self._format_params(dict(response.headers))
             context["response_headers"] = DataSanitizer.sanitize_headers(
-                dict(response.headers)
+                response_headers
             )
 
         # Add error categorization for non-2xx responses
@@ -381,3 +387,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "skip_rate": self._skip_count
             / max(self._request_count + self._skip_count, 1),
         }
+
+    def _format_params(self, params: Any) -> dict[str, Any]:
+        """Helper to convert hyphens to underscores and return None if empty."""
+        if not params:
+            return None
+        return {k.replace("-", "_"): v for k, v in dict(params).items()}

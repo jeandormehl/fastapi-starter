@@ -54,7 +54,8 @@ model RequestLog {
   logged_at        DateTime  @default(now())
   method           String
   path             String
-  query_params     String?
+  path_params      Json?
+  query_params     Json?
   response_body    Json?
   response_headers Json?
   response_size    Int?

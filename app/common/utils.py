@@ -96,14 +96,16 @@ class DataSanitizer:
 
     @classmethod
     def sanitize_headers(cls, headers: dict[str, Any]) -> dict[str, str]:
-        """Sanitize HTTP headers removing sensitive information."""
+        """Sanitize headers removing sensitive information and fixing key formatting."""
 
         safe_headers = {}
         for key, value in headers.items():
+            # Replace hyphens with underscores to prevent GraphQL parsing issues
+            safe_key = key.replace("-", "_")
             if cls._is_sensitive_key(key):
-                safe_headers[key] = "[REDACTED]"
+                safe_headers[safe_key] = "[REDACTED]"
             else:
-                safe_headers[key] = str(value)
+                safe_headers[safe_key] = str(value)
         return safe_headers
 
 
