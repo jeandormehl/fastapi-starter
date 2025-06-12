@@ -71,8 +71,8 @@ class Container:
         di[TaskManager] = TaskManager(di[AsyncBroker])
 
     def _wire_services(self) -> None:
-        di[JWTService] = JWTService(di[Configuration])
         di[HealthService] = HealthService(di[Configuration])
+        di[JWTService] = JWTService(di[Configuration])
 
     def _wire_pydiator(self) -> None:
         """Configure pydiator mediator."""

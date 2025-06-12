@@ -15,12 +15,36 @@ class BrokerType(str, Enum):
 
 
 class TaskPriority(str, Enum):
-    """Task priority levels."""
+    """Task priority levels with both string and numeric representations."""
 
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
     CRITICAL = "critical"
+
+    @property
+    def numeric_value(self) -> int:
+        """Get the numeric priority value for taskiq."""
+
+        priority_mapping = {
+            self.LOW: 1,
+            self.NORMAL: 3,
+            self.HIGH: 5,
+            self.CRITICAL: 7,
+        }
+        return priority_mapping[self]
+
+    def __int__(self) -> int:
+        """Allow direct conversion to int for taskiq decorators."""
+        return self.numeric_value
+
+    def __call__(self) -> int:
+        """Alternative method to get numeric value."""
+        return self.numeric_value
+
+    def to_taskiq_priority(self) -> int:
+        """Explicit method to get taskiq-compatible numeric priority."""
+        return self.numeric_value
 
 
 class TaskStatus(str, Enum):
@@ -44,7 +68,7 @@ class TaskInfo:
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    priority: TaskPriority = TaskPriority.NORMAL
+    priority: TaskPriority | int = TaskPriority.NORMAL
     result: Any = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 

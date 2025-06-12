@@ -3,7 +3,7 @@ from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.common.constants import ROOT_PATH
-from app.infrastructure.taskiq.schemas import BrokerType, TaskPriority
+from app.infrastructure.taskiq.schemas import BrokerType
 
 
 class TaskiqConfiguration(BaseSettings):
@@ -22,15 +22,7 @@ class TaskiqConfiguration(BaseSettings):
     result_backend_url: SecretStr | None = Field(None, description="Result backend URL")
 
     # Queue Configuration
-    default_queue: str = Field("default", description="Default queue name")
-    priority_queues: dict[TaskPriority, str] = Field(
-        default_factory=lambda: {
-            TaskPriority.LOW: "low_priority",
-            TaskPriority.NORMAL: "normal_priority",
-            TaskPriority.HIGH: "high_priority",
-            TaskPriority.CRITICAL: "critical_priority",
-        }
-    )
+    queue: str = Field("default", description="Default queue name")
 
     # Connection Management
     retry_on_timeout: bool = Field(True, description="Retry on timeout")

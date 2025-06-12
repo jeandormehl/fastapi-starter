@@ -47,7 +47,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         try:
             # Create request context for logging
-            request_context = self._create_request_context(request, start_datetime)
+            request_context = await self._create_request_context(
+                request, start_datetime
+            )
 
             # Log request start
             self.logger.bind(**request_context).info("request started")
@@ -65,7 +67,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
             # Log successful completion
             complete_context = {**request_context, **response_context}
-            self.logger.bind(**complete_context).info("request completed successfully")
+            santized_context = DataSanitizer.sanitize_data(complete_context)
+            self.logger.bind(**santized_context).info("request completed successfully")
 
             # Database logging if enabled
             if self.config.request_logging_enabled:
@@ -90,7 +93,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Re-raise to let error middleware handle it
             raise
 
-    def _create_request_context(
+    async def _create_request_context(
         self, request: Request, start_datetime: datetime
     ) -> dict[str, Any]:
         """Create comprehensive request context for logging."""
@@ -101,6 +104,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         context = {
             "trace_id": trace_id,
             "request_id": request_id,
+            "body": await request.json(),
             "method": request.method,
             "url": str(request.url),
             "path": request.url.path,
@@ -221,31 +225,31 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "error_type": f"http_{status_code}",
         }
 
-    async def _submit_database_logging(self, log_data: dict[str, Any]) -> None:
+    async def _submit_database_logging(self, data: dict[str, Any]) -> None:
         """Submit comprehensive logging task for database storage."""
 
         try:
             # Add metadata
-            log_data.update(
+            data.update(
                 {
                     "logged_at": datetime.now(di["timezone"]),
                     "request_count": self._request_count,
-                    "service_version": getattr(
-                        self.config, "service_version", "unknown"
-                    ),
+                    "app_version": getattr(self.config, "app_version", "unknown"),
                 }
             )
 
             # Submit with error handling
             await self.task_manager.submit_task(
                 "request_log:create",
-                log_data,
+                data,
+                trace_id=data.get("trace_id"),
+                request_id=data.get("request_id"),
             )
 
         except Exception as e:
             self.logger.bind(
-                trace_id=log_data.get("trace_id"),
-                request_id=log_data.get("request_id"),
+                trace_id=data.get("trace_id"),
+                request_id=data.get("request_id"),
                 error=str(e),
             ).error("failed to submit request logging task")
 

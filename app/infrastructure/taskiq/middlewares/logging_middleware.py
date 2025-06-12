@@ -35,13 +35,24 @@ class LoggingMiddleware(TaskiqMiddleware):
     def _create_execution_context(self, message: TaskiqMessage) -> dict[str, Any]:
         """Create execution context for logging."""
 
+        trace_id = (
+            message.labels.get("trace_id")
+            if message.labels.get("trace_id", "unknown") != "unknown"
+            else message.kwargs.get("trace_id")
+        )
+        request_id = (
+            message.labels.get("request_id")
+            if message.labels.get("request_id", "unknown") != "unknown"
+            else message.kwargs.get("request_id")
+        )
+
         context = {
+            "trace_id": str(trace_id),
+            "request_id": str(request_id),
             "task_id": message.task_id,
             "task_name": message.task_name,
             "task_labels": dict(message.labels) if message.labels else {},
             "execution_environment": "taskiq_worker",
-            "trace_id": message.kwargs.get("trace_id"),
-            "request_id": message.kwargs.get("request_id"),
             "timestamp": datetime.now(di["timezone"]).isoformat(),
             "worker_id": self._get_worker_id(),
             "broker_type": self.config.broker_type.value,
@@ -101,7 +112,7 @@ class LoggingMiddleware(TaskiqMiddleware):
             extra={
                 "event": "task_started",
                 "priority": message.labels.get("priority", "normal"),
-                "queue": message.labels.get("queue", self.config.default_queue),
+                "queue": message.labels.get("queue", self.config.queue),
             },
         )
 

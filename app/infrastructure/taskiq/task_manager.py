@@ -100,8 +100,8 @@ class TaskManager:
                 task_name=task_name,
                 status=TaskStatus.PENDING,
                 created_at=datetime.now(di["timezone"]),
-                priority=TaskPriority(
-                    task_labels.get("priority", TaskPriority.NORMAL.value)
+                priority=task_labels.get(
+                    "priority", TaskPriority.NORMAL.to_taskiq_priority()
                 ),
                 metadata={
                     "args": args,

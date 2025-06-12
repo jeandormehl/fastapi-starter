@@ -50,7 +50,7 @@ class BrokerFactory:
 
         broker_config = {
             "url": self.config.broker_url.get_secret_value(),
-            "queue_name": self.config.default_queue,
+            "queue_name": self.config.queue,
             "retry_on_timeout": self.config.retry_on_timeout,
         }
 
@@ -61,10 +61,10 @@ class BrokerFactory:
 
         broker_config = {
             "url": self.config.broker_url.get_secret_value(),
-            "queue_name": self.config.default_queue,
+            "queue_name": self.config.queue,
             "declare_exchange": True,
-            "exchange_name": f"{self.config.default_queue}_exchange",
-            "routing_key": f"{self.config.default_queue}_routing",
+            "exchange_name": f"{self.config.queue}_exchange",
+            "routing_key": f"{self.config.queue}_routing",
             "heartbeat": 60,
         }
 
@@ -76,5 +76,4 @@ class BrokerFactory:
         return RedisAsyncResultBackend(
             redis_url=self.config.result_backend_url.get_secret_value(),
             keep_results=self.config.result_ttl,
-            # serializer="json",
         )

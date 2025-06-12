@@ -16,4 +16,4 @@ class BaseRequest(TraceModel, PydiatorBaseRequest, ABC):
 
     client: Client | None = None
     data: BaseModel | None = None
-    req: Request
+    req: Request | None = None

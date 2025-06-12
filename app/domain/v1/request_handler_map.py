@@ -16,6 +16,14 @@ from app.domain.v1.auth.requests import (
 )
 from app.domain.v1.health.handlers import HealthCheckHandler
 from app.domain.v1.health.requests import HealthCheckRequest
+from app.domain.v1.request_logs.handlers import (
+    RequestLogCleanupHandler,
+    RequestLogCreateHandler,
+)
+from app.domain.v1.request_logs.requests import (
+    RequestLogCleanupRequest,
+    RequestLogCreateRequest,
+)
 
 
 class RequestHandlerMap(Enum):
@@ -23,6 +31,10 @@ class RequestHandlerMap(Enum):
 
     # health
     HEALTCH_CHECK = (HealthCheckRequest, HealthCheckHandler)
+
+    # request_logs
+    REQUEST_LOG_CLEANUP = (RequestLogCleanupRequest, RequestLogCleanupHandler)
+    REQUEST_LOG_CREATE = (RequestLogCreateRequest, RequestLogCreateHandler)
 
     # auth
     AUTH_ACCESS_TOKEN_CREATE = (AccessTokenCreateRequest, AccessTokenCreateHandler)

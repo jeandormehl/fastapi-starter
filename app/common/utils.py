@@ -6,6 +6,7 @@ from fastapi.requests import Request
 from pydantic import BaseModel
 
 from app.common.base_handler import TRequest, TResponse
+from app.common.errors.errors import ApplicationError, ErrorCode
 
 
 class PydiatorBuilder:
@@ -14,22 +15,33 @@ class PydiatorBuilder:
     @classmethod
     def build(
         cls,
-        cls_type: type[TRequest | TRequest],
-        req: Request,
+        cls_type: type[TRequest | TResponse],
+        req: Request | None = None,
         **kwargs: str | int | bool | dict | BaseModel | None,
     ) -> TRequest | TResponse:
         # Extract trace information with fallbacks
-        trace_id = getattr(req.state, "trace_id", None)
-        request_id = getattr(req.state, "request_id", None)
+        if isinstance(req, Request):
+            trace_id = getattr(req.state, "trace_id", None)
+            request_id = getattr(req.state, "request_id", None)
 
-        request_data = {
+        else:
+            trace_id = kwargs.get("trace_id")
+            request_id = kwargs.get("request_id")
+
+        if not trace_id or not request_id:
+            raise ApplicationError(
+                ErrorCode.VALIDATION_ERROR,
+                "no 'trace_id' or 'request_id' set for operation",
+            )
+
+        data = {
             "trace_id": trace_id,
             "request_id": request_id,
             "req": req,
             **kwargs,
         }
 
-        return cls_type(**request_data)
+        return cls_type(**data)
 
 
 class DataSanitizer:
@@ -44,19 +56,20 @@ class DataSanitizer:
 
             for key, value in data.items():
                 if cls._is_sensitive_key(key):
+                    if key in ["auth_method"]:
+                        continue
                     if isinstance(value, dict):
                         sanitized_dict[key] = cls.sanitize_data(value, max_length)
                         break
                     if isinstance(value, list | tuple):
                         sanitized_dict[key] = cls._redact_inner(value)
+                    if isinstance(value, bool):
+                        sanitized_dict[key] = value
                     else:
                         sanitized_dict[key] = "[REDACTED]"
                 else:
                     sanitized_dict[key] = cls.sanitize_data(value, max_length)
             return sanitized_dict
-
-        if isinstance(data, list | tuple):
-            return [cls._redact_inner(item) for item in data]
 
         if isinstance(data, str) and len(data) > max_length:
             return data[:max_length] + "...[TRUNCATED]"

@@ -34,12 +34,11 @@ class TestDataFactory:
         ]
 
         defaults = {
-            "id": f"{client_id}-id-{datetime.now(UTC).timestamp()}",
+            "id": f"{client_id}-id",
             "client_id": client_id,
             "hashed_secret": (
                 "$2b$12$Brj6p08XnWd1IZotcue9GubHhOxUuaG8KGvRgSyWHI5fGJL8JiBM."
             ),
-            "name": f"{client_id.title()} Client",
             "is_active": is_active,
             "scopes": scope_objects,
             "created_at": datetime.now(UTC),
@@ -64,6 +63,7 @@ class TestDataFactory:
             "exp": int(now.timestamp()) + 3600,
             "iat": int(now.timestamp()),
             "scopes": scopes,
+            "type": "access_token",
         }
 
         defaults.update(overrides)

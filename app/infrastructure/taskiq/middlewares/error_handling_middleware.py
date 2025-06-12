@@ -372,13 +372,24 @@ class ErrorHandlingMiddleware(TaskiqMiddleware):
     ) -> dict[str, Any]:
         """Create comprehensive error context for logging."""
 
+        trace_id = (
+            message.labels.get("trace_id")
+            if message.labels.get("trace_id", "unknown") != "unknown"
+            else message.kwargs.get("trace_id")
+        )
+        request_id = (
+            message.labels.get("request_id")
+            if message.labels.get("request_id", "unknown") != "unknown"
+            else message.kwargs.get("request_id")
+        )
+
         circuit_breaker = self.circuit_breakers[message.task_name]
         severity = self._determine_error_severity(exception)
         error_code = getattr(exception, "error_code", ErrorCode.INTERNAL_SERVER_ERROR)
 
         context = {
-            "trace_id": message.kwargs.get("trace_id"),
-            "request_id": message.kwargs.get("request_id"),
+            "trace_id": trace_id,
+            "request_id": request_id,
             "circuit_breaker": circuit_breaker.get_state_info(),
             "exception_code": error_code.value,
             "exception_details": getattr(exception, "details", {}),

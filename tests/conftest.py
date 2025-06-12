@@ -164,7 +164,7 @@ def taskiq_config() -> TaskiqConfiguration:
     """Taskiq configuration optimized for testing."""
     return TaskiqConfiguration(
         broker_type="memory",
-        default_queue="test_queue",
+        queue="test_queue",
         default_retry_count=0,  # No retries in tests
         default_retry_delay=1,
         task_timeout=5,  # Short timeout for tests
