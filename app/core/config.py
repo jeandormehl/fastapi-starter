@@ -98,6 +98,10 @@ class Configuration(BaseSettings):
     request_logging_cleanup_interval_hours: int = Field(
         6, description="Hours between cleanup task runs"
     )
+    request_logging_max_body_size: int = Field(
+        default=100000,
+        description="Maximum size of request/response bodies to log",
+    )
 
     @property
     def app_debug(self) -> bool:

@@ -34,46 +34,39 @@ model Scope {
 }
 
 model RequestLog {
-  id         String @id @default(cuid())
-  trace_id   String
-  request_id String @unique
-
-  // Request details
-  method         String
-  url            String
-  path           String
-  query_params   String?
-  headers        Json?
-  body           Json?
-  content_type   String?
-  content_length Int?
-  client_ip      String?
-  user_agent     String?
-
-  // Response details
-  status_code      Int?
-  response_headers Json?
+  id               String    @id @default(cuid())
+  trace_id         String
+  request_id       String    @unique
+  auth_method      String?
+  authenticated    Boolean   @default(false)
+  body             Json?
+  client_id        String?
+  client_ip        String?
+  content_length   Int?
+  content_type     String?
+  duration_ms      Decimal?
+  end_time         DateTime?
+  error_category   String?
+  error_occurred   Boolean   @default(false)
+  error_type       String?
+  has_bearer_token Boolean   @default(false)
+  headers          Json?
+  logged_at        DateTime  @default(now())
+  method           String
+  path             String
+  query_params     String?
   response_body    Json?
+  response_headers Json?
   response_size    Int?
-
-  // Timing and metadata
-  start_time  DateTime
-  end_time    DateTime?
-  duration_ms Float?
-
-  // Security and audit
-  authenticated Boolean  @default(false)
-  client_id     String?
-  scopes        String[] @default([])
-
-  // Error information
-  error_occurred Boolean @default(false)
-  error_type     String?
-  error_message  String?
-  error_details  Json?
+  response_type    String?
+  scopes           String[]  @default([])
+  start_time       DateTime
+  status_code      Int?
+  success          Boolean   @default(false)
+  url              String
+  user_agent       String?
 
   created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
 
   @@index([trace_id])
   @@index([request_id])

@@ -9,11 +9,17 @@ from starlette.responses import Response
 from starlette.types import ASGIApp
 
 from app.common.logging import get_logger
-from app.common.utils import ClientIPExtractor, DataSanitizer, TraceContextExtractor
+from app.common.utils import (
+    BodyProcessor,
+    ClientIPExtractor,
+    DataSanitizer,
+    TraceContextExtractor,
+)
 from app.core.config import Configuration
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 
+# noinspection PyBroadException
 class LoggingMiddleware(BaseHTTPMiddleware):
     """
     Logging middleware that handles comprehensive request/response logging
@@ -57,12 +63,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Process request
             response = await call_next(request)
 
+            # Capture response body using the extracted function
+            response_body, response = await self._get_safe_response_body(response)
+
             # Calculate duration and create response context
             duration = time.time() - start_time
             end_datetime = datetime.now(di["timezone"])
 
             response_context = self._create_response_context(
-                request, response, end_datetime, duration
+                request, response, end_datetime, duration, response_body
             )
 
             # Log successful completion
@@ -93,6 +102,73 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Re-raise to let error middleware handle it
             raise
 
+    async def _safe_get_request_body(self, request: Request) -> dict[str, Any] | None:
+        """Safely get request body without consuming the stream."""
+
+        try:
+            # Check if request has a body
+            if request.headers.get("content-length") == "0":
+                return None
+
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                return await request.json()
+
+            # For non-JSON content, return None or handle appropriately
+            return None
+
+        except Exception:
+            return None
+
+    # noinspection PyUnresolvedReferences
+    async def _get_safe_response_body(self, response: Response) -> tuple[Any, Response]:
+        """
+        Safely capture response body without breaking FastAPI's streaming mechanism.
+
+        Returns:
+            tuple: (response_body_data, new_response_object)
+        """
+
+        try:
+            # Read response body using streaming approach
+            chunks = []
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+            response_body_bytes = b"".join(chunks)
+
+            # Try to parse response body based on content type
+            content_type = response.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    import json
+
+                    response_body = json.loads(response_body_bytes.decode("utf-8"))
+                except Exception:
+                    response_body = {
+                        "content": response_body_bytes.decode("utf-8", errors="ignore")
+                    }
+            else:
+                # Use the BodyProcessor utility for other content types
+                response_body = BodyProcessor.process_body_content(
+                    response_body_bytes,
+                    content_type,
+                    max_size=self.config.request_logging_max_body_size,
+                )
+
+            # Create new response with the same body to maintain stream integrity
+            new_response = Response(
+                content=response_body_bytes,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
+
+            return response_body, new_response
+
+        except Exception as e:
+            self.logger.warning(f"failed to capture response body: {e!s}")
+            return None, response
+
     async def _create_request_context(
         self, request: Request, start_datetime: datetime
     ) -> dict[str, Any]:
@@ -104,7 +180,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         context = {
             "trace_id": trace_id,
             "request_id": request_id,
-            "body": await request.json(),
+            "body": await self._safe_get_request_body(request),
             "method": request.method,
             "url": str(request.url),
             "path": request.url.path,
@@ -132,6 +208,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         response: Response,
         end_datetime: datetime,
         duration: float,
+        response_body: Any = None,
     ) -> dict[str, Any]:
         """Create comprehensive response context for logging."""
 
@@ -143,6 +220,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "response_type": response.__class__.__name__,
             "status_code": response.status_code,
             "success": 200 <= response.status_code < 400,
+            "response_body": response_body,
         }
 
         # Add response headers if configured

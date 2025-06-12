@@ -54,6 +54,8 @@ class RequestLogCleanupHandler(BaseHandler):
 
         except Exception as e:
             self.logger.bind(
+                trace_id=request.data.trace_id,
+                request_id=request.data.request_id,
                 retention_days=self.config.request_logging_retention_days,
                 error=str(e),
                 error_type=type(e).__name__,

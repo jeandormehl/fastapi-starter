@@ -23,9 +23,7 @@ _request_id = str(uuid.uuid4())
     retry_on_error=True,
     kwargs={},
     max_retries=2,
-    schedule=[
-        {"cron": "* * * * *"}
-    ],  # TODO: CHANGE THIS -> {"cron": f"* */{config.request_logging_cleanup_interval_hours} * * *"}  # noqa: E501
+    schedule=[{"cron": f"* */{config.request_logging_cleanup_interval_hours} * * *"}],
     trace_id=_trace_id,
     request_id=_request_id,
 )

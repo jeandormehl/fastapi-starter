@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel
@@ -7,30 +8,34 @@ from pydantic import BaseModel
 class RequestLogCreateInput(BaseModel):
     trace_id: str
     request_id: str
+    auth_method: str | None = None
+    authenticated: bool
+    body: dict[str, Any]
+    client_id: str | None = None
+    client_ip: str
+    content_length: int
+    content_type: str
+    duration_ms: Decimal
+    end_time: datetime
+    error_category: str
+    error_occurred: bool
+    error_type: str
+    has_bearer_token: bool
+    headers: dict[str, Any]
+    logged_at: datetime
     method: str
-    url: str
     path: str
     query_params: dict[str, Any] | None = None
-    headers: dict[str, Any] | None = None
-    body: dict[str, Any] | None = None
-    content_type: str | None = None
-    content_length: int | None = None
-    client_ip: str | None = None
-    user_agent: str | None = None
-    status_code: int | None = None
-    response_headers: dict[str, Any] | None = None
     response_body: dict[str, Any] | None = None
-    response_size: int | None = None
+    response_headers: dict[str, Any] | None = None
+    response_size: int
+    response_type: str
+    scopes: list[str]
     start_time: datetime
-    end_time: datetime | None = None
-    duration_ms: float | None = None
-    authenticated: bool
-    client_id: str | None = None
-    scopes: list[str] = []
-    error_occured: bool = False
-    error_type: str | None = None
-    error_message: str | None = None
-    error_details: dict[str, Any] | None = None
+    status_code: int
+    success: bool
+    url: str
+    user_agent: str
 
 
 class RequestLogCreateOutput(BaseModel):

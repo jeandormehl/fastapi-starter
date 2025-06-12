@@ -122,6 +122,7 @@ class LoggingMiddleware(TaskiqMiddleware):
 
         return message
 
+    # noinspection PyBroadException
     async def post_execute(
         self, message: TaskiqMessage, result: TaskiqResult[Any]
     ) -> None:
@@ -164,9 +165,15 @@ class LoggingMiddleware(TaskiqMiddleware):
             )
             await self.metrics_collector.record_task_completed(metrics)
 
-        # Add successful result information (if configured)
-        if result.return_value is not None and not self.config.sanitize_logs:
-            context["task_result"] = str(result.return_value)[:500]
+        # Include task result in the context if available
+        if result.return_value is not None:
+            context["task_result"] = DataSanitizer.sanitize_data(result.return_value)
+        else:
+            try:
+                context["task_result"] = str(result.return_value)[:500]
+
+            except Exception:
+                context["task_result"] = "[Result conversion error]"
 
         # Log successful completion
         self.logger.bind(**context).info(
