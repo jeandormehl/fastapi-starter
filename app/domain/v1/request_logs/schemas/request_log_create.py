@@ -10,18 +10,18 @@ class RequestLogCreateInput(BaseModel):
     request_id: str
     auth_method: str | None = None
     authenticated: bool
-    body: dict[str, Any]
+    body: dict[str, Any] | None = None
     client_id: str | None = None
-    client_ip: str
-    content_length: int
-    content_type: str
-    duration_ms: Decimal
-    end_time: datetime
-    error_category: str
-    error_occurred: bool
-    error_type: str
+    client_ip: str | None = None
+    content_length: int | None = None
+    content_type: str | None = None
+    duration_ms: Decimal | None = None
+    end_time: datetime | None = None
+    error_category: str | None = None
+    error_occurred: bool = False
+    error_type: str | None = None
     has_bearer_token: bool
-    headers: dict[str, Any]
+    headers: dict[str, Any] | None = None
     logged_at: datetime
     method: str
     path: str
@@ -29,14 +29,14 @@ class RequestLogCreateInput(BaseModel):
     query_params: dict[str, Any] | None = None
     response_body: dict[str, Any] | None = None
     response_headers: dict[str, Any] | None = None
-    response_size: int
-    response_type: str
-    scopes: list[str]
+    response_size: int | None = None
+    response_type: str | None = None
+    scopes: list[str] | None = None
     start_time: datetime
-    status_code: int
+    status_code: int | None = None
     success: bool
     url: str
-    user_agent: str
+    user_agent: str | None = None
 
 
 class RequestLogCreateOutput(BaseModel):

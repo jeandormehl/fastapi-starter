@@ -3,9 +3,11 @@ import json
 from typing import Any
 
 from fastapi.requests import Request
+from prisma import Json
 from pydantic import BaseModel
 
 from app.common.base_handler import TRequest, TResponse
+from app.common.constants import MODEL_JSON_FIELDS
 from app.common.errors.errors import ApplicationError, ErrorCode
 
 
@@ -48,7 +50,7 @@ class DataSanitizer:
     """Centralized data sanitization for logs and responses."""
 
     @classmethod
-    def sanitize_data(cls, data: Any, max_length: int = 1000) -> Any:
+    def sanitize_data(cls, data: Any, max_length: int = 10000) -> Any:
         """Recursively sanitize sensitive data."""
 
         if isinstance(data, dict):
@@ -255,3 +257,32 @@ class TraceContextExtractor:
                 return str(request_id)
 
         return "unknown"
+
+
+class PrismaDataTransformer:
+    """
+    Utility class for transforming Pydantic model data for Prisma consumption.
+
+    Handles the conversion of dict/list fields to Json objects for Json-type
+    fields in Prisma schema.
+    """
+
+    @classmethod
+    def prepare_data(cls, data: dict[str, Any], model_name: str) -> dict[str, Any]:
+        json_fields = MODEL_JSON_FIELDS.get(model_name, set())
+
+        if not json_fields:
+            return data
+
+        prepared_data = data.copy()
+
+        for field in json_fields:
+            if prepared_data[field] is None:
+                prepared_data[field] = Json(None)
+                continue
+            if (
+                field in prepared_data and prepared_data[field] is not None
+            ) and isinstance(prepared_data[field], dict | list):
+                prepared_data[field] = Json(prepared_data[field])
+
+        return prepared_data

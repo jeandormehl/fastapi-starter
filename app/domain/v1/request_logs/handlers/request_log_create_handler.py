@@ -2,6 +2,7 @@ from kink import di
 
 from app.common.base_handler import BaseHandler
 from app.common.logging import get_logger
+from app.common.utils import PrismaDataTransformer
 from app.domain.v1.request_logs.requests import RequestLogCreateRequest
 from app.domain.v1.request_logs.responses import RequestLogCreateResponse
 from app.domain.v1.request_logs.schemas import RequestLogCreateOutput
@@ -23,7 +24,10 @@ class RequestLogCreateHandler(BaseHandler):
 
             self.logger.info(f"processing request log: {request.data.trace_id}")
 
-            await self.db.requestlog.create(data=request.data.model_dump())
+            raw_data = request.data.model_dump()
+            prisma_data = PrismaDataTransformer.prepare_data(raw_data, "RequestLog")
+
+            request_log = await self.db.requestlog.create(data=prisma_data)
 
             return RequestLogCreateResponse(
                 trace_id=request.data.trace_id,
@@ -31,7 +35,7 @@ class RequestLogCreateHandler(BaseHandler):
                 success=True,
                 data=RequestLogCreateOutput(
                     success=True,
-                    id=request.data.id,
+                    id=request_log.id,
                 ),
             )
 

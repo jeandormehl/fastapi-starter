@@ -31,3 +31,15 @@ SENSITIVE_PATTERNS: set[str] = {
     "ssn",
     "token",
 }
+
+MODEL_JSON_FIELDS = {
+    "RequestLog": {
+        "body",
+        "headers",
+        "path_params",
+        "query_params",
+        "response_body",
+        "response_headers",
+    },
+    # Add other models as needed
+}

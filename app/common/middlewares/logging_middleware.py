@@ -183,7 +183,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         context = {
             "trace_id": trace_id,
             "request_id": request_id,
-            "body": await self._safe_get_request_body(request),
+            "body": DataSanitizer.sanitize_data(
+                await self._safe_get_request_body(request)
+            ),
             "method": request.method,
             "url": str(request.url),
             "path": request.url.path,
@@ -224,7 +226,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "response_type": response.__class__.__name__,
             "status_code": response.status_code,
             "success": 200 <= response.status_code < 400,
-            "response_body": response_body,
+            "response_body": DataSanitizer.sanitize_data(response_body),
         }
 
         # Add response headers if configured - with hyphen replacement
