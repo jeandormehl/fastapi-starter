@@ -171,7 +171,7 @@ class Configuration(BaseSettings):
 
     @field_validator("request_logging_retention_days")
     @classmethod
-    def validate_retention_days(cls, v: int) -> int:
+    def validate_request_retention_days(cls, v: int) -> int:
         if v < 1:
             msg = "retention_days must be at least 1"
             raise ValueError(msg)

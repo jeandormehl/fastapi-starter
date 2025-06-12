@@ -20,8 +20,7 @@ class RequestLogCreateHandler(BaseHandler):
         self, request: RequestLogCreateRequest
     ) -> RequestLogCreateResponse:
         try:
-            if not self.db.is_connected():
-                await self.db.connect()
+            await Database.connect_db()
 
             self.logger.info(f"processing request log: {request.data.trace_id}")
 

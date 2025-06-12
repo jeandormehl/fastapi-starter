@@ -23,8 +23,7 @@ class RequestLogCleanupHandler(BaseHandler):
         self, request: RequestLogCleanupRequest
     ) -> RequestLogCleanupResponse:
         try:
-            if not self.db.is_connected():
-                await self.db.connect()
+            await Database.connect_db()
 
             # Calculate cutoff date
             retention_days = self.config.request_logging_retention_days
