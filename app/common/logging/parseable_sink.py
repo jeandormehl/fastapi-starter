@@ -104,42 +104,26 @@ class ParseableSink:
         # Check for error indicators first
         if (
             log_entry.get("level") in ["ERROR", "CRITICAL", "WARNING"]
-            or "error_category" in log_entry
-            or "error_occured" in log_entry
-            or "error_type" in log_entry
+            or log_entry.get("success") is False
+            or log_entry.get("event") in ["request_failed", "task_failed"]
         ):
             return LogStreamType.ERROR
 
-        # Check for metrics
-        if (
-            log_entry.get("event") == "metrics"
-            or "memory_usage" in log_entry
-            or "cpu_usage" in log_entry
-            or "performance" in log_entry
-        ):
-            return LogStreamType.METRICS
-
         # Check for task-related logs
-        if (
-            log_entry.get("execution_environment") == "taskiq_worker"
-            or "task_id" in log_entry
-            or "task_name" in log_entry
-            or "task_labels" in log_entry
-            or "worker_id" in log_entry
-        ):
+        if log_entry.get("execution_environment") == "taskiq_worker" or log_entry.get(
+            "event"
+        ) in ["task_started", "task_completed"]:
             return LogStreamType.TASK
 
+        # Check for metrics
+        if log_entry.get("event") == "metrics":
+            return LogStreamType.METRICS
+
         # Check for API request logs
-        if (
-            log_entry.get("event") in ["request_started", "request_completed"]
-            or "request_method" in log_entry
-            or "request_url" in log_entry
-            or "status_code" in log_entry
-            or "duration_ms" in log_entry
-        ):
+        if log_entry.get("event") in ["request_started", "request_completed"]:
             return LogStreamType.API
 
-        # Default to application logs
+        # Default to API logs
         return LogStreamType.API
 
     def _create_stream_specific_entry(
@@ -147,7 +131,6 @@ class ParseableSink:
     ) -> dict[str, Any]:
         """Create stream-specific log entry with relevant fields."""
 
-        # TODO: Revist this and add more relevant fields to different categories.
         # Common fields for all streams
         base_fields = {
             "timestamp": log_entry.get("timestamp"),
@@ -155,14 +138,13 @@ class ParseableSink:
             "message": log_entry.get("message"),
             "trace_id": log_entry.get("trace_id"),
             "request_id": log_entry.get("request_id"),
-            "logger": log_entry.get("logger"),
+            "logger_name": log_entry.get("logger_name"),
             "function": log_entry.get("function"),
-            "line": log_entry.get("line"),
-            "module": log_entry.get("module"),
-            "file": log_entry.get("file"),
             "process_id": log_entry.get("process_id"),
             "thread_id": log_entry.get("thread_id"),
             "thread_name": log_entry.get("thread_name"),
+            "app_version": log_entry.get("app_version"),
+            "app_environment": log_entry.get("app_environment"),
         }
 
         # Stream-specific field sets
@@ -170,11 +152,15 @@ class ParseableSink:
             api_fields = {
                 "event": log_entry.get("event"),
                 "method": log_entry.get("method"),
+                "request_method": log_entry.get("request_method"),
                 "url": log_entry.get("url"),
+                "request_url": log_entry.get("request_url"),
                 "path": log_entry.get("path"),
+                "request_path": log_entry.get("request_path"),
                 "path_params": log_entry.get("path_params"),
                 "query_params": log_entry.get("query_params"),
                 "headers": log_entry.get("headers"),
+                "request_headers": log_entry.get("request_headers"),
                 "body": log_entry.get("body"),
                 "content_type": log_entry.get("content_type"),
                 "content_length": log_entry.get("content_length"),
@@ -183,13 +169,23 @@ class ParseableSink:
                 "status_code": log_entry.get("status_code"),
                 "response_body": log_entry.get("response_body"),
                 "response_headers": log_entry.get("response_headers"),
+                "response_size": log_entry.get("response_size"),
+                "response_type": log_entry.get("response_type"),
                 "duration_ms": log_entry.get("duration_ms"),
                 "start_time": log_entry.get("start_time"),
                 "end_time": log_entry.get("end_time"),
+                "success": log_entry.get("success"),
+                "authenticated": log_entry.get("authenticated"),
+                "auth_method": log_entry.get("auth_method"),
+                "client_id": log_entry.get("client_id"),
+                "has_bearer_token": log_entry.get("has_bearer_token"),
+                "scopes": log_entry.get("scopes"),
+                "request_count": log_entry.get("request_count"),
+                "skip_rate": log_entry.get("skip_rate"),
             }
             log_fields = {**base_fields, **api_fields}
 
-        if stream_type == LogStreamType.TASK:
+        elif stream_type == LogStreamType.TASK:
             task_fields = {
                 "event": log_entry.get("event"),
                 "task_id": log_entry.get("task_id"),
@@ -198,6 +194,10 @@ class ParseableSink:
                 "task_args": log_entry.get("task_args"),
                 "task_kwargs": log_entry.get("task_kwargs"),
                 "execution_environment": log_entry.get("execution_environment"),
+                "execution_status": log_entry.get("execution_status"),
+                "execution_duration_seconds": log_entry.get(
+                    "execution_duration_seconds"
+                ),
                 "worker_id": log_entry.get("worker_id"),
                 "broker_type": log_entry.get("broker_type"),
                 "priority": log_entry.get("priority"),
@@ -211,42 +211,128 @@ class ParseableSink:
                 "end_time": log_entry.get("end_time"),
                 "task_result": log_entry.get("task_result"),
                 "task_status": log_entry.get("task_status"),
+                "task_error": log_entry.get("task_error"),
+                "is_error": log_entry.get("is_error"),
+                "circuit_breaker": log_entry.get("circuit_breaker"),
+                "task_performance": log_entry.get("task_performance"),
+                "quarantine_status": log_entry.get("quarantine_status"),
+                "recent_error_count": log_entry.get("recent_error_count"),
+                "error_patterns": log_entry.get("error_patterns"),
             }
             log_fields = {**base_fields, **task_fields}
 
-        if stream_type == LogStreamType.ERROR:
+        elif stream_type == LogStreamType.ERROR:
             error_fields = {
                 "event": log_entry.get("event"),
                 "exception_type": log_entry.get("exception_type"),
                 "exception_message": log_entry.get("exception_message"),
                 "exception_traceback": log_entry.get("exception_traceback"),
+                "exception_module": log_entry.get("exception_module"),
+                "exception_details": log_entry.get("exception_details"),
+                "exception_code": log_entry.get("exception_code"),
                 "traceback": log_entry.get("traceback"),
                 "error_code": log_entry.get("error_code"),
                 "error_details": log_entry.get("error_details"),
+                "error_category": log_entry.get("error_category"),
+                "error_type": log_entry.get("error_type"),
+                "error_occurred": log_entry.get("error_occurred"),
                 "context": log_entry.get("context"),
                 "stack_trace": log_entry.get("stack_trace"),
                 "severity": log_entry.get("severity"),
-                # Include relevant request/task context for errors
-                "request_method": log_entry.get("method"),
-                "request_url": log_entry.get("url"),
+                # API Error Context
+                "request_method": log_entry.get("method")
+                or log_entry.get("request_method"),
+                "request_url": log_entry.get("url") or log_entry.get("request_url"),
+                "request_path": log_entry.get("path") or log_entry.get("request_path"),
+                "request_headers": log_entry.get("request_headers"),
+                "client_ip": log_entry.get("client_ip"),
+                "user_agent": log_entry.get("user_agent"),
+                "status_code": log_entry.get("status_code"),
+                "duration_ms": log_entry.get("duration_ms"),
+                # Task Error Context
                 "task_name": log_entry.get("task_name"),
                 "task_id": log_entry.get("task_id"),
+                "task_args": log_entry.get("task_args"),
+                "task_kwargs": log_entry.get("task_kwargs"),
+                "worker_id": log_entry.get("worker_id"),
+                "retry_count": log_entry.get("retry_count"),
+                "execution_environment": log_entry.get("execution_environment"),
+                "broker_type": log_entry.get("broker_type"),
+                "queue": log_entry.get("queue"),
+                "priority": log_entry.get("priority"),
+                # Circuit Breaker and Quarantine Context
+                "circuit_breaker": log_entry.get("circuit_breaker"),
+                "circuit_breaker_state": log_entry.get("circuit_breaker_state"),
+                "is_quarantined": log_entry.get("is_quarantined"),
+                "quarantine_reason": log_entry.get("quarantine_reason"),
+                "quarantine_until": log_entry.get("quarantine_until"),
+                "quarantine_duration_minutes": log_entry.get(
+                    "quarantine_duration_minutes"
+                ),
+                "previous_quarantine_reason": log_entry.get(
+                    "previous_quarantine_reason"
+                ),
+                # Error Pattern Analysis
+                "error_patterns": log_entry.get("error_patterns"),
+                "recent_error_count": log_entry.get("recent_error_count"),
+                "task_performance": log_entry.get("task_performance"),
+                # Memory and Performance Context
+                "memory_usage_mb": log_entry.get("memory_usage_mb"),
+                "execution_duration_seconds": log_entry.get(
+                    "execution_duration_seconds"
+                ),
+                # Authentication Context for API Errors
+                "authenticated": log_entry.get("authenticated"),
+                "auth_method": log_entry.get("auth_method"),
+                "client_id": log_entry.get("client_id"),
+                "has_bearer_token": log_entry.get("has_bearer_token"),
+                "scopes": log_entry.get("scopes"),
+                # Additional Error Tracking
+                "middleware": log_entry.get("middleware"),
+                "error": log_entry.get("error"),
+                "task_result_is_error": log_entry.get("task_result_is_error"),
+                "task_result_log": log_entry.get("task_result_log"),
+                "exc_info_error": log_entry.get("exc_info_error"),
+                "exception_info": log_entry.get("exception_info"),
             }
             log_fields = {**base_fields, **error_fields}
 
-        if stream_type == LogStreamType.METRICS:
+        elif stream_type == LogStreamType.METRICS:
             metrics_fields = {
                 "event": log_entry.get("event"),
                 "memory_usage_mb": log_entry.get("memory_usage_mb"),
                 "cpu_usage_percent": log_entry.get("cpu_usage_percent"),
                 "duration_ms": log_entry.get("duration_ms"),
+                "execution_duration_seconds": log_entry.get(
+                    "execution_duration_seconds"
+                ),
                 "performance_metrics": log_entry.get("performance_metrics"),
                 "system_metrics": log_entry.get("system_metrics"),
                 "request_count": log_entry.get("request_count"),
                 "task_count": log_entry.get("task_count"),
                 "error_count": log_entry.get("error_count"),
+                "skip_count": log_entry.get("skip_count"),
+                "skip_rate": log_entry.get("skip_rate"),
+                "total_requests_processed": log_entry.get("total_requests_processed"),
+                "total_skipped": log_entry.get("total_skipped"),
+                "response_time": log_entry.get("response_time"),
+                "response_size": log_entry.get("response_size"),
+                "content_length": log_entry.get("content_length"),
+                "task_performance": log_entry.get("task_performance"),
+                "circuit_breaker": log_entry.get("circuit_breaker"),
+                "recent_error_count": log_entry.get("recent_error_count"),
+                "avg_duration": log_entry.get("avg_duration"),
+                "max_duration": log_entry.get("max_duration"),
+                "total_executions": log_entry.get("total_executions"),
+                "logged_at": log_entry.get("logged_at"),
+                "worker_id": log_entry.get("worker_id"),
+                "task_name": log_entry.get("task_name"),
+                "task_id": log_entry.get("task_id"),
             }
             log_fields = {**base_fields, **metrics_fields}
+
+        else:
+            log_fields = base_fields
 
         return log_fields
 

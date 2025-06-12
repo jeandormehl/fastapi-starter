@@ -77,7 +77,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Log successful completion
             complete_context = {**request_context, **response_context}
             santized_context = DataSanitizer.sanitize_data(complete_context)
-            self.logger.bind(**santized_context).info("request completed successfully")
+            msg = (
+                "request completed successfully"
+                if santized_context["success"]
+                else "request completed with error"
+            )
+            self.logger.bind(**santized_context).info(msg)
 
             # Database logging if enabled
             if self.config.request_logging_enabled:
