@@ -12,7 +12,7 @@ from app.domain.v1.health.schemas import HealthCheckOutput, HealthLivenessOutput
 router = APIRouter(prefix="/health", tags=["health"])
 
 
-@router.get("/")
+@router.get("")
 async def health_check(request: Request) -> HealthCheckOutput:
     return (
         await pydiator.send(PydiatorBuilder.build(HealthCheckRequest, request))
@@ -26,7 +26,11 @@ async def liveness_check() -> HealthLivenessOutput:
     Returns 200 if the application is running
     """
 
-    return HealthLivenessOutput(
-        status="alive",
-        timestamp=datetime.now(di["timezone"]).isoformat(),
-    )
+    try:
+        return HealthLivenessOutput(
+            status="alive",
+            timestamp=datetime.now(di["timezone"]).isoformat(),
+        )
+
+    except Exception:
+        raise

@@ -2,6 +2,7 @@
 CREATE TABLE "clients" (
     "id" TEXT NOT NULL,
     "client_id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
     "hashed_secret" TEXT NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

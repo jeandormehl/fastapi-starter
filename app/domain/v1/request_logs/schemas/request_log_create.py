@@ -27,7 +27,7 @@ class RequestLogCreateInput(BaseModel):
     path: str
     path_params: dict[str, Any] | None = None
     query_params: dict[str, Any] | None = None
-    response_body: dict[str, Any] | None = None
+    response_body: dict[str, Any] | list[dict[str, Any]] | None = None
     response_headers: dict[str, Any] | None = None
     response_size: int | None = None
     response_type: str | None = None

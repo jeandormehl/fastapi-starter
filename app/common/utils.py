@@ -58,7 +58,7 @@ class DataSanitizer:
 
             for key, value in data.items():
                 if cls._is_sensitive_key(key):
-                    if key in ["auth_method"]:
+                    if key in ["auth_method", "token_type"]:
                         continue
                     if isinstance(value, dict):
                         sanitized_dict[key] = cls.sanitize_data(value, max_length)

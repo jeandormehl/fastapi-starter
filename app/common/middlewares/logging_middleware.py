@@ -203,14 +203,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         if self.config.request_logging_log_headers:
             context["headers"] = DataSanitizer.sanitize_headers(dict(request.headers))
 
-        # Add authentication context
-        context.update(self._extract_auth_info(request))
-
         return context
 
     def _create_response_context(
         self,
-        _request: Request,
+        request: Request,
         response: Response,
         end_datetime: datetime,
         duration: float,
@@ -240,6 +237,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Add error categorization for non-2xx responses
         if response.status_code >= 400:
             context.update(self._categorize_error_response(response.status_code))
+
+        # Add authentication context
+        context.update(self._extract_auth_info(request))
 
         return context
 

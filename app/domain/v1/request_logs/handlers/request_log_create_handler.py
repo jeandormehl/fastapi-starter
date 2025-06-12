@@ -20,7 +20,8 @@ class RequestLogCreateHandler(BaseHandler):
         self, request: RequestLogCreateRequest
     ) -> RequestLogCreateResponse:
         try:
-            await self.db.connect()
+            if not self.db.is_connected():
+                await self.db.connect()
 
             self.logger.info(f"processing request log: {request.data.trace_id}")
 
@@ -48,6 +49,3 @@ class RequestLogCreateHandler(BaseHandler):
             ).error(f"failed to create request log:: {e!s}")
 
             raise
-
-        finally:
-            await self.db.disconnect()

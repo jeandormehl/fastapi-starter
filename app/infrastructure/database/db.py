@@ -47,10 +47,11 @@ class Database(Prisma):
         db_scope = await db.scope.find_first(where={"name": "admin"})
 
         await db.client.upsert(
-            where={"client_id": "admin"},
+            where={"client_id": "63f6fac7-5f33-457f-a14f-5c2d33b87c3e"},
             data={
                 "create": {
-                    "client_id": "admin",
+                    "client_id": "63f6fac7-5f33-457f-a14f-5c2d33b87c3e",
+                    "name": "rtp-admin",
                     "hashed_secret": hashpw(
                         config.admin_password.get_secret_value().encode("utf-8"),
                         gensalt(),

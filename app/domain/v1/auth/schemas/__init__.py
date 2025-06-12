@@ -1,16 +1,15 @@
 from .access_token import (
     AccessTokenCreateInput,
     AccessTokenCreateOutput,
+    AccessTokenRefreshOutput,
 )
-from .client import ClientCreateInput, ClientOut
+from .client import AuthenticatedClientOutput
 from .jwt import JWTPayload
-from .scope import ScopeOut
 
 __all__ = [
     "AccessTokenCreateInput",
     "AccessTokenCreateOutput",
-    "ClientCreateInput",
-    "ClientOut",
+    "AccessTokenRefreshOutput",
+    "AuthenticatedClientOutput",
     "JWTPayload",
-    "ScopeOut",
 ]

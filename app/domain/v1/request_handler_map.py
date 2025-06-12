@@ -3,17 +3,15 @@ from enum import Enum
 from app.domain.v1.auth.handlers import (
     AccessTokenCreateHandler,
     AccessTokenRefreshHandler,
-    ClientCreateHandler,
-    ClientFindAuthenticatedHandler,
-    ScopeFindHandler,
+    AuthenticatedClientFindHandler,
 )
 from app.domain.v1.auth.requests import (
     AccessTokenCreateRequest,
     AccessTokenRefreshRequest,
-    ClientCreateRequest,
-    ClientFindAuthenticatedRequest,
-    ScopeFindRequest,
+    AuthenticatedClientFindRequest,
 )
+from app.domain.v1.client.handlers import ClientCreateHandler, ClientUpdateHandler
+from app.domain.v1.client.requests import ClientCreateRequest, ClientUpdateRequest
 from app.domain.v1.health.handlers import HealthCheckHandler
 from app.domain.v1.health.requests import HealthCheckRequest
 from app.domain.v1.request_logs.handlers import (
@@ -24,6 +22,8 @@ from app.domain.v1.request_logs.requests import (
     RequestLogCleanupRequest,
     RequestLogCreateRequest,
 )
+from app.domain.v1.scopes.handlers import ScopeFindHandler
+from app.domain.v1.scopes.requests import ScopeFindRequest
 
 
 class RequestHandlerMap(Enum):
@@ -39,9 +39,14 @@ class RequestHandlerMap(Enum):
     # auth
     AUTH_ACCESS_TOKEN_CREATE = (AccessTokenCreateRequest, AccessTokenCreateHandler)
     AUTH_ACCESS_TOKEN_REVOKE = (AccessTokenRefreshRequest, AccessTokenRefreshHandler)
-    AUTH_CLIENT_CREATE = (ClientCreateRequest, ClientCreateHandler)
-    AUTH_CLIENT_FIND_AUTHENTICATED = (
-        ClientFindAuthenticatedRequest,
-        ClientFindAuthenticatedHandler,
+    AUTH_AUTHENTICATED_CLIENT_FIND = (
+        AuthenticatedClientFindRequest,
+        AuthenticatedClientFindHandler,
     )
-    AUTH_SCOPE_FIND = (ScopeFindRequest, ScopeFindHandler)
+
+    # clients
+    CLIENT_CREATE = (ClientCreateRequest, ClientCreateHandler)
+    CLIENT_UPDATE = (ClientUpdateRequest, ClientUpdateHandler)
+
+    # scopes
+    SCOPE_FIND = (ScopeFindRequest, ScopeFindHandler)

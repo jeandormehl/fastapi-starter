@@ -23,7 +23,8 @@ class RequestLogCleanupHandler(BaseHandler):
         self, request: RequestLogCleanupRequest
     ) -> RequestLogCleanupResponse:
         try:
-            await self.db.connect()
+            if not self.db.is_connected():
+                await self.db.connect()
 
             # Calculate cutoff date
             retention_days = self.config.request_logging_retention_days
@@ -62,6 +63,3 @@ class RequestLogCleanupHandler(BaseHandler):
             ).error("request logs cleanup failed")
 
             raise
-
-        finally:
-            await self.db.disconnect()

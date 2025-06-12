@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
 
-class ScopeOut(BaseModel):
+class ScopeOutput(BaseModel):
     name: str
     description: str
