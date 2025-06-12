@@ -15,8 +15,8 @@ COPY ./.devcontainer/conf/start.sh /start.sh
 WORKDIR /app
 
 RUN  apt-get update && apt-get install -y --no-install-recommends zsh curl \
-  && pip install --root-user-action --no-cache-dir --upgrade pip \
-  && pip install --root-user-action --no-cache-dir poetry \
+  && pip install --no-cache-dir --upgrade pip \
+  && pip install --no-cache-dir poetry \
   && poetry update \
   && git config --global --add safe.directory /app \
   && prisma py fetch \

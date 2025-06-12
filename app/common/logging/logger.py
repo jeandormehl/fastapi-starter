@@ -160,51 +160,6 @@ class ContextualLogger:
 
         self._log("CRITICAL", message, **kwargs)
 
-    def log_exception(
-        self,
-        exc: Exception,
-        message: str = "exception occurred",
-        include_traceback: bool = True,
-        **kwargs: Any,
-    ) -> None:
-        """Log exception with standardized format."""
-
-        import traceback
-
-        exception_data = {
-            "exception_type": type(exc).__name__,
-            "exception_message": str(exc),
-            **kwargs,
-        }
-
-        if include_traceback:
-            exception_data["traceback"] = traceback.format_exc()
-
-        self.error(message, **exception_data)
-
-    def log_api_request(
-        self,
-        method: str,
-        url: str,
-        status_code: int | None = None,
-        duration_ms: float | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """Log API request with standardized format."""
-
-        request_data = {"request_method": method, "request_url": url, **kwargs}
-
-        if status_code is not None:
-            request_data["status_code"] = str(status_code)
-
-        if duration_ms is not None:
-            request_data["duration_ms"] = str(duration_ms)
-
-        if status_code and status_code >= 400:
-            self.error("api request failed", **request_data)
-        else:
-            self.info("api request", **request_data)
-
 
 # Global logger manager instance
 _logger_manager: LoggerManager | None = None

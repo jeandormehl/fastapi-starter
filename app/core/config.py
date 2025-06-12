@@ -55,15 +55,17 @@ class Configuration(BaseSettings):
     # Parseable settings
     parseable_enabled: bool = Field(False, description="Enable Parseable logging")
     parseable_url: str = Field("http://localhost:8000", description="Parseable URL")
-    parseable_stream: str = Field(
-        "fastapi-starter-logs", description="Parseable stream"
-    )
     parseable_username: str = Field("admin", description="Parseable stream")
     parseable_password: SecretStr = Field("password", description="Parseable password")
     parseable_batch_size: int = Field(100, description="Parseable batch size")
     parseable_flush_interval: float = Field(5.0, description="Parseable flush interval")
     parseable_max_retries: int = Field(3, description="Parseable max retries")
     parseable_retry_delay: float = Field(1.0, description="Parseable retry delay")
+
+    parseable_api_stream: str = Field("app-logs", description="API request stream")
+    parseable_task_stream: str = Field("task-logs", description="Task execution stream")
+    parseable_error_stream: str = Field("error-logs", description="Error stream")
+    parseable_metrics_stream: str = Field("metrics-logs", description="Metrics stream")
 
     jwt_algorithm: str = Field("HS256", description="JWT algorithm")
     jwt_access_token_expire_minutes: int = Field(

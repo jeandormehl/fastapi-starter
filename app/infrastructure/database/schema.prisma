@@ -53,10 +53,11 @@ model RequestLog {
   has_bearer_token Boolean   @default(false)
   headers          Json?
   logged_at        DateTime  @default(now())
-  method           String
   path             String
   path_params      Json?
   query_params     Json?
+  request_method   String
+  request_url      String
   response_body    Json?
   response_headers Json?
   response_size    Int?
@@ -65,14 +66,13 @@ model RequestLog {
   start_time       DateTime
   status_code      Int?
   success          Boolean   @default(false)
-  url              String
   user_agent       String?
 
   created_at DateTime @default(now())
 
   @@index([trace_id])
   @@index([request_id])
-  @@index([method, path])
+  @@index([request_method, path])
   @@index([status_code])
   @@index([start_time])
   @@index([client_ip])

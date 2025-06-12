@@ -32,43 +32,87 @@ class LoggingMiddleware(TaskiqMiddleware):
         self.metrics_collector = metrics_collector
         self.logger = get_logger(__name__)
 
-    def _create_execution_context(self, message: TaskiqMessage) -> dict[str, Any]:
-        """Create execution context for logging."""
+    def _create_comprehensive_task_context(
+        self, message: TaskiqMessage, result: TaskiqResult = None
+    ) -> dict[str, Any]:
+        """Create comprehensive task context with all relevant TaskIQ data."""
 
         trace_id = (
             message.labels.get("trace_id")
             if message.labels.get("trace_id", "unknown") != "unknown"
-            else message.kwargs.get("trace_id")
+            else message.kwargs.get("trace_id", "unknown")
         )
         request_id = (
             message.labels.get("request_id")
             if message.labels.get("request_id", "unknown") != "unknown"
-            else message.kwargs.get("request_id")
+            else message.kwargs.get("request_id", "unknown")
         )
+
+        task_labels = {}
+
+        if message.labels:
+            for key, value in message.labels.items():
+                if key not in [
+                    "_start_time",
+                    "_end_time",
+                ]:  # Exclude internal timing
+                    try:
+                        # Ensure serializable
+                        import json
+
+                        json.dumps(value)
+                        task_labels[key] = value
+                    except (TypeError, ValueError):
+                        task_labels[key] = str(value)
+
+        task_kwargs = {}
+        if message.kwargs:
+            if self.config.sanitize_logs:
+                task_kwargs = DataSanitizer.sanitize_data(message.kwargs)
+            else:
+                for key, value in message.kwargs.items():
+                    try:
+                        import json
+
+                        json.dumps(value)
+                        task_kwargs[key] = value
+                    except (TypeError, ValueError):
+                        task_kwargs[key] = str(value)
 
         context = {
             "trace_id": str(trace_id),
             "request_id": str(request_id),
             "task_id": message.task_id,
             "task_name": message.task_name,
-            "task_labels": dict(message.labels) if message.labels else {},
+            "task_labels": task_labels,
+            "task_args": list(message.args) if message.args else [],
+            "task_kwargs": task_kwargs,
             "execution_environment": "taskiq_worker",
             "timestamp": datetime.now(di["timezone"]).isoformat(),
             "worker_id": self._get_worker_id(),
             "broker_type": self.config.broker_type.value,
+            "queue": message.labels.get("queue", self.config.queue),
+            "priority": message.labels.get("priority", "normal"),
+            "retry_count": message.labels.get("retry_count", 0),
+            "max_retries": message.labels.get(
+                "max_retries", self.config.default_retry_count
+            ),
+            "task_timeout": self.config.task_timeout,
+            "memory_usage_mb": self._get_memory_usage(),
         }
 
-        # Add task arguments if configured
-        if self.config.sanitize_logs:
-            context["task_args"] = (
-                DataSanitizer.sanitize_data(message.args) if message.args else None
+        if result:
+            context.update(
+                {
+                    "task_status": "success" if result.is_success else "failed",
+                    "task_result": str(result.return_value)
+                    if result.is_success
+                    else None,
+                    "task_error": str(result.exception)
+                    if not result.is_success
+                    else None,
+                }
             )
-            context["task_kwargs"] = (
-                DataSanitizer.sanitize_data(message.kwargs) if message.kwargs else None
-            )
-        else:
-            context["task_args"] = list(message.args) if message.args else None
-            context["task_kwargs"] = dict(message.kwargs) if message.kwargs else None
 
         return context
 
@@ -94,7 +138,7 @@ class LoggingMiddleware(TaskiqMiddleware):
     async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:
         """Pre-execution logging."""
 
-        context = self._create_execution_context(message)
+        context = self._create_comprehensive_task_context(message)
 
         # Record task start metrics
         if self.metrics_collector:
@@ -131,7 +175,7 @@ class LoggingMiddleware(TaskiqMiddleware):
         if result.is_err:
             return  # Error handling is done by error middleware
 
-        context = self._create_execution_context(message)
+        context = self._create_comprehensive_task_context(message)
 
         # Calculate execution metrics
         start_time = message.labels.get("_start_time")

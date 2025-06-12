@@ -23,10 +23,11 @@ class RequestLogCreateInput(BaseModel):
     has_bearer_token: bool
     headers: dict[str, Any] | None = None
     logged_at: datetime
-    method: str
     path: str
     path_params: dict[str, Any] | None = None
     query_params: dict[str, Any] | None = None
+    request_method: str
+    request_url: str
     response_body: dict[str, Any] | list[dict[str, Any]] | None = None
     response_headers: dict[str, Any] | None = None
     response_size: int | None = None
@@ -35,7 +36,6 @@ class RequestLogCreateInput(BaseModel):
     start_time: datetime
     status_code: int | None = None
     success: bool
-    url: str
     user_agent: str | None = None
 
 

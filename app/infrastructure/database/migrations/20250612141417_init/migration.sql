@@ -40,10 +40,11 @@ CREATE TABLE "request_logs" (
     "has_bearer_token" BOOLEAN NOT NULL DEFAULT false,
     "headers" JSONB,
     "logged_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "method" TEXT NOT NULL,
     "path" TEXT NOT NULL,
     "path_params" JSONB,
     "query_params" JSONB,
+    "request_method" TEXT NOT NULL,
+    "request_url" TEXT NOT NULL,
     "response_body" JSONB,
     "response_headers" JSONB,
     "response_size" INTEGER,
@@ -52,7 +53,6 @@ CREATE TABLE "request_logs" (
     "start_time" TIMESTAMP(3) NOT NULL,
     "status_code" INTEGER,
     "success" BOOLEAN NOT NULL DEFAULT false,
-    "url" TEXT NOT NULL,
     "user_agent" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -81,7 +81,7 @@ CREATE INDEX "request_logs_trace_id_idx" ON "request_logs"("trace_id");
 CREATE INDEX "request_logs_request_id_idx" ON "request_logs"("request_id");
 
 -- CreateIndex
-CREATE INDEX "request_logs_method_path_idx" ON "request_logs"("method", "path");
+CREATE INDEX "request_logs_request_method_path_idx" ON "request_logs"("request_method", "path");
 
 -- CreateIndex
 CREATE INDEX "request_logs_status_code_idx" ON "request_logs"("status_code");

@@ -186,17 +186,17 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "body": DataSanitizer.sanitize_data(
                 await self._safe_get_request_body(request)
             ),
-            "method": request.method,
-            "url": str(request.url),
+            "client_ip": ClientIPExtractor.extract_client_ip(request),
+            "content_length": self._safe_int(request.headers.get("content-length")),
+            "content_type": request.headers.get("content-type"),
+            "event": "request_started",
             "path": request.url.path,
             "path_params": path_params,
             "query_params": query_params,
-            "content_type": request.headers.get("content-type"),
-            "content_length": self._safe_int(request.headers.get("content-length")),
-            "client_ip": ClientIPExtractor.extract_client_ip(request),
-            "user_agent": request.headers.get("user-agent"),
+            "request_method": request.method,
+            "request_url": str(request.url),
             "start_time": start_datetime,
-            "event": "request_started",
+            "user_agent": request.headers.get("user-agent"),
         }
 
         # Add sanitized headers if configured
