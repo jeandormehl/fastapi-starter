@@ -22,8 +22,8 @@ from app.infrastructure.taskiq.task_manager import TaskManager
 # noinspection PyBroadException
 class LoggingMiddleware(BaseHTTPMiddleware):
     """
-    Logging middleware that handles comprehensive request/response logging
-    with database persistence and performance tracking.
+    Logging middleware that handles basic request/response logging
+    with database persistence.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -33,16 +33,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         self.logger = get_logger(__name__)
         self.task_manager = di[TaskManager]
 
-        # Performance tracking
-        self._request_count = 0
-        self._skip_count = 0
-
     async def dispatch(self, request: Request, call_next: Any) -> Response:
-        """Process request with unified logging capabilities."""
+        """Process request with basic logging capabilities."""
 
         # Quick skip check for non-business endpoints
         if not self._should_process_request(request):
-            self._skip_count += 1
             return await call_next(request)
 
         start_time = time.time()
@@ -88,11 +83,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             if self.config.request_logging_enabled:
                 await self._submit_database_logging(complete_context)
 
-            # Add performance headers
-            response.headers["X-Response-Time"] = f"{duration:.3f}s"
-            response.headers["X-Request-Count"] = str(self._request_count)
-
-            self._request_count += 1
             return response
 
         except Exception as exc:
@@ -177,7 +167,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     async def _create_request_context(
         self, request: Request, start_datetime: datetime
     ) -> dict[str, Any]:
-        """Create comprehensive request context for logging."""
+        """Create request context for logging."""
 
         trace_id = TraceContextExtractor.get_trace_id(request)
         request_id = TraceContextExtractor.get_request_id(request)
@@ -218,7 +208,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         duration: float,
         response_body: Any = None,
     ) -> dict[str, Any]:
-        """Create comprehensive response context for logging."""
+        """Create response context for logging."""
 
         success = 200 <= response.status_code < 400
         context = {
@@ -234,9 +224,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "response_body": DataSanitizer.sanitize_data(response_body),
         }
 
-        # Add response headers if configured - with hyphen replacement
+        # Add response headers if configured
         if self.config.request_logging_log_headers:
-            # Fix the response headers as well
             response_headers = self._format_params(dict(response.headers))
             context["response_headers"] = DataSanitizer.sanitize_headers(
                 response_headers
@@ -320,14 +309,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         }
 
     async def _submit_database_logging(self, data: dict[str, Any]) -> None:
-        """Submit comprehensive logging task for database storage."""
+        """Submit logging task for database storage."""
 
         try:
             # Add metadata
             data.update(
                 {
                     "logged_at": datetime.now(di["timezone"]),
-                    "request_count": self._request_count,
                     "app_version": getattr(self.config, "app_version", "unknown"),
                 }
             )
@@ -353,13 +341,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         path = request.url.path
 
-        # Skip health check, docs and metrics endpoints
         skip_endpoints = {
             "/v1/health",
             "/v1/metrics",
             "/v1/docs",
             "/v1/redoc",
-            "/v1/openapi.json",
+            "/v1/docs/openapi.json",
             "/v1/favicon.ico",
         }
 
@@ -388,16 +375,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         except (ValueError, TypeError):
             return None
-
-    async def get_middleware_stats(self) -> dict[str, Any]:
-        """Get middleware performance statistics."""
-
-        return {
-            "total_requests_processed": self._request_count,
-            "total_skipped": self._skip_count,
-            "skip_rate": self._skip_count
-            / max(self._request_count + self._skip_count, 1),
-        }
 
     def _format_params(self, params: Any) -> dict[str, Any]:
         """Helper to convert hyphens to underscores and return None if empty."""

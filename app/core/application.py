@@ -66,6 +66,7 @@ def _v1(config: Configuration) -> FastAPI:
         debug=config.app_debug,
         description=config.app_description,
         docs_url="/docs" if config.app_environment != "prod" else None,
+        openapi_url="/docs/openapi.json" if config.app_environment != "prod" else None,
         redoc_url=None,
         # swagger_ui_parameters={"defaultModelsExpandDepth": -1},
         title=config.app_name,

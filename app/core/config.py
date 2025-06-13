@@ -76,12 +76,12 @@ class Configuration(BaseSettings):
     )
     request_logging_excluded_paths: list[str] = Field(
         default_factory=lambda: [
-            "/health",
-            "/metrics",
-            "/static",
-            "/docs",
-            "/redoc",
-            "/openapi.json",
+            "/v1/health",
+            "/v1/metrics",
+            "/v1/static",
+            "/v1/docs",
+            "/v1/redoc",
+            "/v1/docs/openapi.json",
         ],
         description="Paths to exclude from request logging",
     )
@@ -179,7 +179,6 @@ class Configuration(BaseSettings):
             raise ValueError(msg)
         return value
 
-    # app_environment validator
     @field_validator("app_environment", mode="after")
     @classmethod
     def validate_environment(cls, value: str) -> str:
@@ -189,7 +188,6 @@ class Configuration(BaseSettings):
             raise ValueError(msg)
         return value.lower()
 
-    # cloud_provider validator
     @field_validator("cloud_provider", mode="after")
     @classmethod
     def validate_cloud_provider(cls, value: str | None) -> str | None:
@@ -201,7 +199,6 @@ class Configuration(BaseSettings):
             raise ValueError(msg)
         return value.lower()
 
-    # log_level validator
     @field_validator("log_level", mode="after")
     @classmethod
     def validate_log_level(cls, value: str) -> str:
@@ -271,4 +268,4 @@ class Configuration(BaseSettings):
         if not v:
             msg = "at least one idempotency header name must be specified"
             raise ValueError(msg)
-        return [name.lower() for name in v]  # Normalize to lowercase
+        return [name.lower() for name in v]

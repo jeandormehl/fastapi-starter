@@ -18,7 +18,6 @@ class Broker:
     def __init__(self, config: TaskiqConfiguration) -> None:
         self.taskiq_config = config
         self.broker_factory = BrokerFactory(self.taskiq_config)
-        self.metrics_collector = None
 
     def create_broker(self) -> AsyncBroker:
         """Create fully configured broker with all enhancements."""
@@ -30,9 +29,7 @@ class Broker:
         middlewares = [
             # Logging middleware (first to capture everything)
             TaskLoggingMiddleware(config=self.taskiq_config),
-            LoggingMiddleware(
-                config=self.taskiq_config, metrics_collector=self.metrics_collector
-            ),
+            LoggingMiddleware(config=self.taskiq_config),
             # Retry middleware
             SmartRetryMiddleware(
                 default_retry_count=self.taskiq_config.default_retry_count,

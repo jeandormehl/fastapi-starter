@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 from pydantic import Field
 from pydantic.dataclasses import dataclass
@@ -74,21 +74,6 @@ class TaskInfo:
 
 
 @dataclass
-class TaskExecutionMetrics:
-    """Task execution metrics."""
-
-    task_id: str
-    task_name: str
-    start_time: datetime
-    end_time: datetime | None = None
-    duration_seconds: float | None = None
-    status: TaskStatus = TaskStatus.PENDING
-    retry_count: int = 0
-    memory_usage_mb: float | None = None
-    cpu_usage_percent: float | None = None
-
-
-@dataclass
 class BrokerHealthStatus:
     """Broker health status information."""
 
@@ -99,19 +84,3 @@ class BrokerHealthStatus:
     last_health_check: datetime
     error_message: str | None = None
     response_time_ms: float | None = None
-
-
-@runtime_checkable
-class TaskiqMetricsCollector(Protocol):
-    """Protocol for metrics collection."""
-
-    async def record_task_started(self, metrics: TaskExecutionMetrics) -> None:
-        """Record task start metrics."""
-
-    async def record_task_completed(self, metrics: TaskExecutionMetrics) -> None:
-        """Record task completion metrics."""
-
-    async def record_task_failed(
-        self, metrics: TaskExecutionMetrics, error: Exception
-    ) -> None:
-        """Record task failure metrics."""

@@ -19,16 +19,11 @@ class HealthService:
     async def check_database_health(self) -> dict[str, Any]:
         """Check database connectivity and status"""
         try:
+            await Database.connect_db()
             db = di[Database]
 
-            if not db.is_connected():
-                await db.connect()
-
             start_time = time.time()
-
-            # Simple query to test database connectivity
             await db.query_raw("SELECT 1 as health_check")
-
             duration = time.time() - start_time
 
             return {
@@ -78,7 +73,7 @@ class HealthService:
                 "status": "healthy",
                 "server_time": datetime.now(di["timezone"]).isoformat(),
                 "environment": self.config.app_environment,
-                "version": __version__,  # Could be read from version file
+                "version": __version__,
                 "details": "application running normally",
             }
 

@@ -191,121 +191,6 @@ class TaskManager:
             self.logger.error(f"failed to cancel task {task_id}: {e}", exc_info=True)
             return False
 
-    # noinspection PyUnresolvedReferences
-    async def get_task_statistics(self) -> dict[str, Any]:
-        """Get comprehensive task statistics."""
-
-        if not self.task_registry:
-            return self._empty_statistics()
-
-        now = datetime.now(di["timezone"])
-        last_hour = now - timedelta(hours=1)
-        last_day = now - timedelta(days=1)
-
-        # Initialize counters
-        status_counts = dict.fromkeys(TaskStatus, 0)
-        priority_counts = dict.fromkeys(TaskPriority, 0)
-        hour_stats = dict.fromkeys(TaskStatus, 0)
-        day_stats = dict.fromkeys(TaskStatus, 0)
-        task_name_stats = {}
-
-        total_duration = 0
-        completed_tasks = 0
-
-        for task_info in self.task_registry.values():
-            status_counts[task_info.status] += 1
-            priority_counts[task_info.priority] += 1
-
-            if task_info.created_at >= last_hour:
-                hour_stats[task_info.status] += 1
-            if task_info.created_at >= last_day:
-                day_stats[task_info.status] += 1
-
-            # Task name statistics
-            task_name = task_info.task_name
-            if task_name not in task_name_stats:
-                task_name_stats[task_name] = {
-                    "total": 0,
-                    "success": 0,
-                    "failed": 0,
-                    "avg_duration": 0.0,
-                }
-
-            stats = task_name_stats[task_name]
-            stats["total"] += 1
-
-            if task_info.status == TaskStatus.SUCCESS:
-                stats["success"] += 1
-            elif task_info.status == TaskStatus.FAILED:
-                stats["failed"] += 1
-
-            # Calculate duration if completed
-            if (
-                task_info.completed_at
-                and task_info.started_at
-                and task_info.status in [TaskStatus.SUCCESS, TaskStatus.FAILED]
-            ):
-                duration = (
-                    task_info.completed_at - task_info.started_at
-                ).total_seconds()
-                total_duration += duration
-                completed_tasks += 1
-
-        # Calculate success rate
-        total_tasks = len(self.task_registry)
-        success_rate = (
-            (status_counts[TaskStatus.SUCCESS] / total_tasks * 100)
-            if total_tasks > 0
-            else 0
-        )
-
-        return {
-            "total_tasks": total_tasks,
-            "registry_size_limit": self.max_registry_size,
-            "registry_utilization": (
-                f"{(total_tasks / self.max_registry_size * 100):.1f}%"
-            ),
-            "status_counts": {
-                status.value: count for status, count in status_counts.items()
-            },
-            "priority_counts": {
-                priority.value: count for priority, count in priority_counts.items()
-            },
-            "last_hour": {status.value: count for status, count in hour_stats.items()},
-            "last_day": {status.value: count for status, count in day_stats.items()},
-            "task_statistics": task_name_stats,
-            "success_rate": round(success_rate, 2),
-            "avg_execution_time": round(total_duration / completed_tasks, 4)
-            if completed_tasks > 0
-            else 0,
-            "performance_metrics": {
-                "completed_tasks": completed_tasks,
-                "pending_tasks": status_counts[TaskStatus.PENDING],
-                "running_tasks": status_counts[TaskStatus.RUNNING],
-            },
-        }
-
-    def _empty_statistics(self) -> dict[str, Any]:
-        """Return empty statistics structure."""
-
-        return {
-            "total_tasks": 0,
-            "registry_size_limit": self.max_registry_size,
-            "registry_utilization": "0.0%",
-            "status_counts": {status.value: 0 for status in TaskStatus},
-            "priority_counts": {priority.value: 0 for priority in TaskPriority},
-            "last_hour": {status.value: 0 for status in TaskStatus},
-            "last_day": {status.value: 0 for status in TaskStatus},
-            "task_statistics": {},
-            "success_rate": 0,
-            "avg_execution_time": 0,
-            "performance_metrics": {
-                "completed_tasks": 0,
-                "pending_tasks": 0,
-                "running_tasks": 0,
-            },
-        }
-
     async def _cleanup_loop(self) -> None:
         """Background cleanup with error handling."""
 
@@ -368,7 +253,7 @@ class TaskManager:
             raise
 
     def _limit_registry_size(self) -> None:
-        """Limit registry size with proper sorting - FIXED BUG."""
+        """Limit registry size with proper sorting."""
 
         if len(self.task_registry) <= self.max_registry_size:
             return
@@ -433,9 +318,7 @@ class TaskManager:
         ]
 
     async def health_check(self) -> dict[str, Any]:
-        """
-        Health check that provides comprehensive task manager status
-        """
+        """Basic health check for task manager status."""
 
         try:
             broker_health = await self._check_broker_health()

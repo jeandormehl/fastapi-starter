@@ -8,11 +8,6 @@ from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 from app.common.logging import get_logger
 from app.common.utils import DataSanitizer
 from app.infrastructure.taskiq.config import TaskiqConfiguration
-from app.infrastructure.taskiq.schemas import (
-    TaskExecutionMetrics,
-    TaskiqMetricsCollector,
-    TaskStatus,
-)
 
 
 class LoggingMiddleware(TaskiqMiddleware):
@@ -24,12 +19,10 @@ class LoggingMiddleware(TaskiqMiddleware):
     def __init__(
         self,
         config: TaskiqConfiguration,
-        metrics_collector: TaskiqMetricsCollector | None = None,
     ) -> None:
         super().__init__()
 
         self.config = config
-        self.metrics_collector = metrics_collector
         self.logger = get_logger(__name__)
 
     def _create_comprehensive_task_context(
@@ -140,16 +133,6 @@ class LoggingMiddleware(TaskiqMiddleware):
 
         context = self._create_comprehensive_task_context(message)
 
-        # Record task start metrics
-        if self.metrics_collector:
-            metrics = TaskExecutionMetrics(
-                task_id=message.task_id,
-                task_name=message.task_name,
-                start_time=datetime.now(di["timezone"]),
-                status=TaskStatus.RUNNING,
-            )
-            await self.metrics_collector.record_task_started(metrics)
-
         # Log task start
         self.logger.bind(**context).info(
             f"task '{message.task_name}' execution started",
@@ -191,23 +174,6 @@ class LoggingMiddleware(TaskiqMiddleware):
                 "memory_usage_mb": self._get_memory_usage(),
             }
         )
-
-        # Record completion metrics
-        if self.metrics_collector:
-            metrics = TaskExecutionMetrics(
-                task_id=message.task_id,
-                task_name=message.task_name,
-                start_time=datetime.fromisoformat(
-                    message.labels.get("_start_timestamp")
-                )
-                if message.labels.get("_start_timestamp")
-                else datetime.now(di["timezone"]),
-                end_time=datetime.now(di["timezone"]),
-                duration_seconds=duration,
-                status=TaskStatus.SUCCESS,
-                memory_usage_mb=self._get_memory_usage(),
-            )
-            await self.metrics_collector.record_task_completed(metrics)
 
         # Include task result in the context if available
         if result.return_value is not None:
