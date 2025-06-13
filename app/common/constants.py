@@ -41,5 +41,12 @@ MODEL_JSON_FIELDS = {
         "response_body",
         "response_headers",
     },
+    "TaskLog": {
+        "task_args",
+        "task_error",
+        "task_kwargs",
+        "task_labels",
+        "task_result",
+    },
     # Add other models as needed
 }

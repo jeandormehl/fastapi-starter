@@ -60,6 +60,43 @@ CREATE TABLE "request_logs" (
 );
 
 -- CreateTable
+CREATE TABLE "task_logs" (
+    "id" TEXT NOT NULL,
+    "task_id" TEXT NOT NULL,
+    "task_name" TEXT NOT NULL,
+    "trace_id" TEXT,
+    "request_id" TEXT,
+    "worker_id" TEXT,
+    "app_version" TEXT,
+    "broker_type" TEXT,
+    "completed_at" TIMESTAMP(3),
+    "cpu_usage_percent" DECIMAL(65,30),
+    "duration_ms" DECIMAL(65,30),
+    "error_category" TEXT,
+    "error_message" TEXT,
+    "error_occurred" BOOLEAN NOT NULL DEFAULT false,
+    "error_type" TEXT,
+    "execution_environment" TEXT,
+    "logged_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "max_retries" INTEGER,
+    "memory_usage_mb" DECIMAL(65,30),
+    "priority" INTEGER,
+    "queue" TEXT,
+    "retry_count" INTEGER NOT NULL DEFAULT 0,
+    "started_at" TIMESTAMP(3),
+    "status" TEXT NOT NULL,
+    "submitted_at" TIMESTAMP(3) NOT NULL,
+    "task_args" JSONB,
+    "task_error" JSONB,
+    "task_kwargs" JSONB,
+    "task_labels" JSONB,
+    "task_result" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "task_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "_clients_scopes" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL
@@ -91,6 +128,27 @@ CREATE INDEX "request_logs_start_time_idx" ON "request_logs"("start_time");
 
 -- CreateIndex
 CREATE INDEX "request_logs_client_ip_idx" ON "request_logs"("client_ip");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "task_logs_task_id_key" ON "task_logs"("task_id");
+
+-- CreateIndex
+CREATE INDEX "task_logs_task_id_idx" ON "task_logs"("task_id");
+
+-- CreateIndex
+CREATE INDEX "task_logs_task_name_idx" ON "task_logs"("task_name");
+
+-- CreateIndex
+CREATE INDEX "task_logs_trace_id_idx" ON "task_logs"("trace_id");
+
+-- CreateIndex
+CREATE INDEX "task_logs_status_idx" ON "task_logs"("status");
+
+-- CreateIndex
+CREATE INDEX "task_logs_submitted_at_idx" ON "task_logs"("submitted_at");
+
+-- CreateIndex
+CREATE INDEX "task_logs_started_at_idx" ON "task_logs"("started_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_clients_scopes_AB_unique" ON "_clients_scopes"("A", "B");

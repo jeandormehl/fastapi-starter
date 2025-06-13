@@ -220,14 +220,17 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     ) -> dict[str, Any]:
         """Create comprehensive response context for logging."""
 
+        success = 200 <= response.status_code < 400
         context = {
             "duration_ms": round(duration * 1000, 2),
             "end_time": end_datetime,
-            "event": "request_completed",
+            "event": "request_completed"
+            if success
+            else "request_completed_with_exception",
             "response_size": self._safe_int(response.headers.get("content-length")),
             "response_type": response.__class__.__name__,
             "status_code": response.status_code,
-            "success": 200 <= response.status_code < 400,
+            "success": success,
             "response_body": DataSanitizer.sanitize_data(response_body),
         }
 

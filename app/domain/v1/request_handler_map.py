@@ -24,6 +24,8 @@ from app.domain.v1.request_logs.requests import (
 )
 from app.domain.v1.scopes.handlers import ScopeFindHandler
 from app.domain.v1.scopes.requests import ScopeFindRequest
+from app.domain.v1.task_logs.handlers import TaskLogCleanupHandler
+from app.domain.v1.task_logs.requests import TaskLogCleanupRequest
 
 
 class RequestHandlerMap(Enum):
@@ -35,6 +37,9 @@ class RequestHandlerMap(Enum):
     # request_logs
     REQUEST_LOG_CLEANUP = (RequestLogCleanupRequest, RequestLogCleanupHandler)
     REQUEST_LOG_CREATE = (RequestLogCreateRequest, RequestLogCreateHandler)
+
+    # task logs
+    TASK_LOG_CLEANUP = (TaskLogCleanupRequest, TaskLogCleanupHandler)
 
     # auth
     AUTH_ACCESS_TOKEN_CREATE = (AccessTokenCreateRequest, AccessTokenCreateHandler)

@@ -43,12 +43,12 @@ class TaskManager:
             return
 
         try:
-            # Start cleanup task
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-
-            # Run autodiscovery to register tasks
+            # Run autodiscovery BEFORE starting cleanup task
             auto_discovery = TaskAutodiscovery(self.broker, APP_PATH, ROOT_PATH)
             auto_discovery.discover_and_register_tasks()
+
+            # Start cleanup task
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
             self._is_running = True
             self.logger.info("task manager started successfully")

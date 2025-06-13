@@ -8,6 +8,7 @@ from app.infrastructure.taskiq.config import TaskiqConfiguration
 from app.infrastructure.taskiq.middlewares import (
     ErrorHandlingMiddleware,
     LoggingMiddleware,
+    TaskLoggingMiddleware,
 )
 
 
@@ -28,6 +29,7 @@ class Broker:
         # Add middlewares
         middlewares = [
             # Logging middleware (first to capture everything)
+            TaskLoggingMiddleware(config=self.taskiq_config),
             LoggingMiddleware(
                 config=self.taskiq_config, metrics_collector=self.metrics_collector
             ),

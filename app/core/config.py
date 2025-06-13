@@ -105,6 +105,20 @@ class Configuration(BaseSettings):
         description="Maximum size of request/response bodies to log",
     )
 
+    task_logging_enabled: bool = Field(
+        True, description="Enable task execution logging to database"
+    )
+    task_logging_retention_days: int = Field(
+        30, description="Days to retain task logs before cleanup"
+    )
+    task_logging_excluded_tasks: list[str] = Field(
+        default_factory=lambda: [],
+        description="Task names to exclude from logging",
+    )
+    task_logging_cleanup_interval_hours: int = Field(
+        6, description="Hours between cleanup task runs"
+    )
+
     @property
     def app_debug(self) -> bool:
         return self.app_environment in ["test", "local", "sandbox"]
@@ -172,6 +186,17 @@ class Configuration(BaseSettings):
     @field_validator("request_logging_retention_days")
     @classmethod
     def validate_request_retention_days(cls, v: int) -> int:
+        if v < 1:
+            msg = "retention_days must be at least 1"
+            raise ValueError(msg)
+        if v > 365:
+            msg = "retention_days cannot exceed 365"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("task_logging_retention_days")
+    @classmethod
+    def validate_task_retention_days(cls, v: int) -> int:
         if v < 1:
             msg = "retention_days must be at least 1"
             raise ValueError(msg)

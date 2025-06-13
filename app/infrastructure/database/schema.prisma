@@ -78,3 +78,46 @@ model RequestLog {
   @@index([client_ip])
   @@map("request_logs")
 }
+
+model TaskLog {
+  id                    String    @id @default(cuid())
+  task_id               String    @unique
+  task_name             String
+  trace_id              String?
+  request_id            String?
+  worker_id             String?
+  app_version           String?
+  broker_type           String?
+  completed_at          DateTime?
+  cpu_usage_percent     Decimal?
+  duration_ms           Decimal?
+  error_category        String?
+  error_message         String?
+  error_occurred        Boolean   @default(false)
+  error_type            String?
+  execution_environment String?
+  logged_at             DateTime  @default(now())
+  max_retries           Int?
+  memory_usage_mb       Decimal?
+  priority              Int?
+  queue                 String?
+  retry_count           Int       @default(0)
+  started_at            DateTime?
+  status                String // pending, running, success, failed, cancelled
+  submitted_at          DateTime
+  task_args             Json?
+  task_error            Json?
+  task_kwargs           Json?
+  task_labels           Json?
+  task_result           Json?
+
+  created_at DateTime @default(now())
+
+  @@index([task_id])
+  @@index([task_name])
+  @@index([trace_id])
+  @@index([status])
+  @@index([submitted_at])
+  @@index([started_at])
+  @@map("task_logs")
+}

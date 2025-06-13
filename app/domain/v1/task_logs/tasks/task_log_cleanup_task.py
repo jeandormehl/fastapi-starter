@@ -7,7 +7,7 @@ from pydiator_core.mediatr import pydiator
 from app.common.errors.errors import ErrorCode, TaskError
 from app.common.utils import PydiatorBuilder
 from app.core.config import Configuration
-from app.domain.v1.request_logs.requests import RequestLogCleanupRequest
+from app.domain.v1.task_logs.requests import TaskLogCleanupRequest
 from app.infrastructure.taskiq.schemas import TaskPriority
 from app.infrastructure.taskiq.task_manager import TaskManager
 
@@ -19,7 +19,7 @@ _request_id = str(uuid.uuid4())
 
 
 @tm.broker.task(
-    "request_log:cleanup",
+    "task_log:cleanup",
     priority=TaskPriority.LOW.to_taskiq_priority(),
     retry_on_error=True,
     kwargs={},
@@ -27,19 +27,19 @@ _request_id = str(uuid.uuid4())
     schedule=[
         {
             "cron": f"* */{
-                getattr(config, 'request_logging_cleanup_interval_hours', 24)
+                getattr(config, 'task_logging_cleanup_interval_hours', 24)
             } * * *"
         }
     ],
     trace_id=_trace_id,
     request_id=_request_id,
 )
-async def request_log_cleanup_task() -> dict[str, Any]:
+async def task_log_cleanup_task() -> dict[str, Any]:
     try:
         return (
             await pydiator.send(
                 PydiatorBuilder.build(
-                    RequestLogCleanupRequest,
+                    TaskLogCleanupRequest,
                     None,
                     trace_id=_trace_id,
                     request_id=_request_id,
@@ -50,8 +50,8 @@ async def request_log_cleanup_task() -> dict[str, Any]:
     except Exception as e:
         raise TaskError(
             error_code=ErrorCode.TASK_EXECUTION_ERROR,
-            message="request log cleanup task failed",
-            task_name="request_log:cleanup",
+            message="task log cleanup task failed",
+            task_name="task_log:cleanup",
             trace_id=_trace_id,
             request_id=_request_id,
         ) from e

@@ -277,6 +277,8 @@ class PrismaDataTransformer:
         prepared_data = data.copy()
 
         for field in json_fields:
+            if field not in prepared_data:
+                continue
             if prepared_data[field] is None:
                 prepared_data[field] = Json(None)
                 continue
