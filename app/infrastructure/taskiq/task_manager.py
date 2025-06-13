@@ -374,11 +374,9 @@ class TaskManager:
             return
 
         try:
-            # FIXED: Properly access created_at from TaskInfo object
-
             sorted_tasks = sorted(
                 self.task_registry.items(),
-                key=lambda item: item[1].created_at,  # item[1] is the TaskInfo object
+                key=lambda item: item[1].created_at,
             )
 
             tasks_to_remove = len(self.task_registry) - self.max_registry_size

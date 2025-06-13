@@ -131,7 +131,7 @@ class Configuration(BaseSettings):
         6, description="Hours between idempotency cache cleanup"
     )
     idempotency_header_names: list[str] = Field(
-        default_factory=lambda: ["idempotency-key", "x-idempotency-key", "request-id"],
+        default_factory=lambda: ["x-idempotency-key"],
         description="Header names to check for idempotency keys",
     )
     idempotency_supported_methods: list[str] = Field(
@@ -256,3 +256,19 @@ class Configuration(BaseSettings):
             msg = "max key length must be between 1 and 500"
             raise ValueError(msg)
         return v
+
+    @field_validator("idempotency_cleanup_interval_hours")
+    @classmethod
+    def validate_cleanup_interval(cls, v: int) -> int:
+        if v < 1 or v > 24:
+            msg = "cleanup interval must be between 1 and 24 hours"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("idempotency_header_names")
+    @classmethod
+    def validate_header_names(cls, v: list[str]) -> list[str]:
+        if not v:
+            msg = "at least one idempotency header name must be specified"
+            raise ValueError(msg)
+        return [name.lower() for name in v]  # Normalize to lowercase

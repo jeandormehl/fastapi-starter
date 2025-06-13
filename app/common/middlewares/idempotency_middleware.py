@@ -112,13 +112,36 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         """Cache response for future requests"""
 
         try:
-            # Extract response body
             response_body = {}
 
-            if hasattr(response, "body"):
-                body_bytes = response.body
+            # Safely capture response body without breaking streaming
+            if hasattr(response, "body_iterator"):
+                chunks = []
+                async for chunk in response.body_iterator:
+                    chunks.append(chunk)
+                body_bytes = b"".join(chunks)
+
+                # Recreate response with captured body
+                response._body = body_bytes
+
                 if body_bytes:
-                    response_body = json.loads(body_bytes.decode())
+                    content_type = response.headers.get("content-type", "")
+
+                    if "application/json" in content_type:
+                        try:
+                            response_body = json.loads(body_bytes.decode())
+
+                        except (json.JSONDecodeError, UnicodeDecodeError):
+                            response_body = {
+                                "content": body_bytes.decode("utf-8", errors="ignore")
+                            }
+
+                    else:
+                        from app.common.utils import BodyProcessor
+
+                        response_body = BodyProcessor.process_body_content(
+                            body_bytes, content_type, max_size=10000
+                        )
 
             await self.idempotency_service.cache_request_response(
                 idempotency_key=idempotency_key,

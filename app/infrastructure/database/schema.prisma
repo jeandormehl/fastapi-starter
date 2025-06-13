@@ -153,5 +153,7 @@ model IdempotencyCache {
   @@unique([idempotency_key, task_name, cache_type], name: "uk_task_idempotency")
   @@index([idempotency_key, cache_type])
   @@index([expires_at])
+  @@index([cache_type, expires_at])
+  @@index([idempotency_key, cache_type, expires_at])
   @@map("idempotency_cache")
 }

@@ -116,15 +116,20 @@ class IdempotencyService:
             return IdempotencyResult(is_duplicate=False)
 
         try:
-            # Look for existing cache entry
+            # Ensure database connection
+            await Database.connect_db()
+
+            # Look for existing cache entry with better indexing
             cached_entry = await self.db.idempotencycache.find_first(
                 where={
                     "idempotency_key": idempotency_key,
+                    "cache_type": CacheType.REQUEST,
                     "request_method": method,
                     "request_path": path,
-                    "cache_type": CacheType.REQUEST,
-                    "expires_at": {"gt": datetime.now(di["timezone"])},
-                }
+                    "expires_at": {"gt": datetime.now(self.config.app_timezone_obj)},
+                },
+                # Add ordering for performance
+                order={"created_at": "desc"},
             )
 
             if cached_entry:
@@ -314,15 +319,31 @@ class IdempotencyService:
             return 0
 
     def extract_idempotency_key(self, headers: dict) -> str | None:
-        """Extract idempotency key from request headers"""
+        """Extract and validate idempotency key from request headers."""
 
         for header_name in self.config.idempotency_header_names:
             key = headers.get(header_name) or headers.get(header_name.lower())
+
             if key:
-                # Validate and truncate key length
                 key = str(key).strip()
+                if not key:
+                    continue
+
+                # Check for valid characters (alphanumeric, hyphens, underscores)
+                import re
+
+                if not re.match(r"^[a-zA-Z0-9\-_]+$", key):
+                    self.logger.warning(f"invalid idempotency key format: {key[:50]}")
+                    continue
+
+                # Truncate if too long
                 if len(key) > self.config.idempotency_max_key_length:
                     key = key[: self.config.idempotency_max_key_length]
+                    self.logger.info(
+                        f"truncated idempotency key to "
+                        f"{self.config.idempotency_max_key_length} characters"
+                    )
+
                 return key
         return None
 

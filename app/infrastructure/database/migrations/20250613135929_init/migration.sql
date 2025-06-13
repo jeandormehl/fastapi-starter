@@ -192,6 +192,12 @@ CREATE INDEX "idempotency_cache_idempotency_key_cache_type_idx" ON "idempotency_
 CREATE INDEX "idempotency_cache_expires_at_idx" ON "idempotency_cache"("expires_at");
 
 -- CreateIndex
+CREATE INDEX "idempotency_cache_cache_type_expires_at_idx" ON "idempotency_cache"("cache_type", "expires_at");
+
+-- CreateIndex
+CREATE INDEX "idempotency_cache_idempotency_key_cache_type_expires_at_idx" ON "idempotency_cache"("idempotency_key", "cache_type", "expires_at");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "idempotency_cache_idempotency_key_request_method_request_pa_key" ON "idempotency_cache"("idempotency_key", "request_method", "request_path", "cache_type");
 
 -- CreateIndex
