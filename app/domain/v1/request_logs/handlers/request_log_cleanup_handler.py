@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from kink import di
 
 from app.common.base_handler import BaseHandler
+from app.common.errors.errors import DatabaseError
 from app.common.logging import get_logger
 from app.core.config import Configuration
 from app.domain.v1.request_logs.requests import RequestLogCleanupRequest
@@ -54,11 +55,18 @@ class RequestLogCleanupHandler(BaseHandler):
 
         except Exception as e:
             self.logger.bind(
-                trace_id=request.data.trace_id,
-                request_id=request.data.request_id,
+                trace_id=request.trace_id,
+                request_id=request.request_id,
                 retention_days=self.config.request_logging_retention_days,
                 error=str(e),
                 error_type=type(e).__name__,
             ).error("request logs cleanup failed")
 
-            raise
+            raise DatabaseError(
+                message="failed to cleanup request logs",
+                operation="delete_many",
+                table_name="requestlog",
+                trace_id=request.trace_id,
+                request_id=request.request_id,
+                cause=e,
+            ) from e

@@ -3,6 +3,7 @@ from typing import Any
 from kink import di
 from pydiator_core.mediatr import pydiator
 
+from app.common.errors.errors import ErrorCode, TaskError
 from app.common.utils import PydiatorBuilder
 from app.domain.v1.request_logs.requests import RequestLogCreateRequest
 from app.domain.v1.request_logs.schemas import RequestLogCreateInput
@@ -37,5 +38,11 @@ async def request_log_create_task(
             )
         ).data.model_dump()
 
-    except Exception:
-        raise
+    except Exception as e:
+        raise TaskError(
+            error_code=ErrorCode.TASK_EXECUTION_ERROR,
+            message="request log creation task failed",
+            task_name="request_log:create",
+            trace_id=kwargs.get("trace_id"),
+            request_id=kwargs.get("request_id"),
+        ) from e

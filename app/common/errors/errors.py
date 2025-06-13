@@ -14,36 +14,43 @@ class ErrorCode(Enum):
     VALIDATION_ERROR = "ERR_1001"
     AUTHENTICATION_ERROR = "ERR_1002"
     AUTHORIZATION_ERROR = "ERR_1003"
-    RATE_LIMIT_EXCEEDED = "ERR_1004"
-    CONFIGURATION_ERROR = "ERR_1005"
+    CONFIGURATION_ERROR = "ERR_1004"
 
     # Resource errors (2000-2999)
     RESOURCE_NOT_FOUND = "ERR_2000"
     RESOURCE_ALREADY_EXISTS = "ERR_2001"
     RESOURCE_CONFLICT = "ERR_2002"
-    RESOURCE_OPERATION_FAILED = "ERR_2003"
-    RESOURCE_LOCKED = "ERR_2004"
-    RESOURCE_QUOTA_EXCEEDED = "ERR_2005"
 
     # Business logic errors (3000-3999)
     BUSINESS_RULE_VIOLATION = "ERR_3000"
     INSUFFICIENT_PERMISSIONS = "ERR_3001"
-    OPERATION_NOT_ALLOWED = "ERR_3002"
-    INVALID_STATE_TRANSITION = "ERR_3003"
-    PRECONDITION_FAILED = "ERR_3004"
+    INVALID_STATE_TRANSITION = "ERR_3002"
 
     # External service errors (4000-4999)
     EXTERNAL_SERVICE_ERROR = "ERR_4000"
     EXTERNAL_SERVICE_TIMEOUT = "ERR_4001"
     EXTERNAL_SERVICE_UNAVAILABLE = "ERR_4002"
-    EXTERNAL_SERVICE_AUTHENTICATION = "ERR_4003"
-    EXTERNAL_SERVICE_RATE_LIMITED = "ERR_4004"
 
     # Data errors (5000-5999)
-    DATA_CORRUPTION = "ERR_5000"
-    DATA_CONSISTENCY = "ERR_5001"
-    DATABASE_CONNECTION = "ERR_5002"
-    DATABASE_TRANSACTION = "ERR_5003"
+    DATABASE_ERROR = "ERR_5000"
+    DATABASE_CONNECTION = "ERR_5001"
+
+    # Client errors (6000-6999)
+    CLIENT_INACTIVE = "ERR_6000"
+    CLIENT_NOT_FOUND = "ERR_6001"
+    INVALID_CREDENTIALS = "ERR_6002"
+
+    # Token errors (7000-7999)
+    TOKEN_EXPIRED = "ERR_7000"  # nosec
+    TOKEN_INVALID = "ERR_7001"  # nosec
+
+    # Scope errors (8000-8999)
+    SCOPE_NOT_FOUND = "ERR_8000"
+
+    # Task errors (9000-9999)
+    TASK_EXECUTION_ERROR = "ERR_9000"
+    TASK_QUARANTINED = "ERR_9001"
+    TASK_RATE_LIMITED = "ERR_9002"
 
 
 class ErrorDetail(BaseModel):
@@ -150,7 +157,6 @@ class ResourceNotFoundError(ApplicationError):
         }
 
         if search_criteria:
-            # noinspection PyTypeChecker
             details["search_criteria"] = search_criteria
             message += f" using criteria: {search_criteria}"
 
@@ -158,40 +164,6 @@ class ResourceNotFoundError(ApplicationError):
             error_code=ErrorCode.RESOURCE_NOT_FOUND,
             message=message,
             status_code=status.HTTP_404_NOT_FOUND,
-            details=details,
-            trace_id=trace_id,
-            request_id=request_id,
-        )
-
-
-class ResourceConflictError(ApplicationError):
-    """Exception for resource conflict errors."""
-
-    def __init__(
-        self,
-        resource_type: str,
-        resource_id: Any,
-        conflict_reason: str,
-        existing_resource_info: dict[str, Any] | None = None,
-        trace_id: str | None = None,
-        request_id: str | None = None,
-    ) -> None:
-        message = f"{resource_type} '{resource_id}' already exists: {conflict_reason}"
-
-        details = {
-            "resource_type": resource_type,
-            "resource_id": str(resource_id),
-            "conflict_reason": conflict_reason,
-        }
-
-        if existing_resource_info:
-            # noinspection PyTypeChecker
-            details["existing_resource"] = existing_resource_info
-
-        super().__init__(
-            error_code=ErrorCode.RESOURCE_ALREADY_EXISTS,
-            message=message,
-            status_code=status.HTTP_409_CONFLICT,
             details=details,
             trace_id=trace_id,
             request_id=request_id,
@@ -300,7 +272,6 @@ class ExternalServiceError(ApplicationError):
         if service_endpoint:
             details["service_endpoint"] = service_endpoint
         if response_status:
-            # noinspection PyTypeChecker
             details["response_status_code"] = response_status
         if response_body:
             details["response_body"] = response_body[:1000]  # Limit response body size
@@ -339,11 +310,92 @@ class DatabaseError(ApplicationError):
             details["constraint_violated"] = constraint_name
 
         super().__init__(
-            error_code=ErrorCode.DATABASE_CONNECTION,
+            error_code=ErrorCode.DATABASE_ERROR,
             message=f"database error: {message}",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             details=details,
             trace_id=trace_id,
             request_id=request_id,
             cause=cause,
+        )
+
+
+class ClientError(ApplicationError):
+    """Exception for client-related errors."""
+
+    def __init__(
+        self,
+        error_code: ErrorCode,
+        message: str,
+        client_id: str | None = None,
+        details: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        details = details or {}
+        if client_id:
+            details["client_id"] = client_id
+
+        super().__init__(
+            error_code=error_code,
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details,
+            trace_id=trace_id,
+            request_id=request_id,
+        )
+
+
+class TokenError(ApplicationError):
+    """Exception for token-related errors."""
+
+    def __init__(
+        self,
+        error_code: ErrorCode,
+        message: str,
+        token_type: str | None = None,
+        details: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        details = details or {}
+        if token_type:
+            details["token_type"] = token_type
+
+        super().__init__(
+            error_code=error_code,
+            message=message,
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            details=details,
+            trace_id=trace_id,
+            request_id=request_id,
+        )
+
+
+class TaskError(ApplicationError):
+    """Exception for task-related errors."""
+
+    def __init__(
+        self,
+        error_code: ErrorCode,
+        message: str,
+        task_name: str | None = None,
+        task_id: str | None = None,
+        details: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        details = details or {}
+        if task_name:
+            details["task_name"] = task_name
+        if task_id:
+            details["task_id"] = task_id
+
+        super().__init__(
+            error_code=error_code,
+            message=message,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details=details,
+            trace_id=trace_id,
+            request_id=request_id,
         )

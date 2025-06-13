@@ -2,10 +2,11 @@ import asyncio
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import HTTPException, status
+from fastapi import status
 from kink import di
 
 from app.common.base_handler import BaseHandler
+from app.common.errors.errors import ExternalServiceError
 from app.domain.v1.health.requests import HealthCheckRequest
 from app.domain.v1.health.responses import HealthCheckResponse
 from app.domain.v1.health.schemas import HealthCheckOutput
@@ -27,31 +28,48 @@ class HealthCheckHandler(BaseHandler):
     ) -> HealthCheckResponse:
         start_time = datetime.now(di["timezone"])
 
-        service_health_results = await self._perform_individual_health_checks()
-        overall_status, status_code = self._determine_overall_status(
-            service_health_results
-        )
-
-        end_time = datetime.now(di["timezone"])
-        check_duration = (end_time - start_time).total_seconds() * 1000
-
-        health_response_output = HealthCheckOutput(
-            status=overall_status,
-            timestamp=end_time.isoformat(),
-            duration=check_duration,
-            services=service_health_results,
-        )
-
-        if overall_status == "unhealthy":
-            raise HTTPException(
-                status_code=status_code, detail=health_response_output.model_dump()
+        try:
+            service_health_results = await self._perform_individual_health_checks()
+            overall_status, status_code = self._determine_overall_status(
+                service_health_results
             )
 
-        return HealthCheckResponse(
-            trace_id=request.trace_id,
-            request_id=request.request_id,
-            data=health_response_output,
-        )
+            end_time = datetime.now(di["timezone"])
+            check_duration = (end_time - start_time).total_seconds() * 1000
+
+            health_response_output = HealthCheckOutput(
+                status=overall_status,
+                timestamp=end_time.isoformat(),
+                duration=check_duration,
+                services=service_health_results,
+            )
+
+            if overall_status == "unhealthy":
+                raise ExternalServiceError(
+                    service_name="health_check",
+                    message=f"system health check failed with status: {overall_status}",
+                    response_status=status_code,
+                    response_body=str(health_response_output.model_dump()),
+                    trace_id=request.trace_id,
+                    request_id=request.request_id,
+                )
+
+            return HealthCheckResponse(
+                trace_id=request.trace_id,
+                request_id=request.request_id,
+                data=health_response_output,
+            )
+
+        except ExternalServiceError:
+            raise
+
+        except Exception as e:
+            raise ExternalServiceError(
+                service_name="health_check",
+                message="health check system failure",
+                trace_id=request.trace_id,
+                request_id=request.request_id,
+            ) from e
 
     async def _perform_individual_health_checks(self) -> dict[str, dict[str, Any]]:
         """

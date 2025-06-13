@@ -13,10 +13,4 @@ router = APIRouter(prefix="/scopes", tags=["scopes"])
 async def get_available_service_scopes(request: Request) -> list[ScopeOutput]:
     """Get available api scopes"""
 
-    try:
-        return (
-            await pydiator.send(PydiatorBuilder.build(ScopeFindRequest, request))
-        ).data
-
-    except Exception:
-        raise
+    return (await pydiator.send(PydiatorBuilder.build(ScopeFindRequest, request))).data

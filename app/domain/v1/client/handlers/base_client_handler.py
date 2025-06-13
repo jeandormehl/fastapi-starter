@@ -12,10 +12,11 @@ class BaseClientHandler(BaseHandler[TRequest, TResponse]):
         """Handle the business logic for this request."""
 
     async def _validate_scopes(self, scopes: list[str] | None = None) -> list[Scope]:
-        existing_scopes = []
+        if not scopes:
+            return []
 
-        if scopes:
-            # noinspection PyTypeChecker,PyUnresolvedReferences
+        try:
+            # noinspection PyUnresolvedReferences
             existing_scopes: list[Scope] = await self.db.scope.find_many(
                 where={"name": {"in": scopes}}
             )
@@ -25,7 +26,21 @@ class BaseClientHandler(BaseHandler[TRequest, TResponse]):
             missing_scopes = requested_scope_names - existing_scope_names
 
             if missing_scopes:
-                msg = "unknown scopes"
-                raise ValidationError(msg, details={"scopes": list(missing_scopes)})
+                raise ValidationError(
+                    message=f"unknown scopes: {', '.join(missing_scopes)}",
+                    details={
+                        "invalid_scopes": list(missing_scopes),
+                        "available_scopes": list(existing_scope_names),
+                    },
+                )
 
-        return existing_scopes
+            return existing_scopes
+
+        except ValidationError:
+            raise
+
+        except Exception as e:
+            raise ValidationError(
+                message="failed to validate scopes",
+                details={"error": str(e)},
+            ) from e

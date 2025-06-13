@@ -27,17 +27,13 @@ async def get_authenticated_client(
 ) -> AuthenticatedClientOutput:
     """Get authenticated service client information"""
 
-    try:
-        return (
-            await pydiator.send(
-                PydiatorBuilder.build(
-                    AuthenticatedClientFindRequest, request, client=current_client
-                )
+    return (
+        await pydiator.send(
+            PydiatorBuilder.build(
+                AuthenticatedClientFindRequest, request, client=current_client
             )
-        ).data
-
-    except Exception:
-        raise
+        )
+    ).data
 
 
 @router.post("/token")
@@ -47,17 +43,11 @@ async def create_new_access_token(
 ) -> AccessTokenCreateOutput:
     """Create new access token from client credentials"""
 
-    try:
-        return (
-            await pydiator.send(
-                PydiatorBuilder.build(
-                    AccessTokenCreateRequest, request, data=credentials
-                )
-            )
-        ).data
-
-    except Exception:
-        raise
+    return (
+        await pydiator.send(
+            PydiatorBuilder.build(AccessTokenCreateRequest, request, data=credentials)
+        )
+    ).data
 
 
 @router.post("/refresh")
@@ -67,14 +57,10 @@ async def refresh_access_token(
 ) -> AccessTokenRefreshOutput:
     """Refresh client access tokens"""
 
-    try:
-        return (
-            await pydiator.send(
-                PydiatorBuilder.build(
-                    AccessTokenRefreshRequest, request, client=current_client
-                )
+    return (
+        await pydiator.send(
+            PydiatorBuilder.build(
+                AccessTokenRefreshRequest, request, client=current_client
             )
-        ).data
-
-    except Exception:
-        raise
+        )
+    ).data

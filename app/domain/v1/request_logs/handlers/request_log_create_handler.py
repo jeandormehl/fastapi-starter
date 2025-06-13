@@ -1,6 +1,7 @@
 from kink import di
 
 from app.common.base_handler import BaseHandler
+from app.common.errors.errors import DatabaseError
 from app.common.logging import get_logger
 from app.common.utils import PrismaDataTransformer
 from app.domain.v1.request_logs.requests import RequestLogCreateRequest
@@ -45,6 +46,13 @@ class RequestLogCreateHandler(BaseHandler):
                 request_id=request.data.request_id,
                 error=str(e),
                 error_type=type(e).__name__,
-            ).error(f"failed to create request log:: {e!s}")
+            ).error(f"failed to create request log: {e!s}")
 
-            raise
+            raise DatabaseError(
+                message="failed to create request log",
+                operation="create",
+                table_name="requestlog",
+                trace_id=request.data.trace_id,
+                request_id=request.data.request_id,
+                cause=e,
+            ) from e

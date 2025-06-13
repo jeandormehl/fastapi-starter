@@ -26,11 +26,7 @@ async def liveness_check() -> HealthLivenessOutput:
     Returns 200 if the application is running
     """
 
-    try:
-        return HealthLivenessOutput(
-            status="alive",
-            timestamp=datetime.now(di["timezone"]).isoformat(),
-        )
-
-    except Exception:
-        raise
+    return HealthLivenessOutput(
+        status="alive",
+        timestamp=datetime.now(di["timezone"]).isoformat(),
+    )

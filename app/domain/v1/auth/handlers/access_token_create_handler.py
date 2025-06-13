@@ -2,7 +2,12 @@ from bcrypt import checkpw
 from kink import di
 
 from app.common.base_handler import BaseHandler
-from app.common.errors.errors import AuthenticationError
+from app.common.errors.errors import (
+    AuthenticationError,
+    ClientError,
+    DatabaseError,
+    ErrorCode,
+)
 from app.domain.v1.auth.requests import AccessTokenCreateRequest
 from app.domain.v1.auth.responses import AccessTokenCreateResponse
 from app.domain.v1.auth.schemas import AccessTokenCreateOutput
@@ -22,27 +27,39 @@ class AccessTokenCreateHandler(BaseHandler):
     ) -> AccessTokenCreateResponse:
         try:
             # Find the client by client_id
-            # noinspection PyTypeChecker
             client = await self.db.client.find_unique(
                 where={"client_id": request.data.client_id}, include={"scopes": True}
             )
 
             if not client:
-                msg = "invalid client credentials"
-                raise AuthenticationError(msg)
+                raise AuthenticationError(
+                    message="invalid client credentials",
+                    auth_method="client_credentials",
+                    trace_id=request.trace_id,
+                    request_id=request.request_id,
+                )
 
             # Verify the secret
             if not checkpw(
                 request.data.client_secret.encode("utf-8"),
                 client.hashed_secret.encode("utf-8"),
             ):
-                msg = "invalid client credentials"
-                raise AuthenticationError(msg)
+                raise AuthenticationError(
+                    message="invalid client secret",
+                    auth_method="client_credentials",
+                    trace_id=request.trace_id,
+                    request_id=request.request_id,
+                )
 
             # Check if client is active
             if not client.is_active:
-                msg = "client account is inactive"
-                raise AuthenticationError(msg)
+                raise ClientError(
+                    error_code=ErrorCode.CLIENT_INACTIVE,
+                    message="client account is inactive",
+                    client_id=client.client_id,
+                    trace_id=request.trace_id,
+                    request_id=request.request_id,
+                )
 
             # Extract scopes from the client
             scopes = [scope.name for scope in client.scopes] if client.scopes else []
@@ -65,5 +82,15 @@ class AccessTokenCreateHandler(BaseHandler):
                 data=response_data,
             )
 
-        except Exception:
-            raise
+        except Exception as e:
+            if isinstance(e, AuthenticationError | ClientError):
+                raise
+
+            # Database or other unexpected errors
+            raise DatabaseError(
+                message="failed to create access token",
+                operation="token_creation",
+                trace_id=request.trace_id,
+                request_id=request.request_id,
+                cause=e,
+            ) from e

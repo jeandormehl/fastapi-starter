@@ -3,11 +3,12 @@ from datetime import datetime, timedelta
 import jwt
 from kink import di
 
-from app.common.errors.errors import AuthenticationError
+from app.common.errors.errors import ErrorCode, TokenError
 from app.core.config import Configuration
 from app.domain.v1.auth.schemas import JWTPayload
 
 
+# noinspection PyBroadException
 class JWTService:
     def __init__(self, config: Configuration) -> None:
         self.secret_key = config.app_secret_key.get_secret_value()
@@ -40,7 +41,7 @@ class JWTService:
             "scopes": scopes,
             "exp": expire,
             "iat": now,
-            "type": "access_token",
+            "type": "access_token",  # nosec
         }
 
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
@@ -83,13 +84,19 @@ class JWTService:
             required_fields = ["id", "client_id", "exp", "iat"]
             for field in required_fields:
                 if field not in payload:
-                    msg = f"invalid token: missing {field}"
-                    raise AuthenticationError(msg)
+                    raise TokenError(
+                        error_code=ErrorCode.TOKEN_INVALID,
+                        message=f"token missing required field: {field}",
+                        token_type="access_token",  # nosec
+                    )
 
             # Validate token type
             if payload.get("type") != "access_token":
-                msg = "invalid token type"
-                raise AuthenticationError(msg)
+                raise TokenError(
+                    error_code=ErrorCode.TOKEN_INVALID,
+                    message="invalid token type",
+                    token_type="access_token",  # nosec
+                )
 
             return JWTPayload(
                 id=payload["id"],
@@ -100,15 +107,19 @@ class JWTService:
             )
 
         except jwt.ExpiredSignatureError:
-            msg = "token has expired"
-            raise AuthenticationError(msg)
+            raise TokenError(
+                error_code=ErrorCode.TOKEN_EXPIRED,
+                message="token has expired",
+                token_type="access_token",  # nosec
+            )
 
-        except jwt.InvalidTokenError as e:
-            print(e)
-            msg = "invalid token"
-            raise AuthenticationError(msg)
+        except jwt.InvalidTokenError:
+            raise TokenError(
+                error_code=ErrorCode.TOKEN_INVALID,
+                message="invalid token format or signature",
+                token_type="access_token",  # nosec
+            )
 
-    # noinspection PyBroadException,PyMethodMayBeStatic
     def extract_scopes(self, token: str) -> list[str]:
         """
         Extract scopes from a JWT token without full verification.

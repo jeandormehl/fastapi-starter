@@ -24,17 +24,13 @@ async def create_new_service_client(
 ) -> ClientCreateOutput:
     """Create new service client"""
 
-    try:
-        return (
-            await pydiator.send(
-                PydiatorBuilder.build(
-                    ClientCreateRequest, request, data=data, client=current_client
-                )
+    return (
+        await pydiator.send(
+            PydiatorBuilder.build(
+                ClientCreateRequest, request, data=data, client=current_client
             )
-        ).data
-
-    except Exception:
-        raise
+        )
+    ).data
 
 
 # noinspection PyUnusedLocal
@@ -47,14 +43,10 @@ async def update_existing_service_client(
 ) -> ClientUpdateOutput:
     """Update existing service client"""
 
-    try:
-        return (
-            await pydiator.send(
-                PydiatorBuilder.build(
-                    ClientUpdateRequest, request, data=data, client=current_client
-                )
+    return (
+        await pydiator.send(
+            PydiatorBuilder.build(
+                ClientUpdateRequest, request, data=data, client=current_client
             )
-        ).data
-
-    except Exception:
-        raise
+        )
+    ).data
