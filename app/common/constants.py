@@ -48,5 +48,10 @@ MODEL_JSON_FIELDS = {
         "task_labels",
         "task_result",
     },
+    "IdempotencyCache": {
+        "response_body",
+        "response_headers",
+        "task_result",
+    },
     # Add other models as needed
 }

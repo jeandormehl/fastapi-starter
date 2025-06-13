@@ -8,6 +8,7 @@ from app.common.utils import PydiatorBuilder
 from app.domain.v1.request_logs.requests import RequestLogCreateRequest
 from app.domain.v1.request_logs.schemas import RequestLogCreateInput
 from app.infrastructure.database import Database
+from app.infrastructure.taskiq.idempotent_task import idempotent_task
 from app.infrastructure.taskiq.schemas import TaskPriority
 from app.infrastructure.taskiq.task_manager import TaskManager
 
@@ -22,10 +23,18 @@ tm = di[TaskManager]
     retry_delay=5.0,
     priority=TaskPriority.LOW.to_taskiq_priority(),
 )
+@idempotent_task()
 async def request_log_create_task(
-    data: dict[str, Any], **kwargs: Any
+    data: dict[str, Any], idempotency_key: str | None = None, **kwargs: Any
 ) -> dict[str, Any]:
+    """Enhanced task with idempotency support"""
+
     try:
+        # Add idempotency key to data if provided
+        if idempotency_key:
+            data["idempotency_key"] = idempotency_key
+            data["is_idempotent_retry"] = True
+
         return (
             await pydiator.send(
                 PydiatorBuilder.build(

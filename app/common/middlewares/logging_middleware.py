@@ -336,6 +336,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             await self.task_manager.submit_task(
                 "request_log:create",
                 data,
+                idempotency_key=f"log:{data.get('trace_id')}:{data.get('request_id')}",
                 trace_id=data.get("trace_id"),
                 request_id=data.get("request_id"),
             )

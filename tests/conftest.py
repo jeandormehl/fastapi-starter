@@ -24,6 +24,7 @@ from app.core.config import Configuration
 from app.domain.v1.auth.schemas import JWTPayload
 from app.domain.v1.auth.services import JWTService
 from app.domain.v1.health.services import HealthService
+from app.domain.v1.idempotency.services.idempotency_service import IdempotencyService
 from app.domain.v1.request_handler_map import RequestHandlerMap
 from app.infrastructure.database import Database
 from app.infrastructure.taskiq.config import TaskiqConfiguration
@@ -238,6 +239,7 @@ def setup_di_container(
     di[AsyncBroker] = mock_broker
     di[TaskManager] = task_manager
     di[HealthService] = health_service
+    di[IdempotencyService] = Mock(spec=IdempotencyService)
 
     # Mock logging initialization to prevent any logging setup
     with patch("app.common.logging.initialize_logging") as mock_init:

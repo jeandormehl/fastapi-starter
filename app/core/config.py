@@ -32,27 +32,22 @@ class Configuration(BaseSettings):
 
     admin_password: SecretStr = Field(..., description="Administrator password")
 
-    # API settings
     api_cors_origins: list[str] = Field(["*"], description="API CORS origins")
     api_allowed_hosts: list[str] = Field(["*"], description="API allowed hosts")
     api_host: str = Field("127.0.0.1", description="API host")
     api_port: int = Field(8080, description="API port")
 
-    # Cloud provider settings
     cloud_provider: str | None = Field(
         None, description="Cloud provider: aws, azure, gcp"
     )
 
-    # Database settings
     database_url: SecretStr = Field(None, description="Database connection string")
 
-    # Logging settings
     log_level: str = Field("INFO", description="Log level")
     log_to_file: bool = Field(True, description="Enable file logging")
     log_file_path: str = Field("/app/static/logs", description="Log file path")
     log_enable_json: bool = Field(False, description="Enable json logging")
 
-    # Parseable settings
     parseable_enabled: bool = Field(False, description="Enable Parseable logging")
     parseable_url: str = Field("http://localhost:8000", description="Parseable URL")
     parseable_username: str = Field("admin", description="Parseable stream")
@@ -117,6 +112,47 @@ class Configuration(BaseSettings):
     )
     task_logging_cleanup_interval_hours: int = Field(
         6, description="Hours between cleanup task runs"
+    )
+
+    # Idempotency settings
+    idempotency_enabled: bool = Field(
+        True, description="Enable idempotency checks for requests and tasks"
+    )
+    idempotency_request_enabled: bool = Field(
+        True, description="Enable idempotency for API requests"
+    )
+    idempotency_task_enabled: bool = Field(
+        True, description="Enable idempotency for background tasks"
+    )
+    idempotency_cache_ttl_hours: int = Field(
+        24, description="Hours to cache idempotency results"
+    )
+    idempotency_cleanup_interval_hours: int = Field(
+        6, description="Hours between idempotency cache cleanup"
+    )
+    idempotency_header_names: list[str] = Field(
+        default_factory=lambda: ["idempotency-key", "x-idempotency-key", "request-id"],
+        description="Header names to check for idempotency keys",
+    )
+    idempotency_supported_methods: list[str] = Field(
+        default_factory=lambda: ["POST", "PUT", "PATCH"],
+        description="HTTP methods that support idempotency",
+    )
+    idempotency_excluded_paths: list[str] = Field(
+        default_factory=lambda: [
+            "/v1/health",
+            "/v1/metrics",
+            "/v1/docs",
+            "/v1/redoc",
+            "/v1/docs/openapi.json",
+        ],
+        description="Paths to exclude from idempotency checks",
+    )
+    idempotency_max_key_length: int = Field(
+        255, description="Maximum length of idempotency keys"
+    )
+    idempotency_content_verification: bool = Field(
+        True, description="Verify request content matches on idempotency key reuse"
     )
 
     @property
@@ -202,5 +238,21 @@ class Configuration(BaseSettings):
             raise ValueError(msg)
         if v > 365:
             msg = "retention_days cannot exceed 365"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("idempotency_cache_ttl_hours")
+    @classmethod
+    def validate_cache_ttl(cls, v: int) -> int:
+        if v < 1 or v > 168:  # 1 hour to 1 week
+            msg = "cache TTL must be between 1 and 168 hours"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("idempotency_max_key_length")
+    @classmethod
+    def validate_max_key_length(cls, v: int) -> int:
+        if v < 1 or v > 500:
+            msg = "max key length must be between 1 and 500"
             raise ValueError(msg)
         return v

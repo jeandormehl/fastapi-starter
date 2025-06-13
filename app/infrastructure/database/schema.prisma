@@ -68,6 +68,10 @@ model RequestLog {
   success          Boolean   @default(false)
   user_agent       String?
 
+  idempotency_key     String?
+  is_idempotent_retry Boolean @default(false)
+  request_hash        String?
+
   created_at DateTime @default(now())
 
   @@index([trace_id])
@@ -76,6 +80,8 @@ model RequestLog {
   @@index([status_code])
   @@index([start_time])
   @@index([client_ip])
+  @@index([idempotency_key])
+  @@index([idempotency_key, request_method, path])
   @@map("request_logs")
 }
 
@@ -111,6 +117,10 @@ model TaskLog {
   task_labels           Json?
   task_result           Json?
 
+  idempotency_key     String?
+  is_idempotent_retry Boolean @default(false)
+  task_hash           String?
+
   created_at DateTime @default(now())
 
   @@index([task_id])
@@ -119,5 +129,29 @@ model TaskLog {
   @@index([status])
   @@index([submitted_at])
   @@index([started_at])
+  @@index([idempotency_key, task_name])
   @@map("task_logs")
+}
+
+model IdempotencyCache {
+  id                   String   @id @default(cuid())
+  idempotency_key      String
+  request_method       String?
+  request_path         String?
+  task_name            String?
+  client_id            String?
+  content_hash         String
+  response_status_code Int?
+  response_body        Json?
+  response_headers     Json?
+  task_result          Json?
+  cache_type           String // 'request' or 'task'
+  created_at           DateTime @default(now())
+  expires_at           DateTime
+
+  @@unique([idempotency_key, request_method, request_path, cache_type], name: "uk_request_idempotency")
+  @@unique([idempotency_key, task_name, cache_type], name: "uk_task_idempotency")
+  @@index([idempotency_key, cache_type])
+  @@index([expires_at])
+  @@map("idempotency_cache")
 }

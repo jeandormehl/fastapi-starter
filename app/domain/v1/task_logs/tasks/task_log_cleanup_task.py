@@ -26,7 +26,7 @@ _request_id = str(uuid.uuid4())
     max_retries=2,
     schedule=[
         {
-            "cron": f"* */{
+            "cron": f"0 */{
                 getattr(config, 'task_logging_cleanup_interval_hours', 24)
             } * * *"
         }

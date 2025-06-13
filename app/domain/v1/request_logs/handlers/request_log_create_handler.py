@@ -4,6 +4,7 @@ from app.common.base_handler import BaseHandler
 from app.common.errors.errors import DatabaseError
 from app.common.logging import get_logger
 from app.common.utils import PrismaDataTransformer
+from app.domain.v1.idempotency.services.idempotency_service import IdempotencyService
 from app.domain.v1.request_logs.requests import RequestLogCreateRequest
 from app.domain.v1.request_logs.responses import RequestLogCreateResponse
 from app.domain.v1.request_logs.schemas import RequestLogCreateOutput
@@ -15,6 +16,7 @@ class RequestLogCreateHandler(BaseHandler):
         super().__init__()
 
         self.db = di[Database]
+        self.idempotency_service = di[IdempotencyService]
         self.logger = get_logger(__name__)
 
     async def _handle_internal(
@@ -26,8 +28,34 @@ class RequestLogCreateHandler(BaseHandler):
             self.logger.info(f"processing request log: {request.data.trace_id}")
 
             raw_data = request.data.model_dump()
-            prisma_data = PrismaDataTransformer.prepare_data(raw_data, "RequestLog")
 
+            # Add idempotency fields if available
+            if (
+                hasattr(request.data, "idempotency_key")
+                and request.data.idempotency_key
+            ):
+                raw_data["idempotency_key"] = request.data.idempotency_key
+                raw_data["is_idempotent_retry"] = getattr(
+                    request.data, "is_idempotent_retry", False
+                )
+
+                # Generate request hash if we have request details
+                if all(
+                    hasattr(request.data, field)
+                    for field in ["request_method", "path", "body"]
+                ):
+                    headers = raw_data.get("headers", {})
+                    body = str(raw_data.get("body", "")).encode()
+                    raw_data["request_hash"] = (
+                        self.idempotency_service.generate_request_hash(
+                            method=raw_data["request_method"],
+                            path=raw_data["path"],
+                            body=body,
+                            headers=headers,
+                        )
+                    )
+
+            prisma_data = PrismaDataTransformer.prepare_data(raw_data, "RequestLog")
             request_log = await self.db.requestlog.create(data=prisma_data)
 
             return RequestLogCreateResponse(

@@ -54,6 +54,9 @@ CREATE TABLE "request_logs" (
     "status_code" INTEGER,
     "success" BOOLEAN NOT NULL DEFAULT false,
     "user_agent" TEXT,
+    "idempotency_key" TEXT,
+    "is_idempotent_retry" BOOLEAN NOT NULL DEFAULT false,
+    "request_hash" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "request_logs_pkey" PRIMARY KEY ("id")
@@ -91,9 +94,32 @@ CREATE TABLE "task_logs" (
     "task_kwargs" JSONB,
     "task_labels" JSONB,
     "task_result" JSONB,
+    "idempotency_key" TEXT,
+    "is_idempotent_retry" BOOLEAN NOT NULL DEFAULT false,
+    "task_hash" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "task_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "idempotency_cache" (
+    "id" TEXT NOT NULL,
+    "idempotency_key" TEXT NOT NULL,
+    "request_method" TEXT,
+    "request_path" TEXT,
+    "task_name" TEXT,
+    "client_id" TEXT,
+    "content_hash" TEXT NOT NULL,
+    "response_status_code" INTEGER,
+    "response_body" JSONB,
+    "response_headers" JSONB,
+    "task_result" JSONB,
+    "cache_type" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "idempotency_cache_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -130,6 +156,12 @@ CREATE INDEX "request_logs_start_time_idx" ON "request_logs"("start_time");
 CREATE INDEX "request_logs_client_ip_idx" ON "request_logs"("client_ip");
 
 -- CreateIndex
+CREATE INDEX "request_logs_idempotency_key_idx" ON "request_logs"("idempotency_key");
+
+-- CreateIndex
+CREATE INDEX "request_logs_idempotency_key_request_method_path_idx" ON "request_logs"("idempotency_key", "request_method", "path");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "task_logs_task_id_key" ON "task_logs"("task_id");
 
 -- CreateIndex
@@ -149,6 +181,21 @@ CREATE INDEX "task_logs_submitted_at_idx" ON "task_logs"("submitted_at");
 
 -- CreateIndex
 CREATE INDEX "task_logs_started_at_idx" ON "task_logs"("started_at");
+
+-- CreateIndex
+CREATE INDEX "task_logs_idempotency_key_task_name_idx" ON "task_logs"("idempotency_key", "task_name");
+
+-- CreateIndex
+CREATE INDEX "idempotency_cache_idempotency_key_cache_type_idx" ON "idempotency_cache"("idempotency_key", "cache_type");
+
+-- CreateIndex
+CREATE INDEX "idempotency_cache_expires_at_idx" ON "idempotency_cache"("expires_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "idempotency_cache_idempotency_key_request_method_request_pa_key" ON "idempotency_cache"("idempotency_key", "request_method", "request_path", "cache_type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "idempotency_cache_idempotency_key_task_name_cache_type_key" ON "idempotency_cache"("idempotency_key", "task_name", "cache_type");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_clients_scopes_AB_unique" ON "_clients_scopes"("A", "B");

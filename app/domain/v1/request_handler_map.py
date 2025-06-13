@@ -14,6 +14,8 @@ from app.domain.v1.client.handlers import ClientCreateHandler, ClientUpdateHandl
 from app.domain.v1.client.requests import ClientCreateRequest, ClientUpdateRequest
 from app.domain.v1.health.handlers import HealthCheckHandler
 from app.domain.v1.health.requests import HealthCheckRequest
+from app.domain.v1.idempotency.handlers import IdempotencyCacheCleanupHandler
+from app.domain.v1.idempotency.requests import IdempotencyCacheCleanupRequest
 from app.domain.v1.request_logs.handlers import (
     RequestLogCleanupHandler,
     RequestLogCreateHandler,
@@ -40,6 +42,12 @@ class RequestHandlerMap(Enum):
 
     # task logs
     TASK_LOG_CLEANUP = (TaskLogCleanupRequest, TaskLogCleanupHandler)
+
+    # idempotency cache
+    IDEMPOTENCY_CACHE_CLEANUP = (
+        IdempotencyCacheCleanupRequest,
+        IdempotencyCacheCleanupHandler,
+    )
 
     # auth
     AUTH_ACCESS_TOKEN_CREATE = (AccessTokenCreateRequest, AccessTokenCreateHandler)

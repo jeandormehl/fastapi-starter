@@ -38,6 +38,10 @@ class RequestLogCreateInput(BaseModel):
     success: bool
     user_agent: str | None = None
 
+    idempotency_key: str | None = None
+    is_idempotent_retry: bool = False
+    request_hash: str | None = None
+
 
 class RequestLogCreateOutput(BaseModel):
     success: bool
