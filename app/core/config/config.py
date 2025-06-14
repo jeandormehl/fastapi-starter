@@ -1,4 +1,3 @@
-from typing import Any
 from zoneinfo import available_timezones
 
 from pydantic import Field, SecretStr, field_validator
@@ -45,20 +44,16 @@ class Configuration(BaseSettings):
     admin_client_id: str = Field(..., description="Admin client ID")
     admin_password: SecretStr = Field(..., description="Administrator password")
 
-    # Nested configurations
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-
-        self.api = ApiConfiguration()
-        self.cloud = CloudConfiguration()
-        self.database = DatabaseConfiguration()
-        self.logging = LoggingConfiguration()
-        self.parseable = ParseableConfiguration()
-        self.jwt = JWTConfiguration()
-        self.request_logging = RequestLoggingConfiguration()
-        self.task_logging = TaskLoggingConfiguration()
-        self.idempotency = IdempotencyConfiguration()
-        self.taskiq = TaskiqConfiguration()
+    api: ApiConfiguration = ApiConfiguration()
+    cloud: CloudConfiguration = CloudConfiguration()
+    database: DatabaseConfiguration = DatabaseConfiguration()
+    idempotency: IdempotencyConfiguration = IdempotencyConfiguration()
+    jwt: JWTConfiguration = JWTConfiguration()
+    logging: LoggingConfiguration = LoggingConfiguration()
+    parseable: ParseableConfiguration = ParseableConfiguration()
+    request_logging: RequestLoggingConfiguration = RequestLoggingConfiguration()
+    task_logging: TaskLoggingConfiguration = TaskLoggingConfiguration()
+    taskiq: TaskiqConfiguration = TaskiqConfiguration()
 
     @property
     def app_debug(self) -> bool:
