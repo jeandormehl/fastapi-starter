@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from app.core.config import Configuration
+from app.core.config.parseable_config import ParseableConfiguration
 
 
 class LogStreamType(str, Enum):
@@ -25,26 +25,26 @@ class LogStreamType(str, Enum):
 class ParseableSink:
     """Parseable sink with multiple stream support and intelligent routing."""
 
-    def __init__(self, config: Configuration) -> None:
+    def __init__(self, config: ParseableConfiguration) -> None:
         self.config = config
 
-        self.base_url = config.parseable_url
-        self.username = config.parseable_username
-        self.password = config.parseable_password.get_secret_value()
+        self.base_url = config.url
+        self.username = config.username
+        self.password = config.password.get_secret_value()
 
         # Stream configuration
         self.stream_names = {
-            LogStreamType.API: config.parseable_api_stream,
-            LogStreamType.TASK: config.parseable_task_stream,
-            LogStreamType.ERROR: config.parseable_error_stream,
-            LogStreamType.METRICS: config.parseable_metrics_stream,
+            LogStreamType.API: config.api_stream,
+            LogStreamType.TASK: config.task_stream,
+            LogStreamType.ERROR: config.error_stream,
+            LogStreamType.METRICS: config.metrics_stream,
         }
 
         # Batching configuration
-        self.batch_size = getattr(config, "parseable_batch_size", 100)
-        self.flush_interval = getattr(config, "parseable_flush_interval", 5.0)
-        self.max_retries = getattr(config, "parseable_max_retries", 3)
-        self.retry_delay = getattr(config, "parseable_retry_delay", 1.0)
+        self.batch_size = getattr(config, "batch_size", 100)
+        self.flush_interval = getattr(config, "flush_interval", 5.0)
+        self.max_retries = getattr(config, "max_retries", 3)
+        self.retry_delay = getattr(config, "retry_delay", 1.0)
 
         # Separate buffers for each stream
         self._buffers: dict[LogStreamType, deque] = {
@@ -59,7 +59,7 @@ class ParseableSink:
         self._running = True
         self._loop: asyncio.AbstractEventLoop | None = None
 
-        if config.parseable_enabled:
+        if config.enabled:
             self._start_background_processing()
             atexit.register(self.cleanup)
             signal.signal(signal.SIGTERM, self._signal_handler)

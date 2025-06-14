@@ -2,18 +2,19 @@ from datetime import datetime, timedelta
 
 import jwt
 from kink import di
+from pydantic import SecretStr
 
 from app.common.errors.errors import ErrorCode, TokenError
-from app.core.config import Configuration
+from app.core.config.jwt_config import JWTConfiguration
 from app.domain.v1.auth.schemas import JWTPayload
 
 
 # noinspection PyBroadException
 class JWTService:
-    def __init__(self, config: Configuration) -> None:
-        self.secret_key = config.app_secret_key.get_secret_value()
-        self.algorithm = config.jwt_algorithm
-        self.access_token_expire_minutes = config.jwt_access_token_expire_minutes
+    def __init__(self, secret_key: SecretStr, config: JWTConfiguration) -> None:
+        self.secret_key = secret_key.get_secret_value()
+        self.algorithm = config.jwt.algorithm
+        self.access_token_expire_minutes = config.access_token_expire_minutes
 
     def create_access_token(
         self, _id: str, client_id: str, scopes: list[str] | None = None

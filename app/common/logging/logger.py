@@ -13,14 +13,15 @@ class LoggerConfig:
     """Configuration for logging system."""
 
     def __init__(self, config: Configuration) -> None:
-        self.config = config
+        self.config = config.logging
+        self.parseable_config = config.parseable
 
-        self.log_level = config.log_level
-        self.enable_json_logs = config.log_enable_json
+        self.log_level = self.config.level
+        self.enable_json_logs = self.config.enable_json
         self.log_format = self._get_log_format()
-        self.enable_file_logging = config.log_to_file
-        self.log_file_path = config.log_file_path
-        self.enable_parseable = config.parseable_enabled
+        self.enable_file_logging = self.config.to_file
+        self.log_file_path = self.config.file_path
+        self.enable_parseable = self.parseable_config.enabled
 
     def _get_log_format(self) -> str:
         """Get appropriate log format based on configuration."""
@@ -86,7 +87,7 @@ class LoggerManager:
         if self.config.enable_parseable:
             from app.common.logging.parseable_sink import ParseableSink
 
-            parseable_sink = ParseableSink(self.config.config)
+            parseable_sink = ParseableSink(self.config.parseable_config)
 
             logger.add(
                 parseable_sink.log,

@@ -14,8 +14,8 @@ if __name__ == "__main__":
     try:
         uvicorn.run(
             "app.main:app",
-            host=config.api_host,
-            port=config.api_port,
+            host=config.api.host,
+            port=config.api.port,
             reload=config.app_environment == "local",
         )
 

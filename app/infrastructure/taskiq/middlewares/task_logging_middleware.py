@@ -8,8 +8,8 @@ from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 from app.common.logging import get_logger
 from app.common.utils import DataSanitizer, PrismaDataTransformer
 from app.core.config import Configuration
+from app.core.config.taskiq_config import TaskiqConfiguration
 from app.infrastructure.database import Database
-from app.infrastructure.taskiq.config import TaskiqConfiguration
 
 
 # noinspection PyBroadException
@@ -23,12 +23,13 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
         super().__init__()
 
         self.config = config
-        self.logger = get_logger(__name__)
-        self.app_config = di[Configuration]
+        self.task_logging_config = di[Configuration].task_logging_config
+        self.version = di[Configuration].app_version
         self.db = di[Database]
+        self.logger = get_logger(__name__)
 
         # Tasks to exclude from logging to prevent loops
-        self.excluded_tasks = self.app_config.task_logging_excluded_tasks
+        self.excluded_tasks = self.task_logging_config.excluded_tasks
 
     async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:
         """Log task start directly to database."""
@@ -82,7 +83,7 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
         """Determine if task should be logged."""
 
         return (
-            getattr(self.app_config, "task_logging_enabled", True)
+            getattr(self.task_logging_config, "enabled", True)
             and task_name not in self.excluded_tasks
         )
 
@@ -115,7 +116,7 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
             ),
             "execution_environment": "taskiq_worker",
             "worker_id": self._get_worker_id(),
-            "app_version": getattr(self.app_config, "app_version", "unknown"),
+            "app_version": self.version or "unknown",
             "logged_at": datetime.now(di["timezone"]),
         }
 

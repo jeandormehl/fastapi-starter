@@ -29,7 +29,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
-        self.config = di[Configuration]
+        self.config = di[Configuration].request_logging
         self.logger = get_logger(__name__)
         self.task_manager = di[TaskManager]
 
@@ -80,7 +80,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             self.logger.bind(**santized_context).info(msg)
 
             # Database logging if enabled
-            if self.config.request_logging_enabled:
+            if self.config.enabled:
                 await self._submit_database_logging(complete_context)
 
             return response
@@ -147,7 +147,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 response_body = BodyProcessor.process_body_content(
                     response_body_bytes,
                     content_type,
-                    max_size=self.config.request_logging_max_body_size,
+                    max_size=self.config.max_body_size,
                 )
 
             # Create new response with the same body to maintain stream integrity
@@ -195,7 +195,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         }
 
         # Add sanitized headers if configured
-        if self.config.request_logging_log_headers:
+        if self.config.log_headers:
             context["headers"] = DataSanitizer.sanitize_headers(dict(request.headers))
 
         return context
@@ -225,7 +225,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         }
 
         # Add response headers if configured
-        if self.config.request_logging_log_headers:
+        if self.config.log_headers:
             response_headers = self._format_params(dict(response.headers))
             context["response_headers"] = DataSanitizer.sanitize_headers(
                 response_headers
@@ -354,13 +354,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return False
 
         # Check excluded paths from configuration
-        excluded_paths = getattr(self.config, "request_logging_excluded_paths", [])
+        excluded_paths = getattr(self.config, "excluded_paths", [])
         for excluded_path in excluded_paths:
             if path.startswith(excluded_path):
                 return False
 
         # Check excluded methods
-        excluded_methods = getattr(self.config, "request_logging_excluded_methods", [])
+        excluded_methods = getattr(self.config, "excluded_methods", [])
 
         return request.method.upper() not in excluded_methods
 

@@ -17,7 +17,7 @@ class TaskLogCleanupHandler(BaseHandler):
         super().__init__()
 
         self.db = di[Database]
-        self.config = di[Configuration]
+        self.config = di[Configuration].task_logging
         self.logger = get_logger(__name__)
 
     async def _handle_internal(
@@ -27,7 +27,7 @@ class TaskLogCleanupHandler(BaseHandler):
             # noinspection DuplicatedCode
             await Database.connect_db()
 
-            retention_days = self.config.task_logging_retention_days
+            retention_days = self.config.retention_days
             cutoff_date = datetime.now(di["timezone"]) - timedelta(days=retention_days)
 
             total_deleted = await self.db.tasklog.delete_many(
@@ -55,7 +55,7 @@ class TaskLogCleanupHandler(BaseHandler):
             self.logger.bind(
                 trace_id=request.trace_id,
                 request_id=request.request_id,
-                retention_days=self.config.task_logging_retention_days,
+                retention_days=self.config.retention_days,
                 error=str(e),
                 error_type=type(e).__name__,
             ).error("task logs cleanup failed")

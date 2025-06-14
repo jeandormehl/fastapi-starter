@@ -29,17 +29,17 @@ def register_request_middlewares(config: Configuration, app: FastAPI) -> None:
     # Register in reverse order of desired execution
     app.add_middleware(ErrorMiddleware)
 
-    if config.idempotency_enabled and config.idempotency_request_enabled:
+    if config.idempotency.enabled and config.idempotency.request_enabled:
         app.add_middleware(IdempotencyMiddleware)
 
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(TracingMiddleware)
     app.add_middleware(
-        trustedhost.TrustedHostMiddleware, allowed_hosts=config.api_allowed_hosts
+        trustedhost.TrustedHostMiddleware, allowed_hosts=config.api.allowed_hosts
     )
     app.add_middleware(
         cors.CORSMiddleware,
-        allow_origins=config.api_cors_origins,
+        allow_origins=config.api.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

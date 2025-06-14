@@ -7,7 +7,7 @@ from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.common.logging import get_logger
 from app.common.utils import DataSanitizer
-from app.infrastructure.taskiq.config import TaskiqConfiguration
+from app.core.config.taskiq_config import TaskiqConfiguration
 
 
 class LoggingMiddleware(TaskiqMiddleware):

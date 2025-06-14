@@ -33,24 +33,24 @@ class IdempotencyService:
 
     def __init__(self) -> None:
         self.db = di[Database]
-        self.config = di[Configuration]
+        self.config = di[Configuration].idempotency
         self.logger = get_logger(__name__)
 
     @property
     def cache_ttl_hours(self) -> int:
-        return self.config.idempotency_cache_ttl_hours
+        return self.config.cache_ttl_hours
 
     @property
     def is_enabled(self) -> bool:
-        return self.config.idempotency_enabled
+        return self.config.enabled
 
     @property
     def request_idempotency_enabled(self) -> bool:
-        return self.is_enabled and self.config.idempotency_request_enabled
+        return self.is_enabled and self.config.request_enabled
 
     @property
     def task_idempotency_enabled(self) -> bool:
-        return self.is_enabled and self.config.idempotency_task_enabled
+        return self.is_enabled and self.config.task_enabled
 
     def generate_content_hash(
         self, content_data: dict, _cache_type: CacheType = CacheType.REQUEST
@@ -321,7 +321,7 @@ class IdempotencyService:
     def extract_idempotency_key(self, headers: dict) -> str | None:
         """Extract and validate idempotency key from request headers."""
 
-        for header_name in self.config.idempotency_header_names:
+        for header_name in self.config.header_names:
             key = headers.get(header_name) or headers.get(header_name.lower())
 
             if key:
@@ -337,11 +337,11 @@ class IdempotencyService:
                     continue
 
                 # Truncate if too long
-                if len(key) > self.config.idempotency_max_key_length:
-                    key = key[: self.config.idempotency_max_key_length]
+                if len(key) > self.config.max_key_length:
+                    key = key[: self.config.max_key_length]
                     self.logger.info(
                         f"truncated idempotency key to "
-                        f"{self.config.idempotency_max_key_length} characters"
+                        f"{self.config.max_key_length} characters"
                     )
 
                 return key
@@ -354,11 +354,11 @@ class IdempotencyService:
             return False
 
         # Check HTTP method
-        if method not in self.config.idempotency_supported_methods:
+        if method not in self.config.supported_methods:
             return False
 
         # Check excluded paths
-        for excluded_path in self.config.idempotency_excluded_paths:
+        for excluded_path in self.config.excluded_paths:
             if path.startswith(excluded_path):
                 return False
 

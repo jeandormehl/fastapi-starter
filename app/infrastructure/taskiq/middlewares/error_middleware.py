@@ -15,7 +15,7 @@ from app.common.errors.errors import (
 )
 from app.common.logging import get_logger
 from app.common.utils import DataSanitizer
-from app.infrastructure.taskiq.config import TaskiqConfiguration
+from app.core.config.taskiq_config import TaskiqConfiguration
 
 
 class CircuitBreakerState(Enum):
@@ -116,7 +116,7 @@ class CircuitBreaker:
         }
 
 
-class ErrorHandlingMiddleware(TaskiqMiddleware):
+class ErrorMiddleware(TaskiqMiddleware):
     """
     Error handling middleware for Taskiq that provides standardized
     error responses, circuit breaker functionality, and comprehensive error tracking.

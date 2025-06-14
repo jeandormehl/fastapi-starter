@@ -3,10 +3,10 @@ from taskiq import AsyncBroker, TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 from taskiq_redis import RedisScheduleSource
 
+from app.core.config import Configuration
 from app.core.container import container
-from app.infrastructure.taskiq.config import TaskiqConfiguration
 
-config = di[TaskiqConfiguration]
+config = di[Configuration].taskiq
 broker = container.get_dependency(AsyncBroker)
 sources = [LabelScheduleSource(broker=broker)]
 

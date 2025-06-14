@@ -3,10 +3,10 @@ from typing import Any
 from taskiq import AsyncBroker
 from taskiq.middlewares import SmartRetryMiddleware
 
+from app.core.config.taskiq_config import TaskiqConfiguration
 from app.infrastructure.taskiq.broker.broker_factory import BrokerFactory
-from app.infrastructure.taskiq.config import TaskiqConfiguration
 from app.infrastructure.taskiq.middlewares import (
-    ErrorHandlingMiddleware,
+    ErrorMiddleware,
     LoggingMiddleware,
     TaskLoggingMiddleware,
 )
@@ -39,7 +39,7 @@ class Broker:
                 max_delay_exponent=self.taskiq_config.max_retry_delay,
             ),
             # Error handling middleware (last to handle all errors)
-            ErrorHandlingMiddleware(config=self.taskiq_config),
+            ErrorMiddleware(config=self.taskiq_config),
         ]
 
         broker.add_middlewares(*middlewares)

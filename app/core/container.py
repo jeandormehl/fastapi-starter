@@ -18,7 +18,6 @@ from app.domain.v1.idempotency.services.idempotency_service import IdempotencySe
 from app.domain.v1.request_handler_map import RequestHandlerMap
 from app.infrastructure.database import Database
 from app.infrastructure.taskiq.broker.broker import get_broker
-from app.infrastructure.taskiq.config import TaskiqConfiguration
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 T = TypeVar("T")
@@ -56,8 +55,6 @@ class Container:
 
         initialize_logging(di[Configuration])
 
-        di[TaskiqConfiguration] = TaskiqConfiguration()
-
     def _wire_infrastructure_dependencies(self) -> None:
         """Wire infrastructure dependencies."""
 
@@ -68,12 +65,14 @@ class Container:
         di[FastAPI] = get_application(di[Configuration])
 
         # taskiq
-        di[AsyncBroker] = get_broker(di[TaskiqConfiguration])
+        di[AsyncBroker] = get_broker(di[Configuration].taskiq)
         di[TaskManager] = TaskManager(di[AsyncBroker])
 
     def _wire_services(self) -> None:
         di[HealthService] = HealthService(di[Configuration])
-        di[JWTService] = JWTService(di[Configuration])
+        di[JWTService] = JWTService(
+            di[Configuration].app_secret_key, di[Configuration].jwt
+        )
         di[IdempotencyService] = IdempotencyService()
 
     def _wire_pydiator(self) -> None:

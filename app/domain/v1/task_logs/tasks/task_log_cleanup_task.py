@@ -11,7 +11,7 @@ from app.domain.v1.task_logs.requests import TaskLogCleanupRequest
 from app.infrastructure.taskiq.schemas import TaskPriority
 from app.infrastructure.taskiq.task_manager import TaskManager
 
-config = di[Configuration]
+config = di[Configuration].task_logging
 tm = di[TaskManager]
 
 _trace_id = str(uuid.uuid4())
@@ -24,13 +24,7 @@ _request_id = str(uuid.uuid4())
     retry_on_error=True,
     kwargs={},
     max_retries=2,
-    schedule=[
-        {
-            "cron": f"0 */{
-                getattr(config, 'task_logging_cleanup_interval_hours', 24)
-            } * * *"
-        }
-    ],
+    schedule=[{"cron": f"0 */{getattr(config, 'cleanup_interval_hours', 24)} * * *"}],
     trace_id=_trace_id,
     request_id=_request_id,
 )
