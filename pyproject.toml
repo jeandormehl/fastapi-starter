@@ -104,17 +104,17 @@ unfixable = ["B904", "DTZ005"]
 
 [tool.bandit]
 targets = [
-  "app/",       # Assuming your FastAPI application code is in an 'app' directory
-  "main.py",    # If your main FastAPI app is in a single file
+  "app/",
+  "main.py",
 ]
 exclude_dirs = [
   ".venv/",
   "venv/",
-  "tests/",    # Usually, you don't need to security scan your test code
+  "tests/",
   "__pycache__/",
   "docs/",
   "node_modules/",
-  "migrations/", # If not using alembic but have a migrations folder
+  "migrations/",
 ]
 confidence_level = "MEDIUM"
 severity_level = "MEDIUM"
@@ -147,10 +147,6 @@ markers = [
     "unit: Unit tests for individual components",
     "integration: Integration tests for component interactions",
     "slow: Tests that take longer than 1 second",
-    "database: Tests requiring database interactions",
-    "auth: Authentication and authorization tests",
-    "tasks: Taskiq background task tests",
-    "api: API endpoint tests",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -164,10 +160,7 @@ source = ["app"]
 omit = [
   "*/__init__.py",
   "*/migrations/*",
-  "app/core/container.py",
   "app/domain/v1/request_handler_map.py",
-  "app/infrastructure/taskiq/scheduler.py",
-  "app/infrastructure/taskiq/worker.py",
   "app/main.py",
   "tests/*"
 ]

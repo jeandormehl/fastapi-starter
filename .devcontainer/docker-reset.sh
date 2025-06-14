@@ -5,6 +5,3 @@ docker container stop $(docker container ls -aq)
 docker system prune -af
 docker volume prune -af
 docker network prune -f
-
-docker network create proxy
-docker network create deps
