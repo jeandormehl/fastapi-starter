@@ -135,7 +135,7 @@ class IdempotencyService:
             if cached_entry:
                 # Verify content matches if verification is enabled
                 if (
-                    self.config.idempotency_content_verification
+                    self.config.content_verification
                     and cached_entry.content_hash != content_hash
                 ):
                     raise ApplicationError(

@@ -27,7 +27,7 @@ class TaskLoggingConfiguration(BaseSettings):
     )
 
     # noinspection PyNestedDecorators
-    @field_validator("retention_days")
+    @field_validator("retention_days", mode="after")
     @classmethod
     def validate_retention_days(cls, v: int) -> int:
         if v < 1:

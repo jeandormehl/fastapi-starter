@@ -51,7 +51,7 @@ class IdempotencyConfiguration(BaseSettings):
         True, description="Verify request content matches on idempotency key reuse"
     )
 
-    @field_validator("cache_ttl_hours")
+    @field_validator("cache_ttl_hours", mode="after")
     @classmethod
     def validate_cache_ttl(cls, v: int) -> int:
         if v < 1 or v > 168:  # 1 hour to 1 week
@@ -59,7 +59,7 @@ class IdempotencyConfiguration(BaseSettings):
             raise ValueError(msg)
         return v
 
-    @field_validator("max_key_length")
+    @field_validator("max_key_length", mode="after")
     @classmethod
     def validate_max_key_length(cls, v: int) -> int:
         if v < 1 or v > 500:
@@ -67,7 +67,7 @@ class IdempotencyConfiguration(BaseSettings):
             raise ValueError(msg)
         return v
 
-    @field_validator("cleanup_interval_hours")
+    @field_validator("cleanup_interval_hours", mode="after")
     @classmethod
     def validate_cleanup_interval(cls, v: int) -> int:
         if v < 1 or v > 24:
@@ -75,7 +75,7 @@ class IdempotencyConfiguration(BaseSettings):
             raise ValueError(msg)
         return v
 
-    @field_validator("header_names")
+    @field_validator("header_names", mode="after")
     @classmethod
     def validate_header_names(cls, v: list[str]) -> list[str]:
         if not v:
