@@ -14,4 +14,4 @@ class DatabaseConfiguration(BaseSettings):
         env_prefix="DATABASE_",
     )
 
-    url: SecretStr = Field(None, description="Database connection string")
+    url: SecretStr = Field(..., description="Database connection string")

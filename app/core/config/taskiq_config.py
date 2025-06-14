@@ -68,9 +68,9 @@ class TaskiqConfiguration(BaseSettings):
     # noinspection PyNestedDecorators
     @field_validator("encryption_key", mode="after")
     @classmethod
-    def validate_encryption_key(cls, value: str, values: ValidationInfo) -> SecretStr:
-        """Validate encryption key when encryption is enabled."""
-
+    def validate_encryption_key(
+        cls, value: SecretStr | None, values: ValidationInfo
+    ) -> SecretStr | None:
         if values.data.get("enable_task_encryption") and not value:
             msg = "encryption_key is required when task encryption is enabled"
             raise ValueError(msg)

@@ -13,7 +13,7 @@ from app.domain.v1.auth.schemas import JWTPayload
 class JWTService:
     def __init__(self, secret_key: SecretStr, config: JWTConfiguration) -> None:
         self.secret_key = secret_key.get_secret_value()
-        self.algorithm = config.jwt.algorithm
+        self.algorithm = config.algorithm
         self.access_token_expire_minutes = config.access_token_expire_minutes
 
     def create_access_token(

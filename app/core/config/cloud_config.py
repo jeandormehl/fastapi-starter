@@ -15,7 +15,7 @@ class CloudConfiguration(BaseSettings):
     provider: str | None = Field(None, description="Cloud provider: aws, azure, gcp")
 
     # noinspection PyNestedDecorators
-    @field_validator("cloud_provider", mode="after")
+    @field_validator("provider", mode="after")
     @classmethod
     def validate_cloud_provider(cls, value: str | None) -> str | None:
         if not value:

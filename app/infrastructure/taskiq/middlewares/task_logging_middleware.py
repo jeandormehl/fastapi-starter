@@ -23,8 +23,9 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
         super().__init__()
 
         self.config = config
-        self.task_logging_config = di[Configuration].task_logging_config
-        self.version = di[Configuration].app_version
+        self.task_logging_config = di[Configuration].task_logging
+        self.app_version = di[Configuration].app_version
+
         self.db = di[Database]
         self.logger = get_logger(__name__)
 
@@ -116,7 +117,7 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
             ),
             "execution_environment": "taskiq_worker",
             "worker_id": self._get_worker_id(),
-            "app_version": self.version or "unknown",
+            "app_version": self.app_version or "unknown",
             "logged_at": datetime.now(di["timezone"]),
         }
 
