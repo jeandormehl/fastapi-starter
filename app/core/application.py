@@ -13,6 +13,12 @@ from app.common.constants import STATIC_PATH
 from app.common.middlewares import register_request_middlewares
 from app.core.config import Configuration
 from app.infrastructure.database import Database
+from app.infrastructure.observability import (
+    initialize_otel,
+    setup_custom_metrics,
+    setup_instrumentations,
+    shutdown_otel,
+)
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 
@@ -20,9 +26,14 @@ from app.infrastructure.taskiq.task_manager import TaskManager
 @asynccontextmanager
 @inject
 async def lifespan(
-    _app: FastAPI, task_manager: TaskManager
+    _app: FastAPI, config: Configuration, task_manager: TaskManager
 ) -> AsyncGenerator[None, NoReturn]:
     """Application lifespan manager."""
+
+    # otel first
+    tracer_provider, meter_provider = initialize_otel(config.otel)
+    setup_instrumentations(_app, config.otel)
+    setup_custom_metrics()
 
     # Startup
     await Database.init_db()
@@ -35,6 +46,7 @@ async def lifespan(
     try:
         await task_manager.stop()
         await Database.disconnect_db()
+        shutdown_otel()
 
     except Exception:
         contextlib.suppress(Exception)

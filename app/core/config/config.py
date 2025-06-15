@@ -12,6 +12,7 @@ from .database_config import DatabaseConfiguration
 from .idempotency_config import IdempotencyConfiguration
 from .jwt_config import JWTConfiguration
 from .logging_config import LoggingConfiguration
+from .otel_config import OtelConfiguration
 from .parseable_config import ParseableConfiguration
 from .request_logging_config import RequestLoggingConfiguration
 from .task_logging_config import TaskLoggingConfiguration
@@ -56,6 +57,10 @@ class Configuration(BaseSettings):
     taskiq: TaskiqConfiguration = TaskiqConfiguration()
 
     @property
+    def otel(self) -> OtelConfiguration:
+        return OtelConfiguration(self.app_name, self.app_version, self.app_environment)
+
+    @property
     def app_debug(self) -> bool:
         return self.app_environment in ["test", "local", "sandbox"]
 
@@ -73,6 +78,6 @@ class Configuration(BaseSettings):
     def validate_environment(cls, value: str) -> str:
         valid_envs = ["test", "local", "sandbox", "qa", "prod"]
         if value.lower() not in valid_envs:
-            msg = f"Environment must be one of {valid_envs}"
+            msg = f"environment must be one of {valid_envs}"
             raise ValueError(msg)
         return value.lower()
