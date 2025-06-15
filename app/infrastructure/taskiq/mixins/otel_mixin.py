@@ -30,7 +30,7 @@ class OtelMixin:
     async def submit_task(self, task_name: str, *args: Any, **kwargs: Any) -> str:
         """Submit task with OpenTelemetry context propagation."""
 
-        # Get current trace context from middleware
+        # Get current trace context
         trace_context = get_current_trace_context()
 
         # Get current OpenTelemetry span context

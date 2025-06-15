@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 from kink import di
 from opentelemetry import metrics, trace
@@ -13,8 +14,13 @@ from opentelemetry.sdk.resources import (
     SERVICE_VERSION,
     Resource,
 )
-from opentelemetry.sdk.trace import TracerProvider, sampling
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import (
+    ALWAYS_OFF,
+    ALWAYS_ON,
+    TraceIdRatioBased,
+)
 
 from app.common.logging import get_logger
 from app.core.config import Configuration
@@ -67,7 +73,6 @@ def create_resource(config: OtelConfiguration) -> Resource:
     return Resource.create(base_attributes)
 
 
-# noinspection DuplicatedCode
 def setup_tracing(
     config: OtelConfiguration, resource: Resource
 ) -> TracerProvider | None:
@@ -77,15 +82,15 @@ def setup_tracing(
         return None
 
     try:
-        # Create sampler
+        # Create sampler based on sample rate
         if config.traces_sample_rate >= 1.0:
-            sampler = sampling.ALWAYS_ON
+            sampler = ALWAYS_ON
 
         elif config.traces_sample_rate <= 0.0:
-            sampler = sampling.ALWAYS_OFF
+            sampler = ALWAYS_OFF
 
         else:
-            sampler = sampling.TraceIdRatioBased(config.traces_sample_rate)
+            sampler = TraceIdRatioBased(config.traces_sample_rate)
 
         # Create tracer provider
         tracer_provider = TracerProvider(resource=resource, sampler=sampler)
@@ -96,20 +101,7 @@ def setup_tracing(
             "timeout": config.exporter_otlp_timeout,
         }
 
-        # Add headers if configured
-        if config.exporter_otlp_headers:
-            try:
-                headers_str = config.exporter_otlp_headers.get_secret_value()
-                if headers_str:
-                    headers = {}
-                    for header in headers_str.split(","):
-                        if "=" in header:
-                            key, value = header.split("=", 1)
-                            headers[key.strip()] = value.strip()
-                    exporter_kwargs["headers"] = headers
-
-            except Exception as e:
-                get_logger(__name__).warning(f"failed to parse otlp headers: {e}")
+        _add_otlp_headers(config, exporter_kwargs)
 
         otlp_exporter = OTLPSpanExporter(**exporter_kwargs)
 
@@ -134,7 +126,6 @@ def setup_tracing(
         return None
 
 
-# noinspection DuplicatedCode
 def setup_metrics(
     config: OtelConfiguration, resource: Resource
 ) -> MeterProvider | None:
@@ -150,21 +141,7 @@ def setup_metrics(
             "timeout": config.exporter_otlp_timeout,
         }
 
-        # Add headers if configured
-        if config.exporter_otlp_headers:
-            try:
-                headers_str = config.exporter_otlp_headers.get_secret_value()
-                if headers_str:
-                    headers = {}
-                    for header in headers_str.split(","):
-                        if "=" in header:
-                            key, value = header.split("=", 1)
-                            headers[key.strip()] = value.strip()
-                    exporter_kwargs["headers"] = headers
-            except Exception as e:
-                get_logger(__name__).warning(
-                    f"failed to parse otlp headers for metrics: {e}"
-                )
+        _add_otlp_headers(config, exporter_kwargs)
 
         otlp_exporter = OTLPMetricExporter(**exporter_kwargs)
 
@@ -192,7 +169,6 @@ def setup_metrics(
 
 def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
     """Initialize OpenTelemetry with comprehensive error handling."""
-
     config = di[Configuration].otel
     logger = get_logger(__name__)
 
@@ -229,6 +205,7 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
                 )
             )
             logger.info("context propagation configured successfully")
+
         except Exception as e:
             logger.warning(f"failed to configure context propagation: {e}")
 
@@ -242,7 +219,6 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
 
 def shutdown_otel() -> None:
     """Shutdown OpenTelemetry providers with proper error handling."""
-
     logger = get_logger(__name__)
 
     try:
@@ -261,4 +237,23 @@ def shutdown_otel() -> None:
         logger.info("otel shutdown completed")
 
     except Exception as e:
-        logger.error(f"error during otel shutdown: {e}")
+        logger.error(f"error during OTEL shutdown: {e}")
+
+
+def _add_otlp_headers(
+    config: OtelConfiguration, exporter_kwargs: dict[str, Any]
+) -> None:
+    # Add headers if configured
+    if config.exporter_otlp_headers:
+        try:
+            headers_str = config.exporter_otlp_headers.get_secret_value()
+            if headers_str:
+                headers = {}
+                for header in headers_str.split(","):
+                    if "=" in header:
+                        key, value = header.split("=", 1)
+                        headers[key.strip()] = value.strip()
+                exporter_kwargs["headers"] = headers
+
+        except Exception as e:
+            get_logger(__name__).warning(f"failed to parse otlp headers: {e}")

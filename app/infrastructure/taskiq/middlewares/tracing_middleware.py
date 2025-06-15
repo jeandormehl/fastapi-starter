@@ -17,7 +17,6 @@ class TracingMiddleware(TaskiqMiddleware):
 
     def __init__(self) -> None:
         super().__init__()
-
         self.tracer = get_tracer("taskiq.worker", "1.0.0")
         self.meter = get_meter("taskiq.worker", "1.0.0")
 
@@ -28,12 +27,10 @@ class TracingMiddleware(TaskiqMiddleware):
                 description="Task execution duration in seconds",
                 unit="s",
             )
-
             self.task_counter = self.meter.create_counter(
                 name="task_total",
                 description="Total number of tasks processed",
             )
-
             self.task_error_counter = self.meter.create_counter(
                 name="task_error_total",
                 description="Total number of task errors",
@@ -85,7 +82,6 @@ class TracingMiddleware(TaskiqMiddleware):
         self, message: TaskiqMessage, result: TaskiqResult[Any]
     ) -> None:
         """Post-execution with metrics and span completion."""
-
         span = message.labels.get("_otel_span") if message.labels else None
         start_time = message.labels.get("_otel_start_time") if message.labels else None
         context_token = (
@@ -154,6 +150,7 @@ class TracingMiddleware(TaskiqMiddleware):
 
         except Exception as e:
             print(f"failed to complete tracing for task {message.task_name}: {e}")
+
         finally:
             # Clean up context and finish span
             try:
@@ -171,7 +168,6 @@ class TracingMiddleware(TaskiqMiddleware):
         exception: Exception,
     ) -> None:
         """Handle task errors with proper tracing."""
-
         span = message.labels.get("_otel_span") if message.labels else None
         start_time = message.labels.get("_otel_start_time") if message.labels else None
         context_token = (
@@ -202,7 +198,6 @@ class TracingMiddleware(TaskiqMiddleware):
 
                 if self.task_duration and start_time:
                     self.task_duration.record(duration_seconds, error_labels)
-
                 if self.task_error_counter:
                     self.task_error_counter.add(1, error_labels)
 
@@ -214,12 +209,13 @@ class TracingMiddleware(TaskiqMiddleware):
                     if context_token:
                         context.detach(context_token)
                     span.end()
+
                 except Exception:
                     contextlib.suppress(Exception)
 
+    # noinspection DuplicatedCode
     def _extract_carrier_from_message(self, message: TaskiqMessage) -> dict:
         """Extract OpenTelemetry carrier from task message."""
-
         carrier = {}
 
         # Extract from labels
@@ -240,7 +236,6 @@ class TracingMiddleware(TaskiqMiddleware):
         self, span: Span, message: TaskiqMessage, trace_id: str, request_id: str
     ) -> None:
         """Set comprehensive span attributes."""
-
         try:
             span.set_attribute("task.name", message.task_name)
             span.set_attribute("task.id", message.task_id)
@@ -269,7 +264,6 @@ class TracingMiddleware(TaskiqMiddleware):
 
     def _get_trace_id(self, message: TaskiqMessage) -> str:
         """Extract trace ID from task message."""
-
         if message.labels and message.labels.get("trace_id", "unknown") != "unknown":
             return message.labels.get("trace_id", "unknown")
 
@@ -280,7 +274,6 @@ class TracingMiddleware(TaskiqMiddleware):
 
     def _get_request_id(self, message: TaskiqMessage) -> str:
         """Extract request ID from task message."""
-
         if message.labels and message.labels.get("request_id", "unknown") != "unknown":
             return message.labels.get("request_id", "unknown")
 
@@ -291,7 +284,6 @@ class TracingMiddleware(TaskiqMiddleware):
 
     def _sanitize_task_data(self, data: dict) -> dict:
         """Sanitize task data for tracing."""
-
         sanitized = {}
         sensitive_keys = {"password", "secret", "token", "key", "auth", "credential"}
 

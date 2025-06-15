@@ -34,7 +34,6 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 description="HTTP request duration in seconds",
                 unit="s",
             )
-
             self.request_counter = self.meter.create_counter(
                 name="http_requests_total",
                 description="Total number of HTTP requests",
@@ -45,9 +44,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
             self.request_duration = None
             self.request_counter = None
 
+    # noinspection PyUnreachableCode
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         """Process request with comprehensive tracing context setup."""
-
         # Skip tracing for health/metrics endpoints
         if self._should_skip_tracing(request):
             return await call_next(request)
@@ -85,7 +84,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
                     # Record successful request
                     self._record_success_metrics(request, response, start_time)
-                    self._finalize_successful_span(span, request, response, start_time)
+                    self._finalize_successful_span(span, response, start_time)
 
                     # Add tracing headers to response
                     self._add_trace_headers(response, trace_id, request_id, span)
@@ -95,19 +94,17 @@ class TracingMiddleware(BaseHTTPMiddleware):
             except Exception as exc:
                 # Record error metrics and span
                 self._record_error_metrics(request, exc, start_time)
-                self._finalize_error_span(span, request, exc, start_time)
+                self._finalize_error_span(span, exc, start_time)
+
                 raise
+            finally:
+                span.end()
 
     def _extract_trace_id(self, request: Request) -> str:
         """Extract trace_id from headers or generate new one."""
 
         # Check multiple possible header variations
-        header_keys = [
-            "x-trace-id",
-            "trace-id",
-            "x-correlation-id",
-            "correlation-id",
-        ]
+        header_keys = ["x-trace-id", "trace-id", "x-correlation-id", "correlation-id"]
 
         for header_key in header_keys:
             value = request.headers.get(header_key)
@@ -129,7 +126,6 @@ class TracingMiddleware(BaseHTTPMiddleware):
     def _normalize_path(self, path: str) -> str:
         """Normalize path for better span naming."""
 
-        # Replace UUIDs and IDs with placeholders
         import re
 
         # Replace UUID patterns
@@ -157,7 +153,6 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
         return request.url.path in skip_paths or request.url.path.startswith("/static/")
 
-    # noinspection PyBroadException
     def _set_span_attributes(
         self, span: Span, request: Request, trace_id: str, request_id: str
     ) -> None:
@@ -195,13 +190,8 @@ class TracingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             self.logger.debug(f"failed to set span attributes: {e}")
 
-    # noinspection PyUnusedLocal
     def _finalize_successful_span(
-        self,
-        span: Span,
-        request: Request,  # noqa: ARG002
-        response: Response,
-        start_time: float,
+        self, span: Span, response: Response, start_time: float
     ) -> None:
         """Finalize span for successful requests."""
 
@@ -225,13 +215,8 @@ class TracingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             self.logger.debug(f"failed to finalize successful span: {e}")
 
-    # noinspection PyUnusedLocal
     def _finalize_error_span(
-        self,
-        span: Span,
-        request: Request,  # noqa: ARG002
-        exception: Exception,
-        start_time: float,
+        self, span: Span, exception: Exception, start_time: float
     ) -> None:
         """Finalize span for failed requests."""
 
