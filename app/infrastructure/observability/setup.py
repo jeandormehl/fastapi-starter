@@ -115,7 +115,7 @@ def setup_metrics(
 
 
 def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
-    """Initialize OpenTelemetry with the given configuration."""
+    """Initialize OpenTelemetry with middleware integration."""
 
     config = di[Configuration].otel
     logger = get_logger(__name__)
@@ -132,13 +132,27 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
         tracer_provider = setup_tracing(config, resource)
         meter_provider = setup_metrics(config, resource)
 
-        logger.info(f"otel initialized for service: {config.service_name}")
+        # Set up context propagation for FastAPI middleware
+        from opentelemetry.propagate import set_global_textmap
+        from opentelemetry.propagators.b3 import B3MultiFormat
+        from opentelemetry.propagators.composite import CompositePropagator
+        from opentelemetry.propagators.jaeger import JaegerPropagator
+        from opentelemetry.trace.propagation.tracecontext import (
+            TraceContextTextMapPropagator,
+        )
 
+        # Configure propagators
+        set_global_textmap(
+            CompositePropagator(
+                [TraceContextTextMapPropagator(), B3MultiFormat(), JaegerPropagator()]
+            )
+        )
+
+        logger.info(f"otel initialized for service: {config.service_name}")
         return tracer_provider, meter_provider
 
     except Exception as e:
         logger.error(f"failed to initialize otel: {e}")
-
         return None, None
 
 

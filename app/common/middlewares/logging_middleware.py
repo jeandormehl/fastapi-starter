@@ -198,6 +198,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         if self.config.log_headers:
             context["headers"] = DataSanitizer.sanitize_headers(dict(request.headers))
 
+        context.update(self._extract_otel_context(request))
+
         return context
 
     def _create_response_context(
@@ -363,6 +365,28 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         excluded_methods = getattr(self.config, "excluded_methods", [])
 
         return request.method.upper() not in excluded_methods
+
+    def _extract_otel_context(self, request: Request) -> dict[str, Any]:
+        """Extract otel context from request."""
+
+        otel_context = {}
+
+        # Get span from request state
+        if hasattr(request.state, "otel_span"):
+            span = request.state.otel_span
+            if span and span.is_recording():
+                span_context = span.get_span_context()
+                if span_context.is_valid:
+                    otel_context.update(
+                        {
+                            "otel_trace_id": format(span_context.trace_id, "032x"),
+                            "otel_span_id": format(span_context.span_id, "016x"),
+                            "otel_trace_flags": format(span_context.trace_flags, "02x"),
+                            "otel_span_name": span.name,
+                        }
+                    )
+
+        return otel_context
 
     def _safe_int(self, value: str | None) -> int | None:
         """Safely convert string to int."""

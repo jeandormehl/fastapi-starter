@@ -31,7 +31,7 @@ async def lifespan(
     """Application lifespan manager."""
 
     # otel first
-    tracer_provider, meter_provider = initialize_otel(config.otel)
+    tracer_provider, meter_provider = initialize_otel()
     setup_instrumentations(_app, config.otel)
     setup_custom_metrics()
 
