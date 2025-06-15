@@ -1,5 +1,3 @@
-import contextlib
-import logging
 import os
 
 from kink import di
@@ -14,8 +12,6 @@ from opentelemetry.sdk.resources import (
     SERVICE_NAMESPACE,
     SERVICE_VERSION,
     Resource,
-    ResourceDetector,
-    get_aggregated_resources,
 )
 from opentelemetry.sdk.trace import TracerProvider, sampling
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -25,49 +21,9 @@ from app.core.config import Configuration
 from app.core.config.otel_config import OtelConfiguration
 
 
-class DefaultResourceDetector(ResourceDetector):
-    """Basic resource detector for common attributes."""
-
-    def detect(self) -> Resource:
-        """Detect basic resource attributes."""
-
-        try:
-            import platform
-            import socket
-
-            attributes = {
-                "host.name": socket.gethostname(),
-                "os.type": platform.system().lower(),
-                "process.pid": os.getpid(),
-                "process.executable.name": os.path.basename(os.path.basename(__file__)),
-            }
-
-            try:
-                with open("/proc/self/cgroup") as f:
-                    cgroup_content = f.read()
-                    if "docker" in cgroup_content:
-                        # Extract container ID from cgroup
-                        for line in cgroup_content.split("\n"):
-                            if "docker" in line and "/" in line:
-                                container_id = line.split("/")[-1][:12]
-                                if container_id:
-                                    attributes["container.id"] = container_id
-                                break
-            except (FileNotFoundError, PermissionError, Exception):
-                contextlib.suppress(FileNotFoundError, PermissionError, Exception)
-
-            return Resource.create(attributes)
-
-        except Exception as e:
-            logging.warning(f"failed to detect default resources: {e}")
-            return Resource.create({})
-
-
-# noinspection PyUnresolvedReferences
 def create_resource(config: OtelConfiguration) -> Resource:
-    """Create OpenTelemetry resource with service information and detection."""
+    """Create OpenTelemetry resource with service information."""
 
-    # Base resource attributes from configuration
     base_attributes = {
         SERVICE_NAME: config.service_name,
         SERVICE_VERSION: config.service_version,
@@ -75,83 +31,40 @@ def create_resource(config: OtelConfiguration) -> Resource:
         DEPLOYMENT_ENVIRONMENT: config.service_namespace,
     }
 
-    base_resource = Resource.create(base_attributes)
-
-    if not config.detect_resource:
-        return base_resource
-
+    # Add additional attributes safely
     try:
-        # Collect resource detectors with error handling
-        detectors = []
+        import platform
+        import socket
 
-        # Add environment detector (always safe)
+        base_attributes.update(
+            {
+                "host.name": socket.gethostname(),
+                "os.type": platform.system().lower(),
+                "process.pid": os.getpid(),
+            }
+        )
+
+        # Container detection
         try:
-            from opentelemetry.sdk.resources import OTELResourceDetector
+            with open("/proc/self/cgroup") as f:
+                cgroup_content = f.read()
+                if "docker" in cgroup_content:
+                    for line in cgroup_content.split("\n"):
+                        if "docker" in line and "/" in line:
+                            container_id = line.split("/")[-1][:12]
+                            if container_id:
+                                base_attributes["container.id"] = container_id
+                            break
 
-            detectors.append(OTELResourceDetector())
-        except ImportError:
-            contextlib.suppress(ImportError)
-
-        # Add process detector
-        try:
-            from opentelemetry.sdk.resources import ProcessResourceDetector
-
-            detectors.append(ProcessResourceDetector())
-        except ImportError:
-            contextlib.suppress(ImportError)
-
-        # Add OS detector
-        try:
-            from opentelemetry.sdk.resources import OSResourceDetector
-
-            detectors.append(OSResourceDetector())
-        except ImportError:
-            contextlib.suppress(ImportError)
-
-        # Add our default detector
-        detectors.append(DefaultResourceDetector())
-
-        # Add cloud-specific detectors if available (with timeout)
-        if hasattr(config, "enable_cloud_detection") and config.enable_cloud_detection:
-            try:
-                # AWS EC2 detector with timeout protection
-                from opentelemetry.sdk.extension.aws.resource.ec2 import (
-                    AwsEc2ResourceDetector,
-                )
-
-                detectors.append(AwsEc2ResourceDetector(timeout=2))  # 2 second timeout
-
-            except ImportError:
-                contextlib.suppress(ImportError)
-
-            except Exception as e:
-                get_logger(__name__).debug(f"aws ec2 detector failed: {e}")
-
-            try:
-                # GCP detector
-                from opentelemetry.sdk.extension.gcp.resource import GcpResourceDetector
-
-                detectors.append(GcpResourceDetector(timeout=2))
-
-            except ImportError:
-                contextlib.suppress(ImportError)
-
-            except Exception as e:
-                get_logger(__name__).debug(f"gcp detector failed: {e}")
-
-        if detectors:
-            # Use get_aggregated_resources with proper detectors and timeout
-            return get_aggregated_resources(
-                detectors,
-                base_resource,
-                timeout=5,  # 5 second total timeout for all detectors
-            )
-
-        return base_resource
+        except (FileNotFoundError, PermissionError):
+            pass
 
     except Exception as e:
-        get_logger(__name__).warning(f"resource detection failed: {e}")
-        return base_resource
+        get_logger(__name__).debug(
+            f"failed to detect additional resource attributes: {e}"
+        )
+
+    return Resource.create(base_attributes)
 
 
 # noinspection DuplicatedCode
@@ -164,11 +77,11 @@ def setup_tracing(
         return None
 
     try:
-        # Create sampler based on sample rate
-        if config.traces_sample_rate == 1.0:
+        # Create sampler
+        if config.traces_sample_rate >= 1.0:
             sampler = sampling.ALWAYS_ON
 
-        elif config.traces_sample_rate == 0.0:
+        elif config.traces_sample_rate <= 0.0:
             sampler = sampling.ALWAYS_OFF
 
         else:
@@ -177,15 +90,14 @@ def setup_tracing(
         # Create tracer provider
         tracer_provider = TracerProvider(resource=resource, sampler=sampler)
 
-        # Create OTLP exporter with better error handling
+        # Create OTLP exporter
         exporter_kwargs = {
             "endpoint": config.exporter_otlp_endpoint,
             "timeout": config.exporter_otlp_timeout,
-            # TODO: This fails: gzip literal?
-            # "compression": getattr(config, "exporter_otlp_compression", None),
         }
 
-        if hasattr(config, "exporter_otlp_headers") and config.exporter_otlp_headers:
+        # Add headers if configured
+        if config.exporter_otlp_headers:
             try:
                 headers_str = config.exporter_otlp_headers.get_secret_value()
                 if headers_str:
@@ -201,13 +113,13 @@ def setup_tracing(
 
         otlp_exporter = OTLPSpanExporter(**exporter_kwargs)
 
-        # Add span processor with batching configuration
+        # Add span processor
         span_processor = BatchSpanProcessor(
             otlp_exporter,
-            max_queue_size=getattr(config, "max_queue_size", 2048),
-            schedule_delay_millis=getattr(config, "schedule_delay_millis", 5000),
-            max_export_batch_size=getattr(config, "max_export_batch_size", 512),
-            export_timeout_millis=getattr(config, "export_timeout_millis", 30000),
+            max_queue_size=config.max_queue_size,
+            schedule_delay_millis=config.schedule_delay_millis,
+            max_export_batch_size=config.max_export_batch_size,
+            export_timeout_millis=config.export_timeout_millis,
         )
         tracer_provider.add_span_processor(span_processor)
 
@@ -219,7 +131,6 @@ def setup_tracing(
 
     except Exception as e:
         get_logger(__name__).error(f"failed to setup tracing: {e}")
-
         return None
 
 
@@ -239,7 +150,8 @@ def setup_metrics(
             "timeout": config.exporter_otlp_timeout,
         }
 
-        if hasattr(config, "exporter_otlp_headers") and config.exporter_otlp_headers:
+        # Add headers if configured
+        if config.exporter_otlp_headers:
             try:
                 headers_str = config.exporter_otlp_headers.get_secret_value()
                 if headers_str:
@@ -249,7 +161,6 @@ def setup_metrics(
                             key, value = header.split("=", 1)
                             headers[key.strip()] = value.strip()
                     exporter_kwargs["headers"] = headers
-
             except Exception as e:
                 get_logger(__name__).warning(
                     f"failed to parse otlp headers for metrics: {e}"
@@ -260,8 +171,7 @@ def setup_metrics(
         # Create metric reader
         metric_reader = PeriodicExportingMetricReader(
             exporter=otlp_exporter,
-            export_interval_millis=getattr(config, "metrics_export_interval", 60)
-            * 1000,
+            export_interval_millis=config.metrics_export_interval * 1000,
         )
 
         # Create meter provider
@@ -276,8 +186,7 @@ def setup_metrics(
         return meter_provider
 
     except Exception as e:
-        get_logger(__name__).error(f"Failed to setup metrics: {e}")
-
+        get_logger(__name__).error(f"failed to setup metrics: {e}")
         return None
 
 
@@ -289,11 +198,10 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
 
     if not config.enabled:
         logger.info("otel disabled by configuration")
-
         return None, None
 
     try:
-        # Create resource with better error handling
+        # Create resource
         resource = create_resource(config)
         logger.info(f"created resource with attributes: {dict(resource.attributes)}")
 
@@ -301,7 +209,7 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
         tracer_provider = setup_tracing(config, resource)
         meter_provider = setup_metrics(config, resource)
 
-        # Set up context propagation for FastAPI middleware
+        # Configure propagators
         try:
             from opentelemetry.propagate import set_global_textmap
             from opentelemetry.propagators.b3 import B3MultiFormat
@@ -311,7 +219,6 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
                 TraceContextTextMapPropagator,
             )
 
-            # Configure propagators
             set_global_textmap(
                 CompositePropagator(
                     [
@@ -322,16 +229,14 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
                 )
             )
             logger.info("context propagation configured successfully")
-
         except Exception as e:
             logger.warning(f"failed to configure context propagation: {e}")
 
         logger.info(f"otel initialized successfully for service: {config.service_name}")
-
         return tracer_provider, meter_provider
 
     except Exception as e:
-        logger.error(f"failed to initialize otel: {e}")
+        logger.error(f"failed to initialize OpenTelemetry: {e}")
         return None, None
 
 
@@ -339,25 +244,19 @@ def shutdown_otel() -> None:
     """Shutdown OpenTelemetry providers with proper error handling."""
 
     logger = get_logger(__name__)
+
     try:
         # Shutdown tracer provider
         tracer_provider = trace.get_tracer_provider()
         if hasattr(tracer_provider, "shutdown"):
-            try:
-                tracer_provider.shutdown()
-                logger.info("tracer provider shutdown completed")
-
-            except Exception as e:
-                logger.error(f"error shutting down tracer provider: {e}")
+            tracer_provider.shutdown()
+            logger.info("tracer provider shutdown completed")
 
         # Shutdown meter provider
         meter_provider = metrics.get_meter_provider()
         if hasattr(meter_provider, "shutdown"):
-            try:
-                meter_provider.shutdown()
-                logger.info("meter provider shutdown completed")
-            except Exception as e:
-                logger.error(f"error shutting down meter provider: {e}")
+            meter_provider.shutdown()
+            logger.info("meter provider shutdown completed")
 
         logger.info("otel shutdown completed")
 

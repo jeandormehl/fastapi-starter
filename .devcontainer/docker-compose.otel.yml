@@ -3,7 +3,7 @@ services:
     image: otel/opentelemetry-collector-contrib:latest
     command: ["--config=/etc/otel-collector-config.yml"]
     volumes:
-      - ./conf/otel-collector-config.yml:/etc/otel-collector-config.yml
+      - ./conf/otel/otel-collector-config.yml:/etc/otel-collector-config.yml
     ports:
       - "1888:1888"   # pprof extension
       - "8888:8888"   # Prometheus metrics
@@ -15,21 +15,37 @@ services:
     depends_on:
       - prometheus
       - jaeger
+    networks:
+      - infra-tier
 
   jaeger:
     image: jaegertracing/all-in-one:latest
     ports:
       - "16686:16686"
       - "14250:14250"
+      - "14269:14269"  # Admin port for metrics
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      - METRICS_STORAGE_TYPE=prometheus
+      - PROMETHEUS_SERVER_URL=http://prometheus:9090
+    networks:
+      - infra-tier
 
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
-      - ./conf/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./conf/otel/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - infra-tier
 
   grafana:
     image: grafana/grafana:latest
@@ -37,10 +53,19 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-storage:/var/lib/grafana
-      - ./conf/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./conf/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./conf/otel/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./conf/otel/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - infra-tier
+    depends_on:
+      - prometheus
 
 volumes:
   grafana-storage:
+
+networks:
+  infra-tier:
+    external: true

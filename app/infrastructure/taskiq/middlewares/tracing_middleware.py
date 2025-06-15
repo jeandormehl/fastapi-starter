@@ -4,65 +4,52 @@ from typing import Any
 
 from opentelemetry import context, trace
 from opentelemetry.propagate import extract
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import Span, Status, StatusCode
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.infrastructure.observability.metrics import get_meter
 from app.infrastructure.observability.tracing import get_tracer
 
 
+# noinspection PyBroadException
 class TracingMiddleware(TaskiqMiddleware):
-    """
-    Taskiq middleware for task tracing with full OpenTelemetry integration.
-    Provides proper context propagation between FastAPI and Taskiq workers.
-    """
+    """TaskIQ middleware for task tracing with full OpenTelemetry integration."""
 
-    # noinspection PyBroadException
     def __init__(self) -> None:
         super().__init__()
 
-        self.tracer = get_tracer("taskiq.worker")
-        self.meter = get_meter("taskiq.worker")
+        self.tracer = get_tracer("taskiq.worker", "1.0.0")
+        self.meter = get_meter("taskiq.worker", "1.0.0")
 
         # Create metrics with error handling
         try:
             self.task_duration = self.meter.create_histogram(
-                name="task_duration_ms",
-                description="Task execution duration in milliseconds",
-                unit="ms",
+                name="task_duration_seconds",
+                description="Task execution duration in seconds",
+                unit="s",
             )
 
             self.task_counter = self.meter.create_counter(
-                name="task_total", description="Total number of tasks processed"
+                name="task_total",
+                description="Total number of tasks processed",
             )
 
             self.task_error_counter = self.meter.create_counter(
-                name="task_error_total", description="Total number of task errors"
-            )
-
-            self.task_retry_counter = self.meter.create_counter(
-                name="task_retry_total", description="Total number of task retries"
+                name="task_error_total",
+                description="Total number of task errors",
             )
 
         except Exception:
-            # Gracefully handle metric creation failures
             self.task_duration = None
             self.task_counter = None
             self.task_error_counter = None
-            self.task_retry_counter = None
 
     async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:
         """Pre-execution with OpenTelemetry context setup."""
 
         try:
-            # Extract trace context from task message labels
-            carrier = {}
-            if message.labels:
-                for key, value in message.labels.items():
-                    if key.startswith("otel-"):
-                        carrier[key[5:]] = value  # Remove 'otel-' prefix
-
-            # Extract OpenTelemetry context
+            # Extract trace context from task message
+            carrier = self._extract_carrier_from_message(message)
             otel_context = extract(carrier) if carrier else context.get_current()
 
             # Get trace IDs
@@ -76,31 +63,9 @@ class TracingMiddleware(TaskiqMiddleware):
                 )
 
                 # Set span attributes
-                span.set_attribute("task.name", message.task_name)
-                span.set_attribute("task.id", message.task_id)
-                span.set_attribute(
-                    "task.queue",
-                    message.labels.get("queue", "default")
-                    if message.labels
-                    else "default",
-                )
-                span.set_attribute(
-                    "task.retry_count",
-                    message.labels.get("retry_count", 0) if message.labels else 0,
-                )
-                span.set_attribute("custom.trace_id", trace_id)
-                span.set_attribute("custom.request_id", request_id)
+                self._set_span_attributes(span, message, trace_id, request_id)
 
-                # Add task arguments (sanitized)
-                if message.args:
-                    span.set_attribute("task.args_count", len(message.args))
-
-                if message.kwargs:
-                    sanitized_kwargs = self._sanitize_task_data(message.kwargs)
-                    for key, value in sanitized_kwargs.items():
-                        span.set_attribute(f"task.kwarg.{key}", str(value)[:100])
-
-                # Store span and context in message for post-processing
+                # Store span and timing in message labels
                 if not message.labels:
                     message.labels = {}
 
@@ -112,12 +77,10 @@ class TracingMiddleware(TaskiqMiddleware):
                 message.labels["_otel_context_token"] = token
 
         except Exception as e:
-            # Log error but don't fail the task
             print(f"failed to setup tracing for task {message.task_name}: {e}")
 
         return message
 
-    # noinspection PyBroadException
     async def post_execute(  # noqa: PLR0912
         self, message: TaskiqMessage, result: TaskiqResult[Any]
     ) -> None:
@@ -129,12 +92,12 @@ class TracingMiddleware(TaskiqMiddleware):
             message.labels.get("_otel_context_token") if message.labels else None
         )
 
-        if not span or not start_time:
+        if not span or start_time is None:
             return
 
         try:
             # Calculate duration
-            duration_ms = (time.time() - start_time) * 1000
+            duration_seconds = time.time() - start_time
 
             # Create labels for metrics
             labels = {
@@ -149,19 +112,18 @@ class TracingMiddleware(TaskiqMiddleware):
 
             # Record metrics
             if self.task_duration:
-                self.task_duration.record(duration_ms, labels)
+                self.task_duration.record(duration_seconds, labels)
 
             if self.task_counter:
                 self.task_counter.add(1, labels)
 
             # Set span attributes
-            span.set_attribute("task.duration_ms", round(duration_ms, 2))
+            span.set_attribute("task.duration_seconds", round(duration_seconds, 3))
             span.set_attribute(
                 "task.status", "success" if result.is_success else "error"
             )
 
-            if result.is_success:
-                # Handle successful task
+            if not result.is_err:
                 span.set_status(Status(StatusCode.OK))
 
                 # Add result metadata if available
@@ -190,15 +152,8 @@ class TracingMiddleware(TaskiqMiddleware):
                 else:
                     span.set_status(Status(StatusCode.ERROR, "Task failed"))
 
-            # Record retry if applicable
-            retry_count = message.labels.get("retry_count", 0) if message.labels else 0
-            if retry_count > 0 and self.task_retry_counter:
-                retry_labels = {**labels, "retry_count": retry_count}
-                self.task_retry_counter.add(1, retry_labels)
-
         except Exception as e:
             print(f"failed to complete tracing for task {message.task_name}: {e}")
-
         finally:
             # Clean up context and finish span
             try:
@@ -209,7 +164,6 @@ class TracingMiddleware(TaskiqMiddleware):
             except Exception:
                 contextlib.suppress(Exception)
 
-    # noinspection PyBroadException
     async def on_error(
         self,
         message: TaskiqMessage,
@@ -227,12 +181,12 @@ class TracingMiddleware(TaskiqMiddleware):
         if span:
             try:
                 # Calculate duration
-                duration_ms = (time.time() - start_time) * 1000 if start_time else 0
+                duration_seconds = (time.time() - start_time) if start_time else 0
 
                 # Record exception
                 span.record_exception(exception)
                 span.set_status(Status(StatusCode.ERROR, str(exception)))
-                span.set_attribute("task.duration_ms", round(duration_ms, 2))
+                span.set_attribute("task.duration_seconds", round(duration_seconds, 3))
                 span.set_attribute("task.error.type", type(exception).__name__)
                 span.set_attribute("task.status", "error")
 
@@ -246,8 +200,9 @@ class TracingMiddleware(TaskiqMiddleware):
                     "error_type": type(exception).__name__,
                 }
 
-                if start_time and self.task_duration:
-                    self.task_duration.record(duration_ms, error_labels)
+                if self.task_duration and start_time:
+                    self.task_duration.record(duration_seconds, error_labels)
+
                 if self.task_error_counter:
                     self.task_error_counter.add(1, error_labels)
 
@@ -255,37 +210,88 @@ class TracingMiddleware(TaskiqMiddleware):
                 contextlib.suppress(Exception)
 
             finally:
-                # Clean up context and finish span
                 try:
                     if context_token:
                         context.detach(context_token)
                     span.end()
-
                 except Exception:
                     contextlib.suppress(Exception)
 
+    def _extract_carrier_from_message(self, message: TaskiqMessage) -> dict:
+        """Extract OpenTelemetry carrier from task message."""
+
+        carrier = {}
+
+        # Extract from labels
+        if message.labels:
+            for key, value in message.labels.items():
+                if key.startswith("otel-"):
+                    carrier[key[5:]] = value  # Remove 'otel-' prefix
+
+        # Extract from kwargs as fallback
+        if not carrier and message.kwargs:
+            for key, value in message.kwargs.items():
+                if key.startswith("otel-"):
+                    carrier[key[5:]] = value
+
+        return carrier
+
+    def _set_span_attributes(
+        self, span: Span, message: TaskiqMessage, trace_id: str, request_id: str
+    ) -> None:
+        """Set comprehensive span attributes."""
+
+        try:
+            span.set_attribute("task.name", message.task_name)
+            span.set_attribute("task.id", message.task_id)
+            span.set_attribute(
+                "task.queue",
+                message.labels.get("queue", "default") if message.labels else "default",
+            )
+            span.set_attribute(
+                "task.retry_count",
+                message.labels.get("retry_count", 0) if message.labels else 0,
+            )
+            span.set_attribute("custom.trace_id", trace_id)
+            span.set_attribute("custom.request_id", request_id)
+
+            # Add task arguments (sanitized)
+            if message.args:
+                span.set_attribute("task.args_count", len(message.args))
+
+            if message.kwargs:
+                sanitized_kwargs = self._sanitize_task_data(message.kwargs)
+                for key, value in list(sanitized_kwargs.items())[:10]:  # Limit to 10
+                    span.set_attribute(f"task.kwarg.{key}", str(value)[:100])
+
+        except Exception:
+            contextlib.suppress(Exception)
+
     def _get_trace_id(self, message: TaskiqMessage) -> str:
         """Extract trace ID from task message."""
-        if message.labels and message.labels.get("trace_id") != "unknown":
+
+        if message.labels and message.labels.get("trace_id", "unknown") != "unknown":
             return message.labels.get("trace_id", "unknown")
 
-        if message.kwargs and message.kwargs.get("trace_id") != "unknown":
+        if message.kwargs and message.kwargs.get("trace_id", "unknown") != "unknown":
             return message.kwargs.get("trace_id", "unknown")
 
         return "unknown"
 
     def _get_request_id(self, message: TaskiqMessage) -> str:
         """Extract request ID from task message."""
-        if message.labels and message.labels.get("request_id") != "unknown":
+
+        if message.labels and message.labels.get("request_id", "unknown") != "unknown":
             return message.labels.get("request_id", "unknown")
 
-        if message.kwargs and message.kwargs.get("request_id") != "unknown":
+        if message.kwargs and message.kwargs.get("request_id", "unknown") != "unknown":
             return message.kwargs.get("request_id", "unknown")
 
         return "unknown"
 
     def _sanitize_task_data(self, data: dict) -> dict:
         """Sanitize task data for tracing."""
+
         sanitized = {}
         sensitive_keys = {"password", "secret", "token", "key", "auth", "credential"}
 
@@ -298,6 +304,6 @@ class TracingMiddleware(TaskiqMiddleware):
                     f"{len(value) if hasattr(value, '__len__') else '?'}]"
                 )
             else:
-                sanitized[key] = str(value)[:50]  # Limit length
+                sanitized[key] = str(value)[:50]
 
         return sanitized

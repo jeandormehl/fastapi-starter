@@ -1,10 +1,11 @@
+import contextlib
 import time
 import uuid
 from typing import Any
 
 from fastapi import Request
 from opentelemetry import context, trace
-from opentelemetry.propagate import extract, inject
+from opentelemetry.propagate import extract
 from opentelemetry.trace import Span, Status, StatusCode
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -17,24 +18,21 @@ from app.infrastructure.observability.tracing import get_tracer
 
 
 class TracingMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware for request tracing with full otel integration.
-    Handles correlation ID management, span creation, and context propagation.
-    """
+    """Middleware for request tracing with full OpenTelemetry integration."""
 
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
-        self.tracer = get_tracer("app.requests")
-        self.meter = get_meter("app.requests")
+        self.tracer = get_tracer("fastapi.requests", "1.0.0")
+        self.meter = get_meter("fastapi.requests", "1.0.0")
         self.logger = get_logger(__name__)
 
         # Create metrics with error handling
         try:
             self.request_duration = self.meter.create_histogram(
-                name="http_request_duration_ms",
-                description="HTTP request duration in milliseconds",
-                unit="ms",
+                name="http_request_duration_seconds",
+                description="HTTP request duration in seconds",
+                unit="s",
             )
 
             self.request_counter = self.meter.create_counter(
@@ -55,7 +53,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Extract or generate trace context
-        trace_id = self._get_trace_id(request)
+        trace_id = self._extract_trace_id(request)
         request_id = str(uuid.uuid4())
 
         # Store trace information in request state
@@ -66,27 +64,23 @@ class TracingMiddleware(BaseHTTPMiddleware):
         carrier = dict(request.headers)
         otel_context = extract(carrier)
 
-        # Start timing
         start_time = time.time()
 
         # Create span with extracted context
         with context.attach(otel_context):
-            span = self.tracer.start_span(
-                f"{request.method} {request.url.path}", kind=trace.SpanKind.SERVER
-            )
+            span_name = f"{request.method} {self._normalize_path(request.url.path)}"
+            span = self.tracer.start_span(span_name, kind=trace.SpanKind.SERVER)
 
             # Set span attributes
             self._set_span_attributes(span, request, trace_id, request_id)
 
-            # Store span in request state for downstream middleware
+            # Store span in request state
             request.state.otel_span = span
             request.state.otel_context = context.get_current()
 
             try:
                 # Make span current and process request
-                token = context.attach(trace.set_span_in_context(span))
-
-                try:
+                with trace.use_span(span):
                     response = await call_next(request)
 
                     # Record successful request
@@ -94,12 +88,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
                     self._finalize_successful_span(span, request, response, start_time)
 
                     # Add tracing headers to response
-                    self._add_trace_headers(response, trace_id, request_id)
+                    self._add_trace_headers(response, trace_id, request_id, span)
 
                     return response
-
-                finally:
-                    context.detach(token)
 
             except Exception as exc:
                 # Record error metrics and span
@@ -107,10 +98,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 self._finalize_error_span(span, request, exc, start_time)
                 raise
 
-            finally:
-                span.end()
-
-    def _get_trace_id(self, request: Request) -> str:
+    def _extract_trace_id(self, request: Request) -> str:
         """Extract trace_id from headers or generate new one."""
 
         # Check multiple possible header variations
@@ -119,24 +107,41 @@ class TracingMiddleware(BaseHTTPMiddleware):
             "trace-id",
             "x-correlation-id",
             "correlation-id",
-            "traceparent",
         ]
 
         for header_key in header_keys:
             value = request.headers.get(header_key)
             if value:
-                try:
-                    # For traceparent, extract trace ID part
-                    if header_key == "traceparent":
-                        parts = value.split("-")
-                        if len(parts) >= 2:
-                            return parts[1]
-                    return str(value)
+                return str(value)
 
-                except (ValueError, IndexError):
-                    continue
+        # Extract from traceparent header
+        traceparent = request.headers.get("traceparent")
+        if traceparent:
+            try:
+                parts = traceparent.split("-")
+                if len(parts) >= 2:
+                    return parts[1]
+            except (ValueError, IndexError):
+                pass
 
         return str(uuid.uuid4())
+
+    def _normalize_path(self, path: str) -> str:
+        """Normalize path for better span naming."""
+
+        # Replace UUIDs and IDs with placeholders
+        import re
+
+        # Replace UUID patterns
+        path = re.sub(
+            r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            "/{uuid}",
+            path,
+            flags=re.IGNORECASE,
+        )
+
+        # Replace numeric IDs
+        return re.sub(r"/\d+", "/{id}", path)
 
     def _should_skip_tracing(self, request: Request) -> bool:
         """Determine if request should be traced."""
@@ -152,13 +157,14 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
         return request.url.path in skip_paths or request.url.path.startswith("/static/")
 
+    # noinspection PyBroadException
     def _set_span_attributes(
         self, span: Span, request: Request, trace_id: str, request_id: str
     ) -> None:
         """Set comprehensive span attributes."""
 
         try:
-            # HTTP attributes
+            # HTTP semantic conventions
             span.set_attribute("http.method", request.method)
             span.set_attribute("http.url", str(request.url))
             span.set_attribute("http.scheme", request.url.scheme)
@@ -170,25 +176,32 @@ class TracingMiddleware(BaseHTTPMiddleware):
             span.set_attribute("custom.trace_id", trace_id)
             span.set_attribute("custom.request_id", request_id)
 
-            # Client IP with error handling
+            # Client information
             try:
                 client_ip = ClientIPExtractor.extract_client_ip(request)
-                span.set_attribute("custom.client_ip", client_ip)
+                span.set_attribute("http.client_ip", client_ip)
 
-            except Exception as e:
-                self.logger.debug(f"failed to extract client ip: {e}")
+            except Exception:
+                contextlib.suppress(Exception)
 
             # Query parameters (sanitized)
             if request.query_params:
-                for key, value in request.query_params.items():
+                for key, value in list(request.query_params.items())[
+                    :10
+                ]:  # Limit to 10
                     if not self._is_sensitive_param(key):
                         span.set_attribute(f"http.query.{key}", str(value)[:100])
 
         except Exception as e:
             self.logger.debug(f"failed to set span attributes: {e}")
 
+    # noinspection PyUnusedLocal
     def _finalize_successful_span(
-        self, span: Span, _request: Request, response: Response, start_time: float
+        self,
+        span: Span,
+        request: Request,  # noqa: ARG002
+        response: Response,
+        start_time: float,
     ) -> None:
         """Finalize span for successful requests."""
 
@@ -199,7 +212,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
             span.set_attribute(
                 "http.response.size", int(response.headers.get("content-length", 0))
             )
-            span.set_attribute("custom.duration_ms", round(duration_ms, 2))
+            span.set_attribute("duration_ms", round(duration_ms, 2))
 
             # Set span status
             if response.status_code >= 400:
@@ -212,15 +225,20 @@ class TracingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             self.logger.debug(f"failed to finalize successful span: {e}")
 
+    # noinspection PyUnusedLocal
     def _finalize_error_span(
-        self, span: Span, _request: Request, exception: Exception, start_time: float
+        self,
+        span: Span,
+        request: Request,  # noqa: ARG002
+        exception: Exception,
+        start_time: float,
     ) -> None:
         """Finalize span for failed requests."""
 
         try:
             duration_ms = (time.time() - start_time) * 1000
 
-            span.set_attribute("custom.duration_ms", round(duration_ms, 2))
+            span.set_attribute("duration_ms", round(duration_ms, 2))
             span.set_attribute("error", True)
             span.set_attribute("error.type", type(exception).__name__)
             span.set_attribute("error.message", str(exception)[:500])
@@ -241,16 +259,16 @@ class TracingMiddleware(BaseHTTPMiddleware):
             return
 
         try:
-            duration_ms = (time.time() - start_time) * 1000
+            duration_seconds = time.time() - start_time
 
             labels = {
                 "method": request.method,
-                "endpoint": request.url.path,
+                "endpoint": self._normalize_path(request.url.path),
                 "status_code": str(response.status_code),
                 "status_class": f"{response.status_code // 100}xx",
             }
 
-            self.request_duration.record(duration_ms, labels)
+            self.request_duration.record(duration_seconds, labels)
             self.request_counter.add(1, labels)
 
         except Exception as e:
@@ -265,48 +283,44 @@ class TracingMiddleware(BaseHTTPMiddleware):
             return
 
         try:
-            duration_ms = (time.time() - start_time) * 1000
+            duration_seconds = time.time() - start_time
 
             labels = {
                 "method": request.method,
-                "endpoint": request.url.path,
+                "endpoint": self._normalize_path(request.url.path),
                 "status_code": "500",
                 "status_class": "5xx",
                 "error_type": type(exception).__name__,
             }
 
-            self.request_duration.record(duration_ms, labels)
+            self.request_duration.record(duration_seconds, labels)
             self.request_counter.add(1, labels)
 
         except Exception as e:
             self.logger.debug(f"failed to record error metrics: {e}")
 
     def _add_trace_headers(
-        self, response: Response, trace_id: str, request_id: str
+        self, response: Response, trace_id: str, request_id: str, span: Span
     ) -> None:
-        """Add tracing and security headers to response."""
+        """Add tracing headers to response."""
 
         try:
-            # Tracing headers
+            # Standard tracing headers
             response.headers["X-Trace-ID"] = trace_id
             response.headers["X-Request-ID"] = request_id
 
-            # Inject OpenTelemetry context for downstream services
-            carrier = {}
-            inject(carrier)
-            for key, value in carrier.items():
-                response.headers[f"X-OTel-{key}"] = value
-
-            # Security headers
-            response.headers["X-Content-Type-Options"] = "nosniff"
-            response.headers["X-Frame-Options"] = "DENY"
-            response.headers["X-XSS-Protection"] = "1; mode=block"
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains"
-            )
+            # OpenTelemetry span context
+            span_context = span.get_span_context()
+            if span_context.is_valid:
+                response.headers["X-OTel-Trace-ID"] = format(
+                    span_context.trace_id, "032x"
+                )
+                response.headers["X-OTel-Span-ID"] = format(
+                    span_context.span_id, "016x"
+                )
 
         except Exception as e:
-            self.logger.debug(f"failed to add trace headers: {e}")
+            self.logger.debug(f"Failed to add trace headers: {e}")
 
     def _is_sensitive_param(self, key: str) -> bool:
         """Check if query parameter contains sensitive data."""
