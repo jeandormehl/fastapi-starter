@@ -63,3 +63,9 @@ class OtelConfiguration(BaseSettings):
     detect_resource: bool = Field(
         True, description="Enable automatic resource detection"
     )
+
+    enable_cloud_detection: bool = False
+    max_queue_size: int = 2048
+    schedule_delay_millis: int = 5000
+    max_export_batch_size: int = 512
+    export_timeout_millis: int = 30000

@@ -29,17 +29,23 @@ class TracingMiddleware(BaseHTTPMiddleware):
         self.meter = get_meter("app.requests")
         self.logger = get_logger(__name__)
 
-        # Create metrics
-        self.request_duration = self.meter.create_histogram(
-            name="http_request_duration_ms",
-            description="HTTP request duration in milliseconds",
-            unit="ms",
-        )
+        # Create metrics with error handling
+        try:
+            self.request_duration = self.meter.create_histogram(
+                name="http_request_duration_ms",
+                description="HTTP request duration in milliseconds",
+                unit="ms",
+            )
 
-        self.request_counter = self.meter.create_counter(
-            name="http_requests_total",
-            description="Total number of HTTP requests",
-        )
+            self.request_counter = self.meter.create_counter(
+                name="http_requests_total",
+                description="Total number of HTTP requests",
+            )
+
+        except Exception as e:
+            self.logger.warning(f"failed to create metrics: {e}")
+            self.request_duration = None
+            self.request_counter = None
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         """Process request with comprehensive tracing context setup."""
@@ -74,7 +80,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
             # Store span in request state for downstream middleware
             request.state.otel_span = span
-            request.state.otel_context = otel_context
+            request.state.otel_context = context.get_current()
 
             try:
                 # Make span current and process request
@@ -151,122 +157,156 @@ class TracingMiddleware(BaseHTTPMiddleware):
     ) -> None:
         """Set comprehensive span attributes."""
 
-        # HTTP attributes
-        span.set_attribute("http.method", request.method)
-        span.set_attribute("http.url", str(request.url))
-        span.set_attribute("http.scheme", request.url.scheme)
-        span.set_attribute("http.host", request.url.hostname or "unknown")
-        span.set_attribute("http.target", request.url.path)
-        span.set_attribute("http.user_agent", request.headers.get("user-agent", ""))
+        try:
+            # HTTP attributes
+            span.set_attribute("http.method", request.method)
+            span.set_attribute("http.url", str(request.url))
+            span.set_attribute("http.scheme", request.url.scheme)
+            span.set_attribute("http.host", request.url.hostname or "unknown")
+            span.set_attribute("http.target", request.url.path)
+            span.set_attribute("http.user_agent", request.headers.get("user-agent", ""))
 
-        # Custom attributes
-        span.set_attribute("custom.trace_id", trace_id)
-        span.set_attribute("custom.request_id", request_id)
-        span.set_attribute("custom.client_ip", self._get_client_ip(request))
+            # Custom attributes
+            span.set_attribute("custom.trace_id", trace_id)
+            span.set_attribute("custom.request_id", request_id)
 
-        # Query parameters (sanitized)
-        if request.query_params:
-            for key, value in request.query_params.items():
-                if not self._is_sensitive_param(key):
-                    span.set_attribute(f"http.query.{key}", str(value)[:100])
+            # Client IP with error handling
+            try:
+                client_ip = ClientIPExtractor.extract_client_ip(request)
+                span.set_attribute("custom.client_ip", client_ip)
+
+            except Exception as e:
+                self.logger.debug(f"failed to extract client ip: {e}")
+
+            # Query parameters (sanitized)
+            if request.query_params:
+                for key, value in request.query_params.items():
+                    if not self._is_sensitive_param(key):
+                        span.set_attribute(f"http.query.{key}", str(value)[:100])
+
+        except Exception as e:
+            self.logger.debug(f"failed to set span attributes: {e}")
 
     def _finalize_successful_span(
         self, span: Span, _request: Request, response: Response, start_time: float
     ) -> None:
         """Finalize span for successful requests."""
 
-        duration_ms = (time.time() - start_time) * 1000
+        try:
+            duration_ms = (time.time() - start_time) * 1000
 
-        span.set_attribute("http.status_code", response.status_code)
-        span.set_attribute(
-            "http.response.size", int(response.headers.get("content-length", 0))
-        )
-        span.set_attribute("custom.duration_ms", round(duration_ms, 2))
+            span.set_attribute("http.status_code", response.status_code)
+            span.set_attribute(
+                "http.response.size", int(response.headers.get("content-length", 0))
+            )
+            span.set_attribute("custom.duration_ms", round(duration_ms, 2))
 
-        # Set span status
-        if response.status_code >= 400:
-            span.set_status(Status(StatusCode.ERROR, f"HTTP {response.status_code}"))
-        else:
-            span.set_status(Status(StatusCode.OK))
+            # Set span status
+            if response.status_code >= 400:
+                span.set_status(
+                    Status(StatusCode.ERROR, f"http_{response.status_code}")
+                )
+            else:
+                span.set_status(Status(StatusCode.OK))
+
+        except Exception as e:
+            self.logger.debug(f"failed to finalize successful span: {e}")
 
     def _finalize_error_span(
         self, span: Span, _request: Request, exception: Exception, start_time: float
     ) -> None:
         """Finalize span for failed requests."""
 
-        duration_ms = (time.time() - start_time) * 1000
+        try:
+            duration_ms = (time.time() - start_time) * 1000
 
-        span.set_attribute("custom.duration_ms", round(duration_ms, 2))
-        span.set_attribute("error", True)
-        span.set_attribute("error.type", type(exception).__name__)
-        span.set_attribute("error.message", str(exception)[:500])
+            span.set_attribute("custom.duration_ms", round(duration_ms, 2))
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", type(exception).__name__)
+            span.set_attribute("error.message", str(exception)[:500])
 
-        # Record exception
-        span.record_exception(exception)
-        span.set_status(Status(StatusCode.ERROR, str(exception)))
+            # Record exception
+            span.record_exception(exception)
+            span.set_status(Status(StatusCode.ERROR, str(exception)))
+
+        except Exception as e:
+            self.logger.debug(f"failed to finalize error span: {e}")
 
     def _record_success_metrics(
         self, request: Request, response: Response, start_time: float
     ) -> None:
         """Record metrics for successful requests."""
 
-        duration_ms = (time.time() - start_time) * 1000
+        if not self.request_duration or not self.request_counter:
+            return
 
-        labels = {
-            "method": request.method,
-            "endpoint": request.url.path,
-            "status_code": str(response.status_code),
-            "status_class": f"{response.status_code // 100}xx",
-        }
+        try:
+            duration_ms = (time.time() - start_time) * 1000
 
-        self.request_duration.record(duration_ms, labels)
-        self.request_counter.add(1, labels)
+            labels = {
+                "method": request.method,
+                "endpoint": request.url.path,
+                "status_code": str(response.status_code),
+                "status_class": f"{response.status_code // 100}xx",
+            }
+
+            self.request_duration.record(duration_ms, labels)
+            self.request_counter.add(1, labels)
+
+        except Exception as e:
+            self.logger.debug(f"failed to record success metrics: {e}")
 
     def _record_error_metrics(
         self, request: Request, exception: Exception, start_time: float
     ) -> None:
         """Record metrics for failed requests."""
 
-        duration_ms = (time.time() - start_time) * 1000
+        if not self.request_duration or not self.request_counter:
+            return
 
-        labels = {
-            "method": request.method,
-            "endpoint": request.url.path,
-            "status_code": "500",
-            "status_class": "5xx",
-            "error_type": type(exception).__name__,
-        }
+        try:
+            duration_ms = (time.time() - start_time) * 1000
 
-        self.request_duration.record(duration_ms, labels)
-        self.request_counter.add(1, labels)
+            labels = {
+                "method": request.method,
+                "endpoint": request.url.path,
+                "status_code": "500",
+                "status_class": "5xx",
+                "error_type": type(exception).__name__,
+            }
+
+            self.request_duration.record(duration_ms, labels)
+            self.request_counter.add(1, labels)
+
+        except Exception as e:
+            self.logger.debug(f"failed to record error metrics: {e}")
 
     def _add_trace_headers(
         self, response: Response, trace_id: str, request_id: str
     ) -> None:
         """Add tracing and security headers to response."""
 
-        # Tracing headers
-        response.headers["X-Trace-ID"] = trace_id
-        response.headers["X-Request-ID"] = request_id
+        try:
+            # Tracing headers
+            response.headers["X-Trace-ID"] = trace_id
+            response.headers["X-Request-ID"] = request_id
 
-        # Inject OpenTelemetry context for downstream services
-        carrier = {}
-        inject(carrier)
-        for key, value in carrier.items():
-            response.headers[f"X-OTel-{key}"] = value
+            # Inject OpenTelemetry context for downstream services
+            carrier = {}
+            inject(carrier)
+            for key, value in carrier.items():
+                response.headers[f"X-OTel-{key}"] = value
 
-        # Security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
-        )
+            # Security headers
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
 
-    def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP address."""
-
-        ClientIPExtractor.extract_client_ip(request)
+        except Exception as e:
+            self.logger.debug(f"failed to add trace headers: {e}")
 
     def _is_sensitive_param(self, key: str) -> bool:
         """Check if query parameter contains sensitive data."""

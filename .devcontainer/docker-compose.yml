@@ -66,4 +66,4 @@ networks:
 
 include:
   - docker-compose.deps.yml
-#  - docker-compose.observability.yml
+  - docker-compose.otel.yml
