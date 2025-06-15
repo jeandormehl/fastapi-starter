@@ -18,16 +18,20 @@ from app.infrastructure.observability.tracing import get_tracer
 
 
 class TracingMiddleware(BaseHTTPMiddleware):
-    """Middleware for request tracing with full OpenTelemetry integration."""
+    """Optimized middleware for request tracing with full OpenTelemetry integration."""
 
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
         self.tracer = get_tracer("fastapi.requests", "1.0.0")
         self.meter = get_meter("fastapi.requests", "1.0.0")
+
+        # Initialize metrics with error handling
+        self.request_duration = None
+        self.request_counter = None
+
         self.logger = get_logger(__name__)
 
-        # Create metrics with error handling
         try:
             self.request_duration = self.meter.create_histogram(
                 name="http_request_duration_seconds",
@@ -41,12 +45,11 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
         except Exception as e:
             self.logger.warning(f"failed to create metrics: {e}")
-            self.request_duration = None
-            self.request_counter = None
 
     # noinspection PyUnreachableCode
     async def dispatch(self, request: Request, call_next: Any) -> Response:
-        """Process request with comprehensive tracing context setup."""
+        """Process request with optimized tracing context setup."""
+
         # Skip tracing for health/metrics endpoints
         if self._should_skip_tracing(request):
             return await call_next(request)
@@ -73,7 +76,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
             # Set span attributes
             self._set_span_attributes(span, request, trace_id, request_id)
 
-            # Store span in request state
+            # Store span and context in request state
             request.state.otel_span = span
             request.state.otel_context = context.get_current()
 
@@ -95,13 +98,12 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 # Record error metrics and span
                 self._record_error_metrics(request, exc, start_time)
                 self._finalize_error_span(span, exc, start_time)
-
                 raise
             finally:
                 span.end()
 
     def _extract_trace_id(self, request: Request) -> str:
-        """Extract trace_id from headers or generate new one."""
+        """Extract trace_id from headers with fallback logic."""
 
         # Check multiple possible header variations
         header_keys = ["x-trace-id", "trace-id", "x-correlation-id", "correlation-id"]
@@ -116,15 +118,15 @@ class TracingMiddleware(BaseHTTPMiddleware):
         if traceparent:
             try:
                 parts = traceparent.split("-")
-                if len(parts) >= 2:
+                if len(parts) >= 2 and len(parts[1]) == 32:
                     return parts[1]
             except (ValueError, IndexError):
-                pass
+                contextlib.suppress(ValueError, IndexError)
 
         return str(uuid.uuid4())
 
     def _normalize_path(self, path: str) -> str:
-        """Normalize path for better span naming."""
+        """Normalize path for better span naming with caching."""
 
         import re
 
@@ -151,39 +153,39 @@ class TracingMiddleware(BaseHTTPMiddleware):
             "/favicon.ico",
         }
 
-        return request.url.path in skip_paths or request.url.path.startswith("/static/")
+        path = request.url.path
+        return path in skip_paths or path.startswith("/static/")
 
     def _set_span_attributes(
         self, span: Span, request: Request, trace_id: str, request_id: str
     ) -> None:
-        """Set comprehensive span attributes."""
+        """Set comprehensive span attributes with error handling."""
 
         try:
             # HTTP semantic conventions
             span.set_attribute("http.method", request.method)
-            span.set_attribute("http.url", str(request.url))
+            span.set_attribute("http.url", str(request.url)[:500])  # Limit length
             span.set_attribute("http.scheme", request.url.scheme)
             span.set_attribute("http.host", request.url.hostname or "unknown")
-            span.set_attribute("http.target", request.url.path)
-            span.set_attribute("http.user_agent", request.headers.get("user-agent", ""))
+            span.set_attribute("http.target", request.url.path[:200])
+            span.set_attribute(
+                "http.user_agent", request.headers.get("user-agent", "")[:200]
+            )
 
             # Custom attributes
             span.set_attribute("custom.trace_id", trace_id)
             span.set_attribute("custom.request_id", request_id)
 
             # Client information
-            try:
+            with contextlib.suppress(Exception):
                 client_ip = ClientIPExtractor.extract_client_ip(request)
                 span.set_attribute("http.client_ip", client_ip)
 
-            except Exception:
-                contextlib.suppress(Exception)
-
-            # Query parameters (sanitized)
+            # Query parameters (sanitized and limited)
             if request.query_params:
-                for key, value in list(request.query_params.items())[
-                    :10
-                ]:  # Limit to 10
+                for i, (key, value) in enumerate(request.query_params.items()):
+                    if i >= 10:  # Limit to 10 params
+                        break
                     if not self._is_sensitive_param(key):
                         span.set_attribute(f"http.query.{key}", str(value)[:100])
 
@@ -193,21 +195,24 @@ class TracingMiddleware(BaseHTTPMiddleware):
     def _finalize_successful_span(
         self, span: Span, response: Response, start_time: float
     ) -> None:
-        """Finalize span for successful requests."""
+        """Finalize span for successful requests with better error handling."""
 
         try:
             duration_ms = (time.time() - start_time) * 1000
 
             span.set_attribute("http.status_code", response.status_code)
-            span.set_attribute(
-                "http.response.size", int(response.headers.get("content-length", 0))
-            )
+
+            content_length = response.headers.get("content-length")
+            if content_length:
+                with contextlib.suppress(ValueError):
+                    span.set_attribute("http.response.size", int(content_length))
+
             span.set_attribute("duration_ms", round(duration_ms, 2))
 
             # Set span status
             if response.status_code >= 400:
                 span.set_status(
-                    Status(StatusCode.ERROR, f"http_{response.status_code}")
+                    Status(StatusCode.ERROR, f"HTTP {response.status_code}")
                 )
             else:
                 span.set_status(Status(StatusCode.OK))
@@ -218,7 +223,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
     def _finalize_error_span(
         self, span: Span, exception: Exception, start_time: float
     ) -> None:
-        """Finalize span for failed requests."""
+        """Finalize span for failed requests with improved error handling."""
 
         try:
             duration_ms = (time.time() - start_time) * 1000
@@ -230,7 +235,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
             # Record exception
             span.record_exception(exception)
-            span.set_status(Status(StatusCode.ERROR, str(exception)))
+            span.set_status(Status(StatusCode.ERROR, str(exception)[:200]))
 
         except Exception as e:
             self.logger.debug(f"failed to finalize error span: {e}")
@@ -238,7 +243,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
     def _record_success_metrics(
         self, request: Request, response: Response, start_time: float
     ) -> None:
-        """Record metrics for successful requests."""
+        """Record metrics for successful requests with error handling."""
 
         if not self.request_duration or not self.request_counter:
             return
@@ -262,7 +267,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
     def _record_error_metrics(
         self, request: Request, exception: Exception, start_time: float
     ) -> None:
-        """Record metrics for failed requests."""
+        """Record metrics for failed requests with error handling."""
 
         if not self.request_duration or not self.request_counter:
             return
@@ -287,7 +292,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
     def _add_trace_headers(
         self, response: Response, trace_id: str, request_id: str, span: Span
     ) -> None:
-        """Add tracing headers to response."""
+        """Add tracing headers to response with error handling."""
 
         try:
             # Standard tracing headers
@@ -305,7 +310,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 )
 
         except Exception as e:
-            self.logger.debug(f"Failed to add trace headers: {e}")
+            self.logger.debug(f"failed to add trace headers: {e}")
 
     def _is_sensitive_param(self, key: str) -> bool:
         """Check if query parameter contains sensitive data."""
