@@ -8,8 +8,18 @@ receivers:
 
 processors:
   batch:
+    timeout: 1s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
   memory_limiter:
     limit_mib: 512
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        from_attribute: service.namespace
+        action: upsert
 
 exporters:
   jaeger:
@@ -19,20 +29,38 @@ exporters:
 
   prometheus:
     endpoint: "0.0.0.0:8889"
+    const_labels:
+      environment: "${ENVIRONMENT:-local}"
 
   logging:
-    loglevel: debug
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1888
+  zpages:
+    endpoint: 0.0.0.0:55679
 
 service:
+  extensions: [health_check, pprof, zpages]
+
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource, batch]
       exporters: [jaeger, logging]
 
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource, batch]
       exporters: [prometheus, logging]
 
-  extensions: [health_check, pprof, zpages]
+  telemetry:
+    logs:
+      level: "info"
+    metrics:
+      address: 0.0.0.0:8888

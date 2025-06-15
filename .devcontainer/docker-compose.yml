@@ -9,35 +9,40 @@ services:
     depends_on:
       - "redis"
       - "postgres"
+      - "otel-collector"
     environment:
       ENVIRONMENT: "${ENVIRONMENT}"
       TZ: "${TZ}"
     networks:
       - "app-tier"
       - "infra-tier"
+      - "otel-tier"
     restart: "unless-stopped"
     volumes:
       - ".:/app"
     command: "/start.sh app"
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health/liveness"]
-#      interval: "30s"
-#      timeout: "10s"
-#      retries: "3"
-#      start_period: "60s"
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
+      interval: "30s"
+      timeout: "10s"
+      retries: "3"
+      start_period: "60s"
+#
 #  worker:
 #    build:
 #      context: ".."
 #      dockerfile: ".devcontainer/Dockerfile"
 #      target: "build"
 #    depends_on:
-#      - "infra-tier"
+#      - "redis"
+#      - "postgres"
+#      - "otel-collector"
 #    environment:
 #      ENVIRONMENT: "${ENVIRONMENT}"
 #      TZ: "${TZ}"
 #    networks:
-#      - "deps"
+#      - "infra-tier"
+#      - "otel-tier"
 #    restart: "unless-stopped"
 #    command: "/start.sh worker"
 #
@@ -47,12 +52,15 @@ services:
 #      dockerfile: ".devcontainer/Dockerfile"
 #      target: "build"
 #    depends_on:
-#      - "infra-tier"
+#      - "redis"
+#      - "postgres"
+#      - "otel-collector"
 #    environment:
 #      ENVIRONMENT: "${ENVIRONMENT}"
 #      TZ: "${TZ}"
 #    networks:
-#      - "deps"
+#      - "infra-tier"
+#      - "otel-tier"
 #    restart: "unless-stopped"
 #    command: "/start.sh scheduler"
 
@@ -62,6 +70,9 @@ networks:
     driver: bridge
   infra-tier:
     name: "infra-tier"
+    driver: bridge
+  otel-tier:
+    name: "otel-tier"
     driver: bridge
 
 include:

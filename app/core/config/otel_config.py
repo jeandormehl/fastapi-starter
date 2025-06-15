@@ -18,7 +18,8 @@ class OtelConfiguration(BaseSettings):
     enabled: bool = Field(True, description="Enable OpenTelemetry instrumentation")
     service_name: str = Field("fastapi-starter", description="Service name for traces")
     service_version: str = Field("0.0.0", description="Service version")
-    service_namespace: str = Field("local", description="Service namespace")
+    service_namespace: str = Field("app-metrics", description="Service namespace")
+    service_env: str = Field("dev", description="Deployment environment")
 
     # OTLP Exporter Settings
     exporter_otlp_endpoint: str = Field(

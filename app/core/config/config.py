@@ -58,7 +58,12 @@ class Configuration(BaseSettings):
 
     @property
     def otel(self) -> OtelConfiguration:
-        return OtelConfiguration(self.app_name, self.app_version, self.app_environment)
+        return OtelConfiguration(
+            service_name=self.app_name,
+            service_version=self.app_version,
+            service_namespace="metrics",
+            service_env=self.app_environment,
+        )
 
     @property
     def app_debug(self) -> bool:

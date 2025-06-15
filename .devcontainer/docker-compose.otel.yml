@@ -1,3 +1,5 @@
+name: "fastapi-starter-otel"
+
 services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
@@ -13,23 +15,39 @@ services:
       - "4318:4318"   # OTLP HTTP receiver
       - "55679:55679" # zpages extension
     depends_on:
-      - prometheus
-      - jaeger
+      prometheus:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
     networks:
-      - infra-tier
+      - otel-tier
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13133/"]
+      interval: "30s"
+      timeout: "10s"
+      retries: "3"
+      start_period: "30s"
 
   jaeger:
     image: jaegertracing/all-in-one:latest
     ports:
-      - "16686:16686"
-      - "14250:14250"
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC
       - "14269:14269"  # Admin port for metrics
     environment:
       - COLLECTOR_OTLP_ENABLED=true
       - METRICS_STORAGE_TYPE=prometheus
       - PROMETHEUS_SERVER_URL=http://prometheus:9090
     networks:
-      - infra-tier
+      - otel-tier
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: "30s"
+      timeout: "10s"
+      retries: "3"
+      start_period: "30s"
 
   prometheus:
     image: prom/prometheus:latest
@@ -37,6 +55,7 @@ services:
       - "9090:9090"
     volumes:
       - ./conf/otel/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -44,8 +63,16 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
     networks:
-      - infra-tier
+      - otel-tier
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: "30s"
+      timeout: "10s"
+      retries: "3"
+      start_period: "30s"
 
   grafana:
     image: grafana/grafana:latest
@@ -54,18 +81,31 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
     volumes:
       - grafana-storage:/var/lib/grafana
       - ./conf/otel/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./conf/otel/grafana/datasources:/etc/grafana/provisioning/datasources
     networks:
-      - infra-tier
+      - otel-tier
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: "30s"
+      timeout: "10s"
+      retries: "3"
+      start_period: "30s"
 
 volumes:
   grafana-storage:
+  prometheus-data:
 
 networks:
-  infra-tier:
-    external: true
+  otel-tier:
+    name: "otel-tier"
+    driver: bridge
