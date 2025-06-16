@@ -20,18 +20,14 @@ services:
     networks:
       - "otel-tier"
     restart: "unless-stopped"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13133/"]
-      interval: "30s"
-      timeout: "10s"
-      retries: "3"
-      start_period: "30s"
 
   jaeger:
     image: "jaegertracing/jaeger:latest"
     environment:
       ENVIRONMENT: "${ENVIRONMENT}"
       TZ: "${TZ}"
+      JAEGER_LISTEN_HOST: "0.0.0.0"
+      COLLECTOR_OTLP_ENABLED: "true"
     command:
       - "--config=/etc/jaeger/config.yaml"
       - "--set=receivers.otlp.protocols.grpc.endpoint=0.0.0.0:4317"
@@ -78,7 +74,6 @@ services:
     image: "grafana/loki:latest"
     volumes:
       - "./conf/otel/loki-config.yml:/etc/loki/local-config.yaml"
-      - "loki-data:/tmp/loki"
     command: "-config.file=/etc/loki/local-config.yaml"
     networks:
       - "otel-tier"
@@ -92,6 +87,11 @@ services:
 
   promtail:
     image: "grafana/promtail:latest"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      HOSTNAME: "${HOSTNAME:-promtail}"
+    labels:
+      logging: "promtail"
     volumes:
       - "./conf/otel/promtail-config.yml:/etc/promtail/config.yml"
       - "/var/log:/var/log:ro"
@@ -137,7 +137,6 @@ services:
 volumes:
   grafana-storage:
   prometheus-data:
-  loki-data:
 
 networks:
   otel-tier:

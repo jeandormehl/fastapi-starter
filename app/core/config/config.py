@@ -29,7 +29,7 @@ class Configuration(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = Field("FastAPI Starter", description="Application name")
+    app_name: str = Field("fastapi-starter", description="Application name")
     app_description: str = Field(
         "FastAPI starter for rapid development", description="Application description"
     )
@@ -62,6 +62,7 @@ class Configuration(BaseSettings):
             service_name=self.app_name,
             service_version=self.app_version,
             service_env=self.app_environment,
+            service_namespace="app-metrics",
         )
 
     @property

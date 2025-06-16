@@ -222,21 +222,30 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
         )
 
     def _sanitize_labels(self, labels: dict) -> dict:
-        """Sanitize task labels for logging."""
+        """Sanitize task labels for logging, removing non-serializable objects."""
 
         if not labels:
             return {}
 
         sanitized = {}
         for key, value in labels.items():
-            if not key.startswith("_logging_"):  # Exclude internal logging keys
-                try:
-                    import json
+            # Skip internal logging keys and non-serializable objects
+            if key.startswith("_logging_") or key.startswith("_otel_"):
+                continue
 
-                    json.dumps(value)  # Test serializability
-                    sanitized[key] = value
-                except (TypeError, ValueError):
-                    sanitized[key] = str(value)
+            # Skip span objects and other complex objects
+            if hasattr(value, "__class__") and "span" in str(type(value)).lower():
+                continue
+
+            try:
+                import json
+
+                json.dumps(value)  # Test serializability
+                sanitized[key] = value
+
+            except (TypeError, ValueError):
+                # Convert non-serializable objects to string representation
+                sanitized[key] = str(value)[:200]
 
         return DataSanitizer.sanitize_data(sanitized)
 

@@ -39,16 +39,16 @@ exporters:
     endpoint: jaeger:4317
     tls:
       insecure: true
+    headers:
+      content-type: application/x-protobuf
 
   prometheus:
     endpoint: "0.0.0.0:8889"
     const_labels:
       environment: "${ENVIRONMENT}"
 
-  # Loki logs exporter
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
-    tenant_id: "fastapi-starter"
 
   debug:
     verbosity: detailed

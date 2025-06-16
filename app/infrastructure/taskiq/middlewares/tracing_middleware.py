@@ -13,14 +13,17 @@ from app.infrastructure.observability.tracing import get_tracer
 
 
 class TracingMiddleware(TaskiqMiddleware):
-    """TaskIQ middleware for task tracing with full OpenTelemetry integration."""
+    """TaskIQ middleware for task tracing with proper serialization handling."""
 
     def __init__(self) -> None:
         super().__init__()
         self.tracer = get_tracer("taskiq.worker", "1.0.0")
         self.meter = get_meter("taskiq.worker", "1.0.0")
-
         self.logger = get_logger(__name__)
+
+        # Store spans separately to avoid serialization issues
+        self._active_spans: dict[str, Span] = {}
+        self._span_contexts: dict[str, Any] = {}
 
         # Initialize metrics with error handling
         self.task_duration = None
@@ -46,7 +49,7 @@ class TracingMiddleware(TaskiqMiddleware):
             self.logger.warning(f"failed to create task metrics: {e}")
 
     async def pre_execute(self, message: TaskiqMessage) -> TaskiqMessage:
-        """Pre-execution with optimized OpenTelemetry context setup."""
+        """Pre-execution with safe span handling."""
 
         try:
             # Extract trace context from task message
@@ -67,16 +70,22 @@ class TracingMiddleware(TaskiqMiddleware):
                 # Set span attributes
                 self._set_span_attributes(span, message, trace_id, request_id)
 
-                # Store span and timing in message labels
-                if not message.labels:
-                    message.labels = {}
-
-                message.labels["_otel_span"] = span
-                message.labels["_otel_start_time"] = time.time()
+                # Store span and timing separately (NOT in message labels)
+                task_key = f"{message.task_id}_{message.task_name}"
+                self._active_spans[task_key] = span
 
                 # Make span current for task execution
                 span_context_token = context.attach(trace.set_span_in_context(span))
-                message.labels["_otel_context_token"] = span_context_token
+                self._span_contexts[task_key] = span_context_token
+
+                # Store ONLY serializable data in message labels
+                if not message.labels:
+                    message.labels = {}
+
+                message.labels["_otel_start_time"] = time.time()
+                message.labels["_otel_task_key"] = task_key
+                message.labels["_otel_trace_id"] = trace_id
+                message.labels["_otel_request_id"] = request_id
 
             finally:
                 context.detach(otel_context_token)
@@ -91,15 +100,18 @@ class TracingMiddleware(TaskiqMiddleware):
     async def post_execute(
         self, message: TaskiqMessage, result: TaskiqResult[Any]
     ) -> None:
-        """Post-execution with optimized metrics and span completion."""
+        """Post-execution with proper span cleanup."""
 
-        span = message.labels.get("_otel_span") if message.labels else None
+        task_key = message.labels.get("_otel_task_key") if message.labels else None
         start_time = message.labels.get("_otel_start_time") if message.labels else None
-        context_token = (
-            message.labels.get("_otel_context_token") if message.labels else None
-        )
 
-        if not span or start_time is None:
+        if not task_key or start_time is None:
+            return
+
+        span = self._active_spans.get(task_key)
+        span_context_token = self._span_contexts.get(task_key)
+
+        if not span:
             return
 
         try:
@@ -141,22 +153,21 @@ class TracingMiddleware(TaskiqMiddleware):
                                 "task.result.size", len(result.return_value)
                             )
 
-            # Handle task error
             elif result.exception:
                 span.record_exception(result.exception)
                 span.set_status(Status(StatusCode.ERROR, str(result.exception)[:200]))
                 span.set_attribute("task.error.type", type(result.exception).__name__)
 
             else:
-                span.set_status(Status(StatusCode.ERROR, "Task failed"))
+                span.set_status(Status(StatusCode.ERROR, "task failed"))
 
         except Exception as e:
             self.logger.warning(
                 f"failed to complete tracing for task {message.task_name}: {e}"
             )
         finally:
-            # Clean up context and finish span
-            self._cleanup_span_context(context_token, span)
+            # Clean up span and context
+            self._cleanup_span_context(task_key, span_context_token, span)
 
     async def on_error(
         self,
@@ -164,12 +175,16 @@ class TracingMiddleware(TaskiqMiddleware):
         result: TaskiqResult[Any],  # noqa: ARG002
         exception: Exception,
     ) -> None:
-        """Handle task errors with optimized tracing."""
-        span = message.labels.get("_otel_span") if message.labels else None
+        """Handle task errors with proper cleanup."""
+
+        task_key = message.labels.get("_otel_task_key") if message.labels else None
         start_time = message.labels.get("_otel_start_time") if message.labels else None
-        context_token = (
-            message.labels.get("_otel_context_token") if message.labels else None
-        )
+
+        if not task_key:
+            return
+
+        span = self._active_spans.get(task_key)
+        span_context_token = self._span_contexts.get(task_key)
 
         if span:
             try:
@@ -200,12 +215,31 @@ class TracingMiddleware(TaskiqMiddleware):
                     f"failed to handle error tracing for task {message.task_name}: {e}"
                 )
             finally:
-                self._cleanup_span_context(context_token, span)
+                self._cleanup_span_context(task_key, span_context_token, span)
+
+    def _cleanup_span_context(
+        self, task_key: str, context_token: Any, span: Span
+    ) -> None:
+        """Clean up span and context with proper error handling."""
+
+        try:
+            if context_token:
+                context.detach(context_token)
+            if span:
+                span.end()
+
+            # Remove from internal storage
+            self._active_spans.pop(task_key, None)
+            self._span_contexts.pop(task_key, None)
+
+        except Exception as e:
+            self.logger.debug(f"failed to cleanup span context: {e}")
 
     def _record_metrics(
         self, duration_seconds: float, labels: dict, is_error: bool = False
     ) -> None:
         """Record metrics with error handling."""
+
         try:
             if self.task_duration:
                 self.task_duration.record(duration_seconds, labels)
@@ -215,17 +249,6 @@ class TracingMiddleware(TaskiqMiddleware):
                 self.task_error_counter.add(1, labels)
         except Exception as e:
             self.logger.debug(f"failed to record task metrics: {e}")
-
-    # noinspection PyBroadException
-    def _cleanup_span_context(self, context_token: Any, span: Span) -> None:
-        """Clean up context and span with error handling."""
-        try:
-            if context_token:
-                context.detach(context_token)
-            if span:
-                span.end()
-        except Exception:
-            contextlib.suppress(Exception)
 
     def _set_span_attributes(
         self, span: Span, message: TaskiqMessage, trace_id: str, request_id: str

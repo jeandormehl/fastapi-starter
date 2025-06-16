@@ -6,7 +6,6 @@ receivers:
       http:
         endpoint: "${env:JAEGER_LISTEN_HOST:-0.0.0.0}:4318"
 
-  # Legacy Jaeger receivers for backward compatibility
   jaeger:
     protocols:
       grpc:
@@ -18,7 +17,6 @@ receivers:
       thrift_binary:
         endpoint: "${env:JAEGER_LISTEN_HOST:-0.0.0.0}:6832"
 
-  # Zipkin receiver for compatibility
   zipkin:
     endpoint: "${env:JAEGER_LISTEN_HOST:-0.0.0.0}:9411"
 
@@ -29,12 +27,21 @@ processors:
     send_batch_max_size: 2048
 
 exporters:
+  jaeger_storage_exporter:
+    trace_storage: memory_storage
+
   debug:
     verbosity: detailed
     sampling_initial: 5
     sampling_thereafter: 200
 
 extensions:
+  jaeger_storage:
+    backends:
+      memory_storage:
+        memory:
+          max_traces: 100000
+
   healthcheckv2:
     endpoint: "${env:JAEGER_LISTEN_HOST:-0.0.0.0}:13133"
 
@@ -44,20 +51,25 @@ extensions:
   zpages:
     endpoint: "${env:JAEGER_LISTEN_HOST:-0.0.0.0}:55679"
 
-  # Jaeger Query extension for UI
   jaeger_query:
+    storage:
+      traces: memory_storage
     ui:
       config_file: ""
     base_path: "/"
+    grpc:
+      endpoint: "${env:JAEGER_LISTEN_HOST:-0.0.0.0}:16685"
+    http:
+      endpoint: "${env:JAEGER_LISTEN_HOST:-0.0.0.0}:16686"
 
 service:
-  extensions: [healthcheckv2, pprof, zpages, jaeger_query]
+  extensions: [jaeger_storage, healthcheckv2, pprof, zpages, jaeger_query]
 
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
       processors: [batch]
-      exporters: [debug]
+      exporters: [jaeger_storage_exporter, debug]
 
   telemetry:
     logs:
