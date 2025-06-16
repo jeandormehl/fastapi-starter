@@ -22,11 +22,14 @@ class PydiatorBuilder:
         **kwargs: str | int | bool | dict | BaseModel | None,
     ) -> TRequest | TResponse:
         # Extract trace information with fallbacks
+        trace_id = None
+        request_id = None
+
         if isinstance(req, Request):
             trace_id = getattr(req.state, "trace_id", None)
             request_id = getattr(req.state, "request_id", None)
 
-        else:
+        if not trace_id or not request_id:
             trace_id = kwargs.get("trace_id")
             request_id = kwargs.get("request_id")
 

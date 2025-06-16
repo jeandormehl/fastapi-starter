@@ -20,10 +20,13 @@ def register_request_middlewares(config: Configuration, app: FastAPI) -> None:
     """Register all request middlewares in correct order.
 
     Middleware execution order is reverse of registration order:
-    1. TracingMiddleware (outermost - establishes context)
-    2. IdempotencyMiddleware (middle)
-    2. LoggingMiddleware (middle - logs with context)
-    3. ErrorMiddleware (innermost - catches errors)
+    1. GZipMiddleware (outermost)
+    2. CORSMiddleware
+    3. TrustedHostMiddleware
+    4. TracingMiddleware (establishes context)
+    5. LoggingMiddleware (logs with context)
+    6. IdempotencyMiddleware (if enabled)
+    7. ErrorMiddleware (innermost - catches errors)
     """
 
     # Register in reverse order of desired execution

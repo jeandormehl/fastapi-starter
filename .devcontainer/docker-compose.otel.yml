@@ -6,14 +6,6 @@ services:
     command: ["--config=/etc/otel-collector-config.yml"]
     volumes:
       - ./conf/otel/otel-collector-config.yml:/etc/otel-collector-config.yml
-    ports:
-      - "1888:1888"   # pprof extension
-      - "8888:8888"   # Prometheus metrics
-      - "8889:8889"   # Prometheus exporter metrics
-      - "13133:13133" # health_check extension
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
-      - "55679:55679" # zpages extension
     depends_on:
       prometheus:
         condition: service_healthy
@@ -30,20 +22,19 @@ services:
       start_period: "30s"
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
-    ports:
-      - "16686:16686"  # Jaeger UI
-      - "14250:14250"  # gRPC
-      - "14269:14269"  # Admin port for metrics
+    image: jaegertracing/jaeger:latest
     environment:
-      - COLLECTOR_OTLP_ENABLED=true
       - METRICS_STORAGE_TYPE=prometheus
       - PROMETHEUS_SERVER_URL=http://prometheus:9090
+    command:
+      - "--config=/etc/jaeger/config.yaml"
+    volumes:
+      - ./conf/otel/jaeger-config.yaml:/etc/jaeger/config.yaml
     networks:
       - otel-tier
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686/"]
       interval: "30s"
       timeout: "10s"
       retries: "3"
@@ -76,8 +67,6 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false

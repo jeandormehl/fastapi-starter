@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter
@@ -15,7 +16,14 @@ router = APIRouter(prefix="/health", tags=["health"])
 @router.get("")
 async def health_check(request: Request) -> HealthCheckOutput:
     return (
-        await pydiator.send(PydiatorBuilder.build(HealthCheckRequest, request))
+        await pydiator.send(
+            PydiatorBuilder.build(
+                HealthCheckRequest,
+                request,
+                trace_id=str(uuid.uuid4()),
+                request_id=str(uuid.uuid4()),
+            )
+        )
     ).data
 
 

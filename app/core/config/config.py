@@ -61,7 +61,6 @@ class Configuration(BaseSettings):
         return OtelConfiguration(
             service_name=self.app_name,
             service_version=self.app_version,
-            service_namespace="metrics",
             service_env=self.app_environment,
         )
 

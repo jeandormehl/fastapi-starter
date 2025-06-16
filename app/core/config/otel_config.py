@@ -23,7 +23,7 @@ class OtelConfiguration(BaseSettings):
 
     # OTLP Exporter Settings
     exporter_otlp_endpoint: str = Field(
-        "http://localhost:4317", description="OTLP gRPC endpoint"
+        "http://otel-collector:4317", description="OTLP gRPC endpoint"
     )
     exporter_otlp_headers: SecretStr | None = Field(
         None, description="OTLP headers (e.g., authorization)"

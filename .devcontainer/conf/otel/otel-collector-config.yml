@@ -12,9 +12,6 @@ processors:
     send_batch_size: 1024
     send_batch_max_size: 2048
 
-  memory_limiter:
-    limit_mib: 512
-
   resource:
     attributes:
       - key: deployment.environment
@@ -22,18 +19,20 @@ processors:
         action: upsert
 
 exporters:
-  jaeger:
-    endpoint: jaeger:14250
+  # Use OTLP exporter instead of deprecated Jaeger exporter
+  otlp/jaeger:
+    endpoint: jaeger:4317
     tls:
       insecure: true
 
   prometheus:
     endpoint: "0.0.0.0:8889"
     const_labels:
-      environment: "${ENVIRONMENT:-local}"
+      environment: "${ENVIRONMENT}"
 
-  logging:
-    loglevel: info
+  # Use debug exporter instead of deprecated logging exporter
+  debug:
+    verbosity: detailed
     sampling_initial: 5
     sampling_thereafter: 200
 
@@ -51,16 +50,21 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
-      exporters: [jaeger, logging]
+      processors: [resource, batch]
+      exporters: [otlp/jaeger, debug]
 
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
-      exporters: [prometheus, logging]
+      processors: [resource, batch]
+      exporters: [prometheus, debug]
 
   telemetry:
     logs:
       level: "info"
     metrics:
-      address: 0.0.0.0:8888
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
