@@ -20,9 +20,12 @@ def inject_context_into_task(
         # Create carrier for context injection
         carrier = {}
 
-        # Inject context into carrier
-        with context.attach(current_context):
+        context_token = context.attach(current_context)
+        try:
             inject(carrier)
+
+        finally:
+            context.detach(context_token)
 
         # Add context to task kwargs with otel- prefix
         for key, value in carrier.items():

@@ -56,7 +56,9 @@ class TracingMiddleware(TaskiqMiddleware):
             trace_id = self._get_trace_id(message)
             request_id = self._get_request_id(message)
 
-            with context.attach(otel_context):
+            otel_context_token = context.attach(otel_context)
+
+            try:
                 # Start span for task execution
                 span = self.tracer.start_span(
                     f"task.{message.task_name}", kind=trace.SpanKind.CONSUMER
@@ -73,8 +75,11 @@ class TracingMiddleware(TaskiqMiddleware):
                 message.labels["_otel_start_time"] = time.time()
 
                 # Make span current for task execution
-                token = context.attach(trace.set_span_in_context(span))
-                message.labels["_otel_context_token"] = token
+                span_context_token = context.attach(trace.set_span_in_context(span))
+                message.labels["_otel_context_token"] = span_context_token
+
+            finally:
+                context.detach(otel_context_token)
 
         except Exception as e:
             self.logger.warning(

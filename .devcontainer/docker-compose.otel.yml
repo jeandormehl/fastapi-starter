@@ -2,18 +2,24 @@ name: "fastapi-starter-otel"
 
 services:
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: "otel/opentelemetry-collector-contrib:latest"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
     command: ["--config=/etc/otel-collector-config.yml"]
     volumes:
-      - ./conf/otel/otel-collector-config.yml:/etc/otel-collector-config.yml
+      - "./conf/otel/otel-collector-config.yml:/etc/otel-collector-config.yml"
+      - "./conf/otel/logs:/var/log"
     depends_on:
       prometheus:
-        condition: service_healthy
+        condition: "service_healthy"
       jaeger:
-        condition: service_started
+        condition: "service_started"
+      loki:
+        condition: "service_started"
     networks:
-      - otel-tier
-    restart: unless-stopped
+      - "otel-tier"
+    restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13133/"]
       interval: "30s"
@@ -22,17 +28,19 @@ services:
       start_period: "30s"
 
   jaeger:
-    image: jaegertracing/jaeger:latest
+    image: "jaegertracing/jaeger:latest"
     environment:
-      - METRICS_STORAGE_TYPE=prometheus
-      - PROMETHEUS_SERVER_URL=http://prometheus:9090
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
     command:
       - "--config=/etc/jaeger/config.yaml"
+      - "--set=receivers.otlp.protocols.grpc.endpoint=0.0.0.0:4317"
+      - "--set=receivers.otlp.protocols.http.endpoint=0.0.0.0:4318"
     volumes:
-      - ./conf/otel/jaeger-config.yaml:/etc/jaeger/config.yaml
+      - "./conf/otel/jaeger-config.yaml:/etc/jaeger/config.yaml"
     networks:
-      - otel-tier
-    restart: unless-stopped
+      - "otel-tier"
+    restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686/"]
       interval: "30s"
@@ -41,12 +49,13 @@ services:
       start_period: "30s"
 
   prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
+    image: "prom/prometheus:latest"
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
     volumes:
-      - ./conf/otel/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
+      - "./conf/otel/prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "prometheus-data:/prometheus"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -56,8 +65,8 @@ services:
       - '--web.enable-lifecycle'
       - '--web.enable-admin-api'
     networks:
-      - otel-tier
-    restart: unless-stopped
+      - "otel-tier"
+    restart: "unless-stopped"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: "30s"
@@ -65,24 +74,59 @@ services:
       retries: "3"
       start_period: "30s"
 
-  grafana:
-    image: grafana/grafana:latest
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+  loki:
+    image: "grafana/loki:latest"
     volumes:
-      - grafana-storage:/var/lib/grafana
-      - ./conf/otel/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./conf/otel/grafana/datasources:/etc/grafana/provisioning/datasources
+      - "./conf/otel/loki-config.yml:/etc/loki/local-config.yaml"
+      - "loki-data:/tmp/loki"
+    command: "-config.file=/etc/loki/local-config.yaml"
     networks:
-      - otel-tier
+      - "otel-tier"
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: "30s"
+      timeout: "10s"
+      retries: "3"
+      start_period: "30s"
+
+  promtail:
+    image: "grafana/promtail:latest"
+    volumes:
+      - "./conf/otel/promtail-config.yml:/etc/promtail/config.yml"
+      - "/var/log:/var/log:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    command: "-config.file=/etc/promtail/config.yml"
+    depends_on:
+      - "loki"
+    networks:
+      - "otel-tier"
+    restart: "unless-stopped"
+
+  grafana:
+    image: "grafana/grafana:latest"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: "grafana-piechart-panel"
+      ENVIRONMENT: "${ENVIRONMENT}"
+      TZ: "${TZ}"
+    volumes:
+      - "grafana-storage:/var/lib/grafana"
+      - "./conf/otel/grafana/dashboards:/etc/grafana/provisioning/dashboards"
+      - "./conf/otel/grafana/datasources:/etc/grafana/provisioning/datasources"
+    networks:
+      - "app-tier"
+      - "otel-tier"
     depends_on:
       prometheus:
-        condition: service_healthy
+        condition: "service_healthy"
       jaeger:
-        condition: service_healthy
-    restart: unless-stopped
+        condition: "service_healthy"
+      loki:
+        condition: "service_healthy"
+    restart: "unless-stopped"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
       interval: "30s"
@@ -93,8 +137,9 @@ services:
 volumes:
   grafana-storage:
   prometheus-data:
+  loki-data:
 
 networks:
   otel-tier:
     name: "otel-tier"
-    driver: bridge
+    driver: "bridge"

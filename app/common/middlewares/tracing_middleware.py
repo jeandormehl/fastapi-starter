@@ -68,8 +68,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
         start_time = time.time()
 
-        # Create span with extracted context
-        with context.attach(otel_context):
+        context_token = context.attach(otel_context)
+
+        try:
             span_name = f"{request.method} {self._normalize_path(request.url.path)}"
             span = self.tracer.start_span(span_name, kind=trace.SpanKind.SERVER)
 
@@ -95,12 +96,14 @@ class TracingMiddleware(BaseHTTPMiddleware):
                     return response
 
             except Exception as exc:
-                # Record error metrics and span
                 self._record_error_metrics(request, exc, start_time)
                 self._finalize_error_span(span, exc, start_time)
                 raise
             finally:
                 span.end()
+
+        finally:
+            context.detach(context_token)
 
     def _extract_trace_id(self, request: Request) -> str:
         """Extract trace_id from headers with fallback logic."""

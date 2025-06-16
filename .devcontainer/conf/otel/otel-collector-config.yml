@@ -6,6 +6,19 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+  filelog:
+    include: ["/var/log/*.log"]
+    start_at: end
+    operators:
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.timestamp
+          layout_type: strptime
+          layout: '%Y-%m-%d %H:%M:%S'
+      - type: move
+        from: attributes.message
+        to: body
+
 processors:
   batch:
     timeout: 1s
@@ -17,9 +30,11 @@ processors:
       - key: deployment.environment
         from_attribute: service.namespace
         action: upsert
+      - key: service.name
+        value: fastapi-starter
+        action: upsert
 
 exporters:
-  # Use OTLP exporter instead of deprecated Jaeger exporter
   otlp/jaeger:
     endpoint: jaeger:4317
     tls:
@@ -30,7 +45,11 @@ exporters:
     const_labels:
       environment: "${ENVIRONMENT}"
 
-  # Use debug exporter instead of deprecated logging exporter
+  # Loki logs exporter
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    tenant_id: "fastapi-starter"
+
   debug:
     verbosity: detailed
     sampling_initial: 5
@@ -57,6 +76,11 @@ service:
       receivers: [otlp]
       processors: [resource, batch]
       exporters: [prometheus, debug]
+
+    logs:
+      receivers: [otlp, filelog]
+      processors: [resource, batch]
+      exporters: [loki, debug]
 
   telemetry:
     logs:
