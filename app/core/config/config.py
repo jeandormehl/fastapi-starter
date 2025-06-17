@@ -62,7 +62,7 @@ class Configuration(BaseSettings):
             service_name=self.app_name,
             service_version=self.app_version,
             service_env=self.app_environment,
-            service_namespace=self.app_environment,
+            service_namespace=f"{self.app_name}-{self.app_environment}",
         )
 
     @property

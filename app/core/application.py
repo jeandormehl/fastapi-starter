@@ -32,15 +32,20 @@ async def lifespan(
 ) -> AsyncGenerator[None, NoReturn]:
     """Application lifespan manager."""
 
-    # otel first
     tracer_provider, meter_provider = initialize_otel()
 
-    if config.otel.enabled and config.otel.logs_enabled:
-        resource = create_resource(config.otel)
-        OtelLoggingHandler(config.otel, resource)
+    if config.otel.enabled:
+        if config.otel.logs_enabled:
+            resource = create_resource(config.otel)
+            OtelLoggingHandler(config.otel, resource)
 
-    setup_instrumentations(_app, config.otel)
-    setup_custom_metrics()
+        setup_instrumentations(_app, config.otel)
+        setup_custom_metrics()
+
+        # Wait a moment for OTEL to initialize
+        import asyncio
+
+        await asyncio.sleep(1)
 
     # Startup
     await Database.init_db()

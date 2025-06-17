@@ -5,10 +5,13 @@ datasources:
     type: prometheus
     access: proxy
     url: http://prometheus:9090
-    isDefault: false
+    isDefault: true
     editable: true
     basicAuth: false
     uid: prometheus
+    jsonData:
+      httpMethod: GET
+      timeInterval: "30s"
 
   - name: Tempo
     type: tempo
@@ -48,7 +51,7 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
-    isDefault: true
+    isDefault: false
     editable: true
     basicAuth: false
     uid: loki

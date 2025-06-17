@@ -13,6 +13,8 @@ services:
     environment:
       ENVIRONMENT: "${ENVIRONMENT}"
       TZ: "${TZ}"
+      OTEL_SERVICE_NAME: "fastapi-starter"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     networks:
       - "app-tier"
       - "infra-tier"
