@@ -1,15 +1,25 @@
 import asyncio
 import contextlib
+import contextvars
 from datetime import datetime, timedelta
 from typing import Any
 
 from kink import di
+from opentelemetry import trace
+from opentelemetry.propagate import inject
 from taskiq import AsyncBroker
 
 from app.common.constants import APP_PATH, ROOT_PATH
 from app.common.logging import get_logger
 from app.infrastructure.taskiq.schemas import TaskInfo, TaskPriority, TaskStatus
 from app.infrastructure.taskiq.utils import TaskAutodiscovery
+
+_trace_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "trace_id", default="unknown"
+)
+_request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "request_id", default="unknown"
+)
 
 
 class TaskManagerError(Exception):
@@ -87,6 +97,49 @@ class TaskManager:
         if not task_func:
             msg = f"task {task_name} not found in broker"
             raise TaskNotFoundError(msg)
+
+        try:
+            # Get current trace context
+            trace_context = self.get_current_trace_context()
+
+            # Get current OpenTelemetry span context
+            current_span = trace.get_current_span()
+            span_context = current_span.get_span_context() if current_span else None
+
+            # Inject OpenTelemetry context into task labels
+            carrier = {}
+            inject(carrier)
+
+            # Prepare labels with trace context
+            labels = kwargs.pop("labels", {})
+            labels.update(
+                {
+                    "trace_id": trace_context.get("trace_id", "unknown"),
+                    "request_id": trace_context.get("request_id", "unknown"),
+                }
+            )
+
+            # Add OpenTelemetry context to labels
+            for key, value in carrier.items():
+                labels[f"otel-{key}"] = str(value)
+
+            # Add span context if available
+            if span_context and span_context.is_valid:
+                labels.update(
+                    {
+                        "otel-trace-id": format(span_context.trace_id, "032x"),
+                        "otel-span-id": format(span_context.span_id, "016x"),
+                        "otel-trace-flags": format(span_context.trace_flags, "02x"),
+                    }
+                )
+
+            # Add labels back to kwargs
+            kwargs["labels"] = labels
+
+        except Exception as e:
+            self.logger.warning(
+                f"failed to inject otel context for task {task_name}: {e}"
+            )
 
         try:
             # Submit task using Taskiq's kiq method
@@ -316,6 +369,25 @@ class TaskManager:
             for task_info in self.task_registry.values()
             if task_info.task_name == task_name
         ]
+
+    def set_trace_context(self, trace_id: str, request_id: str) -> None:
+        """Set trace context in current context with validation."""
+        try:
+            _trace_id_var.set(str(trace_id) if trace_id else "unknown")
+            _request_id_var.set(str(request_id) if request_id else "unknown")
+        except Exception as e:
+            self.logger.warning(f"failed to set trace context: {e}")
+
+    def get_current_trace_context(self) -> dict[str, str]:
+        """Get current trace context with error handling."""
+        try:
+            return {
+                "trace_id": _trace_id_var.get(),
+                "request_id": _request_id_var.get(),
+            }
+        except Exception as e:
+            self.logger.warning(f"failed to get trace context: {e}")
+            return {"trace_id": "unknown", "request_id": "unknown"}
 
     async def health_check(self) -> dict[str, Any]:
         """Basic health check for task manager status."""

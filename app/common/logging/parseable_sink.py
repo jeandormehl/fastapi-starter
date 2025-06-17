@@ -9,8 +9,9 @@ from threading import Lock, Thread
 from typing import Any
 
 import httpx
+from kink import di
 
-from app.common.utils import ScopeNormalizer
+from app.core.config import Configuration
 from app.core.config.parseable_config import ParseableConfiguration
 
 
@@ -29,6 +30,7 @@ class ParseableSink:
     def __init__(self, config: ParseableConfiguration) -> None:
         self.config = config
 
+        self.app_version = di[Configuration].app_version
         self.base_url = config.url
         self.username = config.username
         self.password = config.password.get_secret_value()
@@ -131,7 +133,7 @@ class ParseableSink:
     ) -> dict[str, Any]:
         """Create stream-specific log entry with relevant fields."""
 
-        log_entry = self._normalize_all_scope_fields(log_entry)
+        log_entry = self._remove_all_scope_fields(log_entry)
 
         # Common fields for all streams
         base_fields = {
@@ -145,7 +147,7 @@ class ParseableSink:
             "process_id": log_entry.get("process_id"),
             "thread_id": log_entry.get("thread_id"),
             "thread_name": log_entry.get("thread_name"),
-            "app_version": log_entry.get("app_version"),
+            "app_version": self.app_version,
             "app_environment": log_entry.get("app_environment"),
         }
 
@@ -181,7 +183,7 @@ class ParseableSink:
                 "auth_method": log_entry.get("auth_method"),
                 "client_id": log_entry.get("client_id"),
                 "has_bearer_token": log_entry.get("has_bearer_token"),
-                "scopes": log_entry.get("scopes", []),
+                # REMOVED: "scopes": log_entry.get("scopes", []),
                 "request_count": log_entry.get("request_count"),
                 "skip_rate": log_entry.get("skip_rate"),
             }
@@ -220,7 +222,6 @@ class ParseableSink:
                 "quarantine_status": log_entry.get("quarantine_status"),
                 "recent_error_count": log_entry.get("recent_error_count"),
                 "error_patterns": log_entry.get("error_patterns"),
-                "task_args_scopes": log_entry.get("task_args_scopes", []),
             }
             log_fields = {**base_fields, **task_fields}
 
@@ -290,7 +291,7 @@ class ParseableSink:
                 "auth_method": log_entry.get("auth_method"),
                 "client_id": log_entry.get("client_id"),
                 "has_bearer_token": log_entry.get("has_bearer_token"),
-                "scopes": log_entry.get("scopes", []),
+                # REMOVED: "scopes": log_entry.get("scopes", []),
                 "middleware": log_entry.get("middleware"),
                 "error": log_entry.get("error"),
                 "task_result_is_error": log_entry.get("task_result_is_error"),
@@ -339,49 +340,73 @@ class ParseableSink:
 
         return log_fields
 
-    def _normalize_all_scope_fields(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _remove_all_scope_fields(self, data: dict[str, Any]) -> dict[str, Any]:  # noqa: PLR0912
         """
-        Centralized scope normalization for ALL scope-related fields.
-        This is the critical fix for the Parseable error.
+        Remove ALL scope-related fields from log data before sending to Parseable.
+        This is the critical fix to prevent scope logging.
         """
 
         # Create a copy to avoid mutating the original
-        normalized_data = data.copy()
+        cleaned_data = data.copy()
 
-        # Define all possible scope field names
+        # Define all possible scope field names to remove
         scope_fields = [
             "scopes",
             "task_args_scopes",
             "client_scopes",
             "auth_scopes",
             "user_scopes",
+            "oauth_scopes",
+            "jwt_scopes",
+            "bearer_scopes",
+            "api_scopes",
+            "permission_scopes",
+            "access_scopes",
         ]
 
-        # Normalize direct scope fields
+        # Remove direct scope fields
         for field in scope_fields:
-            if field in normalized_data:
-                normalized_data[field] = ScopeNormalizer.serialize_scopes_for_json(
-                    normalized_data[field]
-                )
+            cleaned_data.pop(field, None)
 
         # Handle nested scope fields in dictionaries
-        for key, value in normalized_data.items():
+        for key, value in cleaned_data.items():
             if isinstance(value, dict):
-                normalized_data[key] = self._normalize_all_scope_fields(value)
+                cleaned_data[key] = self._remove_all_scope_fields(value)
             elif isinstance(value, list):
                 # Handle lists that might contain dictionaries with scope fields
-                normalized_list = []
+                cleaned_list = []
                 for item in value:
                     if isinstance(item, dict):
-                        normalized_list.append(self._normalize_all_scope_fields(item))
+                        cleaned_list.append(self._remove_all_scope_fields(item))
                     else:
-                        normalized_list.append(item)
-                normalized_data[key] = normalized_list
+                        cleaned_list.append(item)
+                cleaned_data[key] = cleaned_list
 
-        return normalized_data
+        # Also clean task_args and task_kwargs specifically
+        if "task_args" in cleaned_data and isinstance(cleaned_data["task_args"], list):
+            cleaned_args = []
+            for arg in cleaned_data["task_args"]:
+                if isinstance(arg, dict):
+                    cleaned_arg = arg.copy()
+                    for scope_field in scope_fields:
+                        cleaned_arg.pop(scope_field, None)
+                    cleaned_args.append(cleaned_arg)
+                else:
+                    cleaned_args.append(arg)
+            cleaned_data["task_args"] = cleaned_args
+
+        if "task_kwargs" in cleaned_data and isinstance(
+            cleaned_data["task_kwargs"], dict
+        ):
+            cleaned_kwargs = cleaned_data["task_kwargs"].copy()
+            for scope_field in scope_fields:
+                cleaned_kwargs.pop(scope_field, None)
+            cleaned_data["task_kwargs"] = cleaned_kwargs
+
+        return cleaned_data
 
     # noinspection PyBroadException
-    def log(self, message: Any) -> None:  # noqa: PLR0912
+    def log(self, message: Any) -> None:
         """Log message to appropriate Parseable stream (called by loguru)."""
 
         record = message.record
@@ -453,11 +478,6 @@ class ParseableSink:
 
             # Remove None values to reduce field count
             stream_entry = {k: v for k, v in stream_entry.items() if v is not None}
-
-            # Final validation: Ensure all scope fields are properly formatted
-            for key, value in stream_entry.items():
-                if "scope" in key.lower() and value is not None:
-                    stream_entry[key] = ScopeNormalizer.serialize_scopes_for_json(value)
 
             # Add to appropriate buffer
             with self._locks[stream_type]:

@@ -31,6 +31,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.config = di[Configuration].request_logging
+        self.app_version = di[Configuration].app_version
         self.logger = get_logger(__name__)
         self.task_manager = di[TaskManager]
 
@@ -318,7 +319,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             data.update(
                 {
                     "logged_at": datetime.now(di["timezone"]),
-                    "app_version": getattr(self.config, "app_version", "unknown"),
+                    "app_version": self.app_version,
                 }
             )
 
