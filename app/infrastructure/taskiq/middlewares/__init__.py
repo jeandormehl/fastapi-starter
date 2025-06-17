@@ -1,11 +1,9 @@
+from .consolidated_middleware import ConsolidatedTaskMiddleware
 from .error_middleware import ErrorMiddleware
-from .logging_middleware import LoggingMiddleware
-from .task_logging_middleware import TaskLoggingMiddleware
 from .tracing_middleware import TracingMiddleware
 
 __all__ = [
+    "ConsolidatedTaskMiddleware",
     "ErrorMiddleware",
-    "LoggingMiddleware",
-    "TaskLoggingMiddleware",
     "TracingMiddleware",
 ]

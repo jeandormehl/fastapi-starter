@@ -68,7 +68,6 @@ class ParseableSink:
 
     def _signal_handler(self, _signum: Any, _frame: Any) -> None:
         """Handle shutdown signals gracefully."""
-
         self.cleanup()
 
     def _start_background_processing(self) -> None:
@@ -132,8 +131,7 @@ class ParseableSink:
     ) -> dict[str, Any]:
         """Create stream-specific log entry with relevant fields."""
 
-        # Normalize all scope fields BEFORE creating stream entries
-        log_entry = self._normalize_scope_fields(log_entry)
+        log_entry = self._normalize_all_scope_fields(log_entry)
 
         # Common fields for all streams
         base_fields = {
@@ -245,8 +243,9 @@ class ParseableSink:
                 "stack_trace": log_entry.get("stack_trace"),
                 "severity": log_entry.get("severity"),
                 # API Error Context
-                "request_method": log_entry.get("method")
-                or log_entry.get("request_method"),
+                "request_method": (
+                    log_entry.get("method") or log_entry.get("request_method")
+                ),
                 "request_url": log_entry.get("url") or log_entry.get("request_url"),
                 "request_path": log_entry.get("path") or log_entry.get("request_path"),
                 "request_headers": log_entry.get("request_headers"),
@@ -340,8 +339,49 @@ class ParseableSink:
 
         return log_fields
 
+    def _normalize_all_scope_fields(self, data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Centralized scope normalization for ALL scope-related fields.
+        This is the critical fix for the Parseable error.
+        """
+
+        # Create a copy to avoid mutating the original
+        normalized_data = data.copy()
+
+        # Define all possible scope field names
+        scope_fields = [
+            "scopes",
+            "task_args_scopes",
+            "client_scopes",
+            "auth_scopes",
+            "user_scopes",
+        ]
+
+        # Normalize direct scope fields
+        for field in scope_fields:
+            if field in normalized_data:
+                normalized_data[field] = ScopeNormalizer.serialize_scopes_for_json(
+                    normalized_data[field]
+                )
+
+        # Handle nested scope fields in dictionaries
+        for key, value in normalized_data.items():
+            if isinstance(value, dict):
+                normalized_data[key] = self._normalize_all_scope_fields(value)
+            elif isinstance(value, list):
+                # Handle lists that might contain dictionaries with scope fields
+                normalized_list = []
+                for item in value:
+                    if isinstance(item, dict):
+                        normalized_list.append(self._normalize_all_scope_fields(item))
+                    else:
+                        normalized_list.append(item)
+                normalized_data[key] = normalized_list
+
+        return normalized_data
+
     # noinspection PyBroadException
-    def log(self, message: Any) -> None:
+    def log(self, message: Any) -> None:  # noqa: PLR0912
         """Log message to appropriate Parseable stream (called by loguru)."""
 
         record = message.record
@@ -414,6 +454,11 @@ class ParseableSink:
             # Remove None values to reduce field count
             stream_entry = {k: v for k, v in stream_entry.items() if v is not None}
 
+            # Final validation: Ensure all scope fields are properly formatted
+            for key, value in stream_entry.items():
+                if "scope" in key.lower() and value is not None:
+                    stream_entry[key] = ScopeNormalizer.serialize_scopes_for_json(value)
+
             # Add to appropriate buffer
             with self._locks[stream_type]:
                 self._buffers[stream_type].append(stream_entry)
@@ -465,23 +510,6 @@ class ParseableSink:
                     file=sys.stderr,
                 )
                 break
-
-    def _normalize_scope_fields(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Centralized scope normalization for all scope-related fields."""
-
-        # Direct scope fields
-        scope_fields = ["scopes", "task_args_scopes"]
-
-        for field in scope_fields:
-            if field in data:
-                data[field] = ScopeNormalizer.normalize_scopes(data[field])
-
-        # Handle nested scope fields
-        for key, value in data.items():
-            if isinstance(value, dict):
-                data[key] = self._normalize_scope_fields(value)
-
-        return data
 
     async def _send_batch(
         self, batch: list[dict[str, Any]], stream_type: LogStreamType

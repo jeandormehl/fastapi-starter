@@ -153,10 +153,10 @@ class TracingMiddleware(TaskiqMiddleware):
                                 "task.result.size", len(result.return_value)
                             )
 
-            elif result.exception:
-                span.record_exception(result.exception)
-                span.set_status(Status(StatusCode.ERROR, str(result.exception)[:200]))
-                span.set_attribute("task.error.type", type(result.exception).__name__)
+            elif result.error:
+                span.record_exception(result.error)
+                span.set_status(Status(StatusCode.ERROR, str(result.error)[:200]))
+                span.set_attribute("task.error.type", type(result.error).__name__)
 
             else:
                 span.set_status(Status(StatusCode.ERROR, "task failed"))

@@ -6,9 +6,8 @@ from taskiq.middlewares import SmartRetryMiddleware
 from app.core.config.taskiq_config import TaskiqConfiguration
 from app.infrastructure.taskiq.broker.broker_factory import BrokerFactory
 from app.infrastructure.taskiq.middlewares import (
+    ConsolidatedTaskMiddleware,
     ErrorMiddleware,
-    LoggingMiddleware,
-    TaskLoggingMiddleware,
     TracingMiddleware,
 )
 
@@ -29,9 +28,7 @@ class Broker:
         # Add middlewares
         middlewares = [
             TracingMiddleware(),
-            # Logging middleware (first to capture everything)
-            TaskLoggingMiddleware(config=self.taskiq_config),
-            LoggingMiddleware(config=self.taskiq_config),
+            ConsolidatedTaskMiddleware(self.taskiq_config),
             # Retry middleware
             SmartRetryMiddleware(
                 default_retry_count=self.taskiq_config.default_retry_count,

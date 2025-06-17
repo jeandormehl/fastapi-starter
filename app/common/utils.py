@@ -295,20 +295,21 @@ class PrismaDataTransformer:
 
 
 class ScopeNormalizer:
-    """Enhanced scope normalizer with comprehensive handling of all scope formats."""
+    """Enhanced scope normalizer with comprehensive handling and validation."""
 
     @staticmethod
-    def normalize_scopes(scopes: Any) -> list[str]:
+    def normalize_scopes(scopes: Any) -> list[str]:  # noqa: PLR0911, PLR0912
         """
-        Normalize scopes to consistent list[str] format.
+        Normalize scopes to consistent list[str] format with enhanced validation.
 
         Handles:
         - None values
-        - String values (single scope)
+        - String values (single scope or comma-separated)
         - List/tuple of strings
         - List/tuple of Scope objects (with .name attribute)
         - Single Scope objects
         - Mixed collections
+        - JSON strings containing arrays
 
         Returns:
             list[str]: Always returns a list of strings, empty if input is None/empty
@@ -316,32 +317,105 @@ class ScopeNormalizer:
         if scopes is None:
             return []
 
+        # Handle string input (including JSON strings)
         if isinstance(scopes, str):
-            return [scopes] if scopes.strip() else []
+            scopes_str = scopes.strip()
+            if not scopes_str:
+                return []
 
-        if isinstance(scopes, list | tuple):
+            # Try to parse as JSON array first
+            try:
+                parsed = json.loads(scopes_str)
+                if isinstance(parsed, list):
+                    return ScopeNormalizer.normalize_scopes(parsed)
+                if isinstance(parsed, str):
+                    return [parsed] if parsed.strip() else []
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            # Handle comma-separated values
+            if "," in scopes_str:
+                return [s.strip() for s in scopes_str.split(",") if s.strip()]
+
+            # Single scope string
+            return [scopes_str]
+
+        # Handle collections (list, tuple, set)
+        if isinstance(scopes, list | tuple | set):
             normalized = []
             for scope in scopes:
                 if scope is None:
                     continue
+
+                # Handle Scope objects from Prisma/database
                 if hasattr(scope, "name"):
-                    # Handle Scope objects from Prisma
-                    normalized.append(str(scope.name))
+                    scope_name = str(scope.name).strip()
+                    if scope_name:
+                        normalized.append(scope_name)
+
+                # Handle dictionary with 'name' key
+                elif isinstance(scope, dict) and "name" in scope:
+                    scope_name = str(scope["name"]).strip()
+                    if scope_name:
+                        normalized.append(scope_name)
+
+                # Handle string scopes
                 elif isinstance(scope, str):
-                    # Handle string scopes
-                    if scope.strip():  # Only add non-empty strings
-                        normalized.append(scope.strip())
-                else:
-                    # Handle any other type by converting to string
-                    scope_str = str(scope).strip()
+                    scope_str = scope.strip()
                     if scope_str:
+                        # Recursively handle comma-separated or JSON strings
+                        sub_scopes = ScopeNormalizer.normalize_scopes(scope_str)
+                        normalized.extend(sub_scopes)
+
+                # Handle any other type by converting to string
+                else:
+                    scope_str = str(scope).strip()
+                    if scope_str and scope_str.lower() not in ["none", "null", ""]:
                         normalized.append(scope_str)
-            return normalized
+
+            # Remove duplicates while preserving order
+            seen = set()
+            return [x for x in normalized if not (x in seen or seen.add(x))]
 
         # Handle single Scope object
         if hasattr(scopes, "name"):
-            return [str(scopes.name)]
+            scope_name = str(scopes.name).strip()
+            return [scope_name] if scope_name else []
+
+        # Handle dictionary with 'name' key
+        if isinstance(scopes, dict) and "name" in scopes:
+            scope_name = str(scopes["name"]).strip()
+            return [scope_name] if scope_name else []
 
         # Handle any other single value by converting to string
         scope_str = str(scopes).strip()
-        return [scope_str] if scope_str else []
+        if scope_str and scope_str.lower() not in ["none", "null", ""]:
+            return [scope_str]
+
+        return []
+
+    @staticmethod
+    def validate_scope_format(scopes: list[str]) -> bool:
+        """Validate that all scopes are properly formatted strings."""
+        if not isinstance(scopes, list):
+            return False
+
+        return all(
+            isinstance(scope, str) and scope.strip() and len(scope.strip()) > 0
+            for scope in scopes
+        )
+
+    @staticmethod
+    def serialize_scopes_for_json(scopes: Any) -> list[str]:
+        """
+        Serialize scopes specifically for JSON output (like Parseable).
+        This ensures the output is always a valid JSON array.
+        """
+        normalized = ScopeNormalizer.normalize_scopes(scopes)
+
+        # Double-check that we have a valid list of strings
+        if not isinstance(normalized, list):
+            return []
+
+        # Ensure all items are strings and non-empty
+        return [str(scope) for scope in normalized if str(scope).strip()]
