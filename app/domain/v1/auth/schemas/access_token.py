@@ -10,7 +10,7 @@ class AccessTokenCreateOutput(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
-    scopes: str | None = None
+    scopes: list[str] | None = None
 
 
 class AccessTokenRefreshOutput(AccessTokenCreateOutput): ...

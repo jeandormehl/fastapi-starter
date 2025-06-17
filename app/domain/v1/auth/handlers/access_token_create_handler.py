@@ -73,7 +73,7 @@ class AccessTokenCreateHandler(BaseHandler):
                 access_token=access_token,
                 token_type="bearer",  # nosec B106
                 expires_in=self.jwt_service.access_token_expire_minutes * 60,
-                scopes=" ".join(scopes) if scopes else None,
+                scopes=scopes,
             )
 
             return AccessTokenCreateResponse(

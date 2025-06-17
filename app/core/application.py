@@ -19,6 +19,8 @@ from app.infrastructure.observability import (
     setup_instrumentations,
     shutdown_otel,
 )
+from app.infrastructure.observability.logger import OtelLoggingHandler
+from app.infrastructure.observability.setup import create_resource
 from app.infrastructure.taskiq.task_manager import TaskManager
 
 
@@ -32,6 +34,11 @@ async def lifespan(
 
     # otel first
     tracer_provider, meter_provider = initialize_otel()
+
+    if config.otel.enabled and config.otel.logs_enabled:
+        resource = create_resource(config.otel)
+        OtelLoggingHandler(config.otel, resource)
+
     setup_instrumentations(_app, config.otel)
     setup_custom_metrics()
 

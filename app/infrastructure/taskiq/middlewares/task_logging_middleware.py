@@ -6,7 +6,7 @@ from kink import di
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.common.logging import get_logger
-from app.common.utils import DataSanitizer, PrismaDataTransformer
+from app.common.utils import DataSanitizer, PrismaDataTransformer, ScopeNormalizer
 from app.core.config import Configuration
 from app.core.config.taskiq_config import TaskiqConfiguration
 from app.infrastructure.database import Database
@@ -104,7 +104,11 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
             "broker_type": self.config.broker_type.value,
             "submitted_at": datetime.now(di["timezone"]),
             "started_at": message.labels.get("_logging_start_timestamp"),
-            "task_args": DataSanitizer.sanitize_data(list(message.args))
+            "task_args": (
+                DataSanitizer.sanitize_data(
+                    self._sanitize_task_args(list(message.args))
+                )
+            )
             if message.args
             else None,
             "task_kwargs": DataSanitizer.sanitize_data(dict(message.kwargs))
@@ -285,3 +289,25 @@ class TaskLoggingMiddleware(TaskiqMiddleware):
             return "not_found_error"
 
         return "unknown_error"
+
+    # noinspection DuplicatedCode
+    def _sanitize_task_args(self, args: tuple) -> dict[str, Any] | None:
+        """Sanitize task arguments with special handling for scope fields."""
+        if not args:
+            return None
+
+        sanitized_args = DataSanitizer.sanitize_data(list(args))
+
+        # Post-process to normalize scope fields
+        if isinstance(sanitized_args, dict):
+            for key, value in sanitized_args.items():
+                if "scope" in key.lower():
+                    sanitized_args[key] = ScopeNormalizer.normalize_scopes(value)
+        elif isinstance(sanitized_args, list):
+            for _i, arg in enumerate(sanitized_args):
+                if isinstance(arg, dict):
+                    for key, value in arg.items():
+                        if "scope" in key.lower():
+                            arg[key] = ScopeNormalizer.normalize_scopes(value)
+
+        return sanitized_args

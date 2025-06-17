@@ -7,7 +7,7 @@ receivers:
         endpoint: 0.0.0.0:4318
 
   filelog:
-    include: ["/var/log/*.log"]
+    include: ["/var/log/*.log", "/var/log/**/*.log"]
     start_at: end
     operators:
       - type: json_parser
@@ -33,12 +33,21 @@ processors:
       - key: service.name
         value: fastapi-starter
         action: upsert
+      - key: service.version
+        value: "1.0.0"
+        action: upsert
+
+  memory_limiter:
+    limit_mib: 512
+    check_interval: 30
 
 exporters:
   otlp/tempo:
     endpoint: tempo:4317
     tls:
       insecure: true
+    headers:
+      "X-Scope-OrgID": "1"
 
   prometheus:
     endpoint: "0.0.0.0:8889"
@@ -46,6 +55,7 @@ exporters:
       environment: "${ENVIRONMENT}"
     send_timestamps: true
     metric_expiration: 180m
+    enable_open_metrics: true
 
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
@@ -69,17 +79,17 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [resource, batch]
+      processors: [memory_limiter, resource, batch]
       exporters: [otlp/tempo, debug]
 
     metrics:
       receivers: [otlp]
-      processors: [resource, batch]
+      processors: [memory_limiter, resource, batch]
       exporters: [prometheus, debug]
 
     logs:
       receivers: [otlp, filelog]
-      processors: [resource, batch]
+      processors: [memory_limiter, resource, batch]
       exporters: [loki, debug]
 
   telemetry:

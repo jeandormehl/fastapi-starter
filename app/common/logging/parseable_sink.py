@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from app.common.utils import ScopeNormalizer
 from app.core.config.parseable_config import ParseableConfiguration
 
 
@@ -131,6 +132,15 @@ class ParseableSink:
     ) -> dict[str, Any]:
         """Create stream-specific log entry with relevant fields."""
 
+        # Apply scope normalization before creating stream entries
+        if "scopes" in log_entry:
+            log_entry["scopes"] = ScopeNormalizer.normalize_scopes(log_entry["scopes"])
+
+        # Check for scope fields in nested structures
+        for _key, value in log_entry.items():
+            if isinstance(value, dict) and "scopes" in value:
+                value["scopes"] = ScopeNormalizer.normalize_scopes(value["scopes"])
+
         # Common fields for all streams
         base_fields = {
             "timestamp": log_entry.get("timestamp"),
@@ -179,7 +189,11 @@ class ParseableSink:
                 "auth_method": log_entry.get("auth_method"),
                 "client_id": log_entry.get("client_id"),
                 "has_bearer_token": log_entry.get("has_bearer_token"),
-                "scopes": log_entry.get("scopes"),
+                "scopes": log_entry.get("scopes")
+                if isinstance(log_entry.get("scopes"), list)
+                else [log_entry.get("scopes")]
+                if log_entry.get("scopes")
+                else [],
                 "request_count": log_entry.get("request_count"),
                 "skip_rate": log_entry.get("skip_rate"),
             }
@@ -218,6 +232,11 @@ class ParseableSink:
                 "quarantine_status": log_entry.get("quarantine_status"),
                 "recent_error_count": log_entry.get("recent_error_count"),
                 "error_patterns": log_entry.get("error_patterns"),
+                "task_args_scopes": log_entry.get("task_args_scopes")
+                if isinstance(log_entry.get("task_args_scopes"), list)
+                else [log_entry.get("task_args_scopes")]
+                if log_entry.get("task_args_scopes")
+                else [],
             }
             log_fields = {**base_fields, **task_fields}
 
@@ -336,7 +355,7 @@ class ParseableSink:
 
         return log_fields
 
-    def log(self, message: Any) -> None:
+    def log(self, message: Any) -> None:  # noqa: PLR0912
         """Log message to appropriate Parseable stream (called by loguru)."""
 
         record = message.record
@@ -376,7 +395,23 @@ class ParseableSink:
                     json.dumps(value)
                     serializable_extra[key] = value
                 except (TypeError, ValueError):
-                    serializable_extra[key] = str(value)
+                    # Special handling for lists to preserve structure
+                    if isinstance(value, list):
+                        # noinspection PyBroadException
+                        try:
+                            # Try to serialize as a list of strings
+                            serializable_extra[key] = [str(item) for item in value]
+                        except Exception:
+                            serializable_extra[key] = str(value)
+                    else:
+                        serializable_extra[key] = str(value)
+
+                # Special handling for scopes field to ensure it's always a list
+                if key in {"scopes", "task_args_scopes"}:
+                    if isinstance(value, str):
+                        serializable_extra[key] = [value]
+                    elif not isinstance(value, list):
+                        serializable_extra[key] = [str(value)]
 
             # Create base log entry
             log_entry = {

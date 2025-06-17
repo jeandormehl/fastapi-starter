@@ -28,13 +28,13 @@ storage:
     backend: local
     block:
       bloom_filter_false_positive: 0.05
-      v2_index_downsample_bytes: 1000
-      v2_encoding: zstd
+      version: vParquet4
+      parquet_row_group_size_bytes: 134217728
     wal:
-      path: /tmp/tempo/wal
+      path: /var/tempo/wal
       v2_encoding: snappy
     local:
-      path: /tmp/tempo/blocks
+      path: /var/tempo/blocks
     pool:
       max_workers: 100
       queue_depth: 10000
@@ -55,7 +55,7 @@ metrics_generator:
       source: tempo
       cluster: docker-compose
   storage:
-    path: /tmp/tempo/generator/wal
+    path: /var/tempo/generator/wal
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true

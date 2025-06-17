@@ -29,6 +29,7 @@ services:
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - "./conf/otel/tempo-config.yml:/etc/tempo.yaml"
+      - "tempo-data:/var/tempo"
     networks:
       - "otel-tier"
     restart: "unless-stopped"
@@ -70,6 +71,7 @@ services:
     image: "grafana/loki:latest"
     volumes:
       - "./conf/otel/loki-config.yml:/etc/loki/local-config.yaml"
+      - "loki-data:/loki"
     command: "-config.file=/etc/loki/local-config.yaml"
     networks:
       - "otel-tier"
@@ -134,6 +136,8 @@ services:
 volumes:
   grafana-storage:
   prometheus-data:
+  tempo-data:
+  loki-data:
 
 networks:
   otel-tier:

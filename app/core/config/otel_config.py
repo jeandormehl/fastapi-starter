@@ -1,3 +1,8 @@
+from opentelemetry.sdk.resources import (
+    SERVICE_NAME,
+    SERVICE_NAMESPACE,
+    SERVICE_VERSION,
+)
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,27 +26,39 @@ class OtelConfiguration(BaseSettings):
     service_namespace: str = Field("fastapi-app", description="Service namespace")
     service_env: str = Field("local", description="Deployment environment")
 
-    # OTLP Exporter Settings
     exporter_otlp_endpoint: str = Field(
         "http://otel-collector:4317", description="OTLP gRPC endpoint"
     )
     exporter_otlp_headers: SecretStr | None = Field(
         None, description="OTLP headers (e.g., authorization)"
     )
-    exporter_otlp_timeout: int = Field(30, description="OTLP timeout in seconds")
+    exporter_otlp_timeout: int = Field(10, description="OTLP timeout in seconds")
     exporter_otlp_compression: str = Field("gzip", description="OTLP compression")
 
-    # Tracing Settings
     traces_enabled: bool = Field(True, description="Enable tracing")
     traces_sample_rate: float = Field(
         1.0, ge=0.0, le=1.0, description="Trace sample rate (1.0 = 100%)"
     )
 
+    logs_enabled: bool = Field(True, description="Enable OTEL logs export")
+    logs_export_endpoint: str = Field(
+        "http://otel-collector:4317", description="OTLP logs endpoint"
+    )
+
     # Metrics Settings
     metrics_enabled: bool = Field(True, description="Enable metrics")
     metrics_export_interval: int = Field(
-        60, description="Metrics export interval in seconds"
+        30,
+        description="Metrics export interval in seconds",
     )
+
+    @property
+    def resource_attributes(self) -> dict[str, str]:
+        return {
+            SERVICE_NAME: self.service_name,
+            SERVICE_VERSION: self.service_version,
+            SERVICE_NAMESPACE: self.service_env,
+        }
 
     # Instrumentation Settings
     instrument_fastapi: bool = Field(True, description="Enable FastAPI instrumentation")
@@ -67,6 +84,6 @@ class OtelConfiguration(BaseSettings):
 
     enable_cloud_detection: bool = Field(False, description="Enable cloud detection")
     max_queue_size: int = Field(2048, description="Max queue size")
-    schedule_delay_millis: int = Field(5000, description="Schedule delay in ms")
+    schedule_delay_millis: int = Field(1000, description="Schedule delay in ms")
     max_export_batch_size: int = Field(512, description="Max export batch size")
-    export_timeout_millis: int = Field(30000, description="Export timeout in ms")
+    export_timeout_millis: int = Field(10000, description="Export timeout in ms")

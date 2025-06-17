@@ -37,7 +37,7 @@ class AccessTokenRefreshHandler(BaseHandler):
                 access_token=self.jwt_service.refresh_token(current_token),
                 token_type="bearer",  # nosec
                 expires_in=self.jwt_service.access_token_expire_minutes * 60,
-                scopes=" ".join(payload.scopes),
+                scopes=payload.scopes,
             )
 
             return AccessTokenRefreshResponse(

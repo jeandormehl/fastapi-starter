@@ -291,3 +291,31 @@ class PrismaDataTransformer:
                 prepared_data[field] = Json(prepared_data[field])
 
         return prepared_data
+
+
+class ScopeNormalizer:
+    @staticmethod
+    def normalize_scopes(scopes: Any) -> list[str]:
+        """Normalize scopes to consistent list[str] format."""
+        if scopes is None:
+            return []
+
+        if isinstance(scopes, str):
+            return [scopes]
+
+        if isinstance(scopes, list | tuple):
+            normalized = []
+            for scope in scopes:
+                if hasattr(scope, "name"):
+                    # Handle Scope objects from Prisma
+                    normalized.append(scope.name)
+                else:
+                    # Handle string scopes
+                    normalized.append(str(scope))
+            return normalized
+
+        # Handle single Scope object
+        if hasattr(scopes, "name"):
+            return [scopes.name]
+
+        return [str(scopes)]

@@ -6,11 +6,11 @@ server:
 
 common:
   instance_addr: 127.0.0.1
-  path_prefix: /tmp/loki
+  path_prefix: /loki
   storage:
     filesystem:
-      chunks_directory: /tmp/loki/chunks
-      rules_directory: /tmp/loki/rules
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
   replication_factor: 1
   ring:
     kvstore:
@@ -35,8 +35,8 @@ schema_config:
 
 storage_config:
   tsdb_shipper:
-    active_index_directory: /tmp/loki/tsdb-index
-    cache_location: /tmp/loki/tsdb-cache
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
 
 ruler:
   alertmanager_url: http://localhost:9093
@@ -53,5 +53,5 @@ table_manager:
   retention_period: 0s
 
 compactor:
-  working_directory: /tmp/loki/boltdb-shipper-compactor
+  working_directory: /loki/boltdb-shipper-compactor
   delete_request_store: filesystem

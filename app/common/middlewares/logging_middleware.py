@@ -13,6 +13,7 @@ from app.common.utils import (
     BodyProcessor,
     ClientIPExtractor,
     DataSanitizer,
+    ScopeNormalizer,
     TraceContextExtractor,
 )
 from app.core.config import Configuration
@@ -264,9 +265,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     }
                 )
 
+                # Fixed scope handling with normalization
                 scopes = getattr(client, "scopes", [])
-                if scopes:
-                    auth_info["scopes"] = [scope.name for scope in scopes]
+                auth_info["scopes"] = ScopeNormalizer.normalize_scopes(scopes)
 
         # Check for JWT token presence
         auth_header = request.headers.get("authorization", "")

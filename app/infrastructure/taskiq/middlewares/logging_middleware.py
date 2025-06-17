@@ -6,7 +6,7 @@ from kink import di
 from taskiq import TaskiqMessage, TaskiqMiddleware, TaskiqResult
 
 from app.common.logging import get_logger
-from app.common.utils import DataSanitizer
+from app.common.utils import DataSanitizer, ScopeNormalizer
 from app.core.config.taskiq_config import TaskiqConfiguration
 
 
@@ -78,7 +78,9 @@ class LoggingMiddleware(TaskiqMiddleware):
             "task_id": message.task_id,
             "task_name": message.task_name,
             "task_labels": task_labels,
-            "task_args": list(message.args) if message.args else [],
+            "task_args": (
+                self._sanitize_task_args(list(message.args)) if message.args else []
+            ),
             "task_kwargs": task_kwargs,
             "execution_environment": "taskiq_worker",
             "timestamp": datetime.now(di["timezone"]).isoformat(),
@@ -189,3 +191,26 @@ class LoggingMiddleware(TaskiqMiddleware):
         self.logger.bind(**context).info(
             f"task '{message.task_name}' execution completed successfully"
         )
+
+    # noinspection DuplicatedCode
+    def _sanitize_task_args(self, args: tuple) -> dict[str, Any] | None:
+        """Sanitize task arguments with special handling for scope fields."""
+
+        if not args:
+            return None
+
+        sanitized_args = DataSanitizer.sanitize_data(list(args))
+
+        # Post-process to normalize scope fields
+        if isinstance(sanitized_args, dict):
+            for key, value in sanitized_args.items():
+                if "scope" in key.lower():
+                    sanitized_args[key] = ScopeNormalizer.normalize_scopes(value)
+        elif isinstance(sanitized_args, list):
+            for _i, arg in enumerate(sanitized_args):
+                if isinstance(arg, dict):
+                    for key, value in arg.items():
+                        if "scope" in key.lower():
+                            arg[key] = ScopeNormalizer.normalize_scopes(value)
+
+        return sanitized_args

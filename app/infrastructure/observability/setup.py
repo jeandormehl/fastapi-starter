@@ -8,10 +8,6 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import (
-    DEPLOYMENT_ENVIRONMENT,
-    SERVICE_NAME,
-    SERVICE_NAMESPACE,
-    SERVICE_VERSION,
     Resource,
 )
 from opentelemetry.sdk.trace import TracerProvider
@@ -30,12 +26,7 @@ from app.core.config.otel_config import OtelConfiguration
 def create_resource(config: OtelConfiguration) -> Resource:
     """Create OpenTelemetry resource with service information."""
 
-    base_attributes = {
-        SERVICE_NAME: config.service_name,
-        SERVICE_VERSION: config.service_version,
-        SERVICE_NAMESPACE: config.service_env,
-        DEPLOYMENT_ENVIRONMENT: config.service_env,
-    }
+    base_attributes = config.resource_attributes
 
     # Add additional attributes safely
     try:
@@ -190,7 +181,6 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
             from opentelemetry.propagate import set_global_textmap
             from opentelemetry.propagators.b3 import B3MultiFormat
             from opentelemetry.propagators.composite import CompositePropagator
-            from opentelemetry.propagators.jaeger import JaegerPropagator
             from opentelemetry.trace.propagation.tracecontext import (
                 TraceContextTextMapPropagator,
             )
@@ -200,7 +190,6 @@ def initialize_otel() -> tuple[TracerProvider | None, MeterProvider | None]:
                     [
                         TraceContextTextMapPropagator(),
                         B3MultiFormat(),
-                        JaegerPropagator(),
                     ]
                 )
             )
