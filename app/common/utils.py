@@ -164,8 +164,9 @@ class BodyProcessor:
                     "original_size": len(body),
                     "captured_size": max_size,
                     "type": "binary",
-                    "content": base64.b64encode(body[:max_size]).decode("ascii")
-                    + "...",
+                    "content": (
+                        base64.b64encode(body[:max_size]).decode("ascii") + "..."
+                    ),
                     "encoding": "base64",
                 }
             return {
@@ -294,28 +295,53 @@ class PrismaDataTransformer:
 
 
 class ScopeNormalizer:
+    """Enhanced scope normalizer with comprehensive handling of all scope formats."""
+
     @staticmethod
     def normalize_scopes(scopes: Any) -> list[str]:
-        """Normalize scopes to consistent list[str] format."""
+        """
+        Normalize scopes to consistent list[str] format.
+
+        Handles:
+        - None values
+        - String values (single scope)
+        - List/tuple of strings
+        - List/tuple of Scope objects (with .name attribute)
+        - Single Scope objects
+        - Mixed collections
+
+        Returns:
+            list[str]: Always returns a list of strings, empty if input is None/empty
+        """
         if scopes is None:
             return []
 
         if isinstance(scopes, str):
-            return [scopes]
+            return [scopes] if scopes.strip() else []
 
         if isinstance(scopes, list | tuple):
             normalized = []
             for scope in scopes:
+                if scope is None:
+                    continue
                 if hasattr(scope, "name"):
                     # Handle Scope objects from Prisma
-                    normalized.append(scope.name)
-                else:
+                    normalized.append(str(scope.name))
+                elif isinstance(scope, str):
                     # Handle string scopes
-                    normalized.append(str(scope))
+                    if scope.strip():  # Only add non-empty strings
+                        normalized.append(scope.strip())
+                else:
+                    # Handle any other type by converting to string
+                    scope_str = str(scope).strip()
+                    if scope_str:
+                        normalized.append(scope_str)
             return normalized
 
         # Handle single Scope object
         if hasattr(scopes, "name"):
-            return [scopes.name]
+            return [str(scopes.name)]
 
-        return [str(scopes)]
+        # Handle any other single value by converting to string
+        scope_str = str(scopes).strip()
+        return [scope_str] if scope_str else []

@@ -116,7 +116,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         except Exception:
             return None
 
-    # noinspection PyUnresolvedReferences
     async def _get_safe_response_body(self, response: Response) -> tuple[Any, Response]:
         """
         Safely capture response body without breaking FastAPI's streaming mechanism.
@@ -128,6 +127,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         try:
             # Read response body using streaming approach
             chunks = []
+            # noinspection PyUnresolvedReferences
             async for chunk in response.body_iterator:
                 chunks.append(chunk)
             response_body_bytes = b"".join(chunks)
@@ -265,7 +265,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     }
                 )
 
-                # Fixed scope handling with normalization
                 scopes = getattr(client, "scopes", [])
                 auth_info["scopes"] = ScopeNormalizer.normalize_scopes(scopes)
 
