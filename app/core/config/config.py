@@ -62,7 +62,7 @@ class Configuration(BaseSettings):
             service_name=self.app_name,
             service_version=self.app_version,
             service_env=self.app_environment,
-            service_namespace="app-metrics",
+            service_namespace=self.app_environment,
         )
 
     @property

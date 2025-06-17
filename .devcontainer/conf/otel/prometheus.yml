@@ -22,13 +22,19 @@ scrape_configs:
     scrape_interval: 15s
     metrics_path: /metrics
 
-  - job_name: 'jaeger'
+  - job_name: 'tempo'
     static_configs:
-      - targets: ['jaeger:14269']
+      - targets: ['tempo:3200']
     scrape_interval: 30s
+    metrics_path: /metrics
 
-  # Note: FastAPI app metrics will be collected through OTEL collector
-  # If you want direct scraping, uncomment below:
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Direct FastAPI app scraping if you expose metrics endpoint
   # - job_name: 'fastapi-app'
   #   static_configs:
   #     - targets: ['app:8080']

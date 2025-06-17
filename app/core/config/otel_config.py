@@ -17,9 +17,9 @@ class OtelConfiguration(BaseSettings):
     # General OTEL Settings
     enabled: bool = Field(True, description="Enable OpenTelemetry instrumentation")
     service_name: str = Field("fastapi-starter", description="Service name for traces")
-    service_version: str = Field("0.0.0", description="Service version")
-    service_namespace: str = Field("app-metrics", description="Service namespace")
-    service_env: str = Field("dev", description="Deployment environment")
+    service_version: str = Field("1.0.0", description="Service version")
+    service_namespace: str = Field("fastapi-app", description="Service namespace")
+    service_env: str = Field("local", description="Deployment environment")
 
     # OTLP Exporter Settings
     exporter_otlp_endpoint: str = Field(
@@ -34,7 +34,7 @@ class OtelConfiguration(BaseSettings):
     # Tracing Settings
     traces_enabled: bool = Field(True, description="Enable tracing")
     traces_sample_rate: float = Field(
-        1.0, ge=0.0, le=1.0, description="Trace sample rate"
+        1.0, ge=0.0, le=1.0, description="Trace sample rate (1.0 = 100%)"
     )
 
     # Metrics Settings
@@ -65,8 +65,8 @@ class OtelConfiguration(BaseSettings):
         True, description="Enable automatic resource detection"
     )
 
-    enable_cloud_detection: bool = False
-    max_queue_size: int = 2048
-    schedule_delay_millis: int = 5000
-    max_export_batch_size: int = 512
-    export_timeout_millis: int = 30000
+    enable_cloud_detection: bool = Field(False, description="Enable cloud detection")
+    max_queue_size: int = Field(2048, description="Max queue size")
+    schedule_delay_millis: int = Field(5000, description="Schedule delay in ms")
+    max_export_batch_size: int = Field(512, description="Max export batch size")
+    export_timeout_millis: int = Field(30000, description="Export timeout in ms")

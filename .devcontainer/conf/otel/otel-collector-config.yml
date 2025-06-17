@@ -35,17 +35,17 @@ processors:
         action: upsert
 
 exporters:
-  otlp/jaeger:
-    endpoint: jaeger:4317
+  otlp/tempo:
+    endpoint: tempo:4317
     tls:
       insecure: true
-    headers:
-      content-type: application/x-protobuf
 
   prometheus:
     endpoint: "0.0.0.0:8889"
     const_labels:
       environment: "${ENVIRONMENT}"
+    send_timestamps: true
+    metric_expiration: 180m
 
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
@@ -70,7 +70,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [resource, batch]
-      exporters: [otlp/jaeger, debug]
+      exporters: [otlp/tempo, debug]
 
     metrics:
       receivers: [otlp]

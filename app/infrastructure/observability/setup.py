@@ -33,7 +33,7 @@ def create_resource(config: OtelConfiguration) -> Resource:
     base_attributes = {
         SERVICE_NAME: config.service_name,
         SERVICE_VERSION: config.service_version,
-        SERVICE_NAMESPACE: config.service_namespace,
+        SERVICE_NAMESPACE: config.service_env,
         DEPLOYMENT_ENVIRONMENT: config.service_env,
     }
 
