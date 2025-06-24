@@ -1,0 +1,86 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: detect-private-key
+      - id: check-ast
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.0
+    hooks:
+      - id: ruff
+        name: ruff-lint
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff-format
+        types_or: [python, pyi]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.5
+    hooks:
+      - id: bandit
+        name: bandit-security-check
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+        exclude: ^tests/
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        name: autoflake-remove-unused
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --remove-duplicate-keys
+          - --ignore-init-module-imports
+
+  - repo: local
+    hooks:
+      - id: prisma-format
+        name: prisma-format
+        entry: bash -c 'if command -v prisma >/dev/null 2>&1; then prisma format --schema app/infrastructure/database/schema.prisma || true; fi'
+        language: system
+        files: \.prisma$
+        pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        types: [python]
+        args: [--tb=short, --no-cov]
+        pass_filenames: false
+        always_run: true
+
+default_language_version:
+  python: python3.13
+
+default_stages: [pre-commit, pre-push]
+
+exclude: |
+  (?x)^(
+    \.git/|
+    \.mypy_cache/|
+    \.pytest_cache/|
+    \.ruff_cache/|
+    __pycache__/|
+    build/|
+    dist/|
+    \.env|
+    \.venv/|
+    venv/
+  )
