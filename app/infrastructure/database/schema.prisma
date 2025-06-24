@@ -1,0 +1,43 @@
+generator client {
+  enable_experimental_decimal = true
+  interface                   = "asyncio"
+  partial_type_generator      = "/app/app/infrastructure/database/scripts/partial_types.py"
+  provider                    = "prisma-client-py"
+  recursive_type_depth        = -1
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model OAuthClient {
+  id            String   @id @default(cuid())
+  client_id     String   @unique
+  client_secret String
+  name          String
+  description   String?
+  scopes        String[] @default([])
+  enabled       Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  tokens OAuthToken[]
+
+  @@map("oauth_clients")
+}
+
+model OAuthToken {
+  id           String   @id @default(cuid())
+  access_token String   @unique
+  token_type   String   @default("bearer")
+  expires_at   DateTime
+  scopes       String[] @default([])
+  client_id    String
+  created_at   DateTime @default(now())
+  is_revoked   Boolean  @default(false)
+
+  client OAuthClient @relation(fields: [client_id], references: [client_id])
+
+  @@map("oauth_tokens")
+}

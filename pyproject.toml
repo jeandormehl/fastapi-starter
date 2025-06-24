@@ -1,0 +1,148 @@
+[project]
+name = "fastapi_starter"
+version = "0.0.1"
+description = "FastAPI skeleton for rapid development and deployment"
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+license = { text = "MIT" }
+authors = [
+  { name = "Jean Dormehl", email = "jean.dormehl@qlink.co.za" }
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+]
+
+dependencies = [
+  "aioredis>=2.0.1",
+  "bcrypt>=4.3.0",
+  "fastapi>=0.115.13",
+  "gunicorn (>=23.0.0,<24.0.0)",
+  "httpx>=0.28.1",
+  "kink>=0.8.1",
+  "loguru>=0.7.3",
+  "orjson (>=3.10.18,<4.0.0)",
+  "prisma>=0.15.0",
+  "psutil>=7.0.0",
+  "pydantic-settings>=2.10.0",
+  "pydantic>=2.11.7",
+  "pydiator-core>=1.0.12",
+  "pyjwt>=2.10.1",
+  "python-multipart (>=0.0.20,<0.0.21)",
+  "taskiq-aio-pika>=0.4.2",
+  "taskiq-redis>=1.0.9",
+  "taskiq>=0.11.17",
+  "uvicorn[standard]>=0.30.0",
+  "websockets>=15.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "autoflake>=2.3.1",
+  "bandit>=1.8.5",
+  "bumpver>=2024.1130",
+  "mypy>=1.16.1",
+  "pre-commit>=4.2.0",
+  "pytest-asyncio>=1.0.0",
+  "pytest-cov>=6.2.1",
+  "pytest-httpx>=0.35.0",
+  "pytest-mock>=3.14.1",
+  "pytest-xdist>=3.7.0",
+  "pytest>=8.4.1",
+  "ruff>=0.12.0",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+exclude = [
+  ".git",
+  ".venv",
+  "__pycache__",
+  "build",
+  "dist",
+]
+
+[tool.ruff.lint]
+select = [
+  "ASYNC",
+  "B",
+  "C4",
+  "D",
+  "E",
+  "F",
+  "I",
+  "N",
+  "PIE",
+  "S",
+  "UP",
+  "W",
+]
+ignore = [
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D107",
+  "D203",
+  "D205",
+  "D213",
+  "D401",
+  "S101",
+]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending="lf"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+exclude = [
+  "venv",
+  ".venv",
+]
+
+[tool.pytest.ini_options]
+addopts = [
+  "--asyncio-mode=auto",
+  "--import-mode=importlib",
+  "-n",
+  "auto",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+  "*/__init__.py",
+  "*/main.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 80
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "@overload"
+]
