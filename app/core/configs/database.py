@@ -47,18 +47,20 @@ class DatabaseConfiguration(BaseSettings):
 
         scheme_match = re.match(r'^([a-zA-Z0-9_]+)://', url_str)
         if not scheme_match:
-            raise ValueError(
+            msg = (
                 f"invalid database url format: '{url_str}'. "
                 'the url must start with a recognized scheme followed by '
                 "'://' (e.g., 'postgresql://')."
             )
+            raise ValueError(msg)
 
         extracted_scheme = scheme_match.group(1).lower()
         if extracted_scheme not in supported_schemes:
-            raise ValueError(
+            msg = (
                 f"Unsupported database scheme: '{extracted_scheme}'. "
                 f'Prisma currently supports: {", ".join(sorted(supported_schemes))}.'
             )
+            raise ValueError(msg)
 
         if extracted_scheme in {
             'postgresql',
@@ -69,17 +71,18 @@ class DatabaseConfiguration(BaseSettings):
             'cockroachdb',
         }:
             if len(url_str) <= len(extracted_scheme) + 3:
-                raise ValueError(
+                msg = (
                     f"incomplete '{extracted_scheme}' database url. "
                     'expected host, port, and/or database name after the scheme '
                     "(e.g., 'postgresql://host:port/dbname')."
                 )
+                raise ValueError(msg)
 
-        elif extracted_scheme == 'sqlite':
-            if not url_str.startswith('sqlite:///'):
-                raise ValueError(
-                    f"invalid sqlite url format: '{url_str}'. "
-                    'for file-based sqlite, please use '
-                    "'sqlite:///path/to/your/database.db'."
-                )
+        elif extracted_scheme == 'sqlite' and not url_str.startswith('sqlite:///'):
+            msg = (
+                f"invalid sqlite url format: '{url_str}'. "
+                'for file-based sqlite, please use '
+                "'sqlite:///path/to/your/database.db'."
+            )
+            raise ValueError(msg)
         return v

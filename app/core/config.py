@@ -52,5 +52,6 @@ class Configuration(BaseSettings):
     @classmethod
     def validate_timezone(cls, v: str) -> str:
         if v not in available_timezones():
-            raise ValueError(f'not a valid timezone: {v}')
+            msg = f'not a valid timezone: {v}'
+            raise ValueError(msg)
         return v

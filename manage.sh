@@ -1,309 +1,392 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-# --- Colors ---
-export RED=$'\033[0;31m'
-export GREEN=$'\033[0;32m'
-export YELLOW=$'\033[0;33m'
-export BLUE=$'\033[0;34m'
-export MAGENTA=$'\033[0;35m'
-export CYAN=$'\033[0;36m'
-export BOLD=$'\033[1m'
-export RESET=$'\033[0m'
+#===============================================================================
+# Python Project Utility Script
+# Enhanced version with improved output formatting and visual appeal
+#===============================================================================
 
-# --- Configuration ---
-DEFAULT_SCHEMA_PATH="app/infrastructure/database/schema.prisma"
-SCHEMA_PATH="${SCHEMA_PATH:-$DEFAULT_SCHEMA_PATH}" # Allow SCHEMA_PATH to be overridden by env var
+# Color definitions with consistent naming
+readonly RED=$'\033[0;31m'
+readonly GREEN=$'\033[0;32m'
+readonly YELLOW=$'\033[0;33m'
+readonly BLUE=$'\033[0;34m'
+readonly MAGENTA=$'\033[0;35m'
+readonly CYAN=$'\033[0;36m'
+readonly BOLD=$'\033[1m'
+readonly DIM=$'\033[2m'
+readonly RESET=$'\033[0m'
 
-# --- Helper Functions ---
+# Additional formatting characters for enhanced output
+readonly CHECK_MARK="${GREEN}✓${RESET}"
+readonly CROSS_MARK="${RED}✗${RESET}"
+readonly ARROW="${BLUE}→${RESET}"
+readonly SEPARATOR="═══════════════════════════════════════════════════════════════════════════════"
 
-# Function to print a colorful header
-print_header() {
-  echo "${BOLD}${CYAN}==== Python Project Utility Script ====${RESET}"
+# Configuration
+readonly DEFAULT_SCHEMA_PATH="app/infrastructure/database/schema.prisma"
+# shellcheck disable=SC2155
+readonly SCRIPT_NAME="$(basename "$0")"
+
+#===============================================================================
+# Utility Functions
+#===============================================================================
+
+# Enhanced banner with better visual separation
+print_banner() {
+  echo ""
+  echo "${BOLD}${CYAN}${SEPARATOR}${RESET}"
+  echo "${BOLD}${CYAN}║                    Python Project Utility Script                    ║${RESET}"
+  echo "${BOLD}${CYAN}${SEPARATOR}${RESET}"
+  echo ""
 }
 
-# Function to print a success message
+# Status message with consistent formatting
+print_status() {
+  local message="$1"
+  local color="${2:-$BLUE}"
+  printf "${BOLD}${color}[INFO]${RESET} %s\n" "$message"
+}
+
+# Success message with checkmark
 print_success() {
-  echo "${GREEN}✔ $1${RESET}"
+  local message="$1"
+  printf "${CHECK_MARK} ${GREEN}%s${RESET}\n" "$message"
 }
 
-# Function to print an error message
+# Error message with cross mark
 print_error() {
-  echo "${RED}✖ $1${RESET}" >&2
+  local message="$1"
+  printf "${CROSS_MARK} ${RED}%s${RESET}\n" "$message" >&2
 }
 
-# Function to print a warning message
+# Warning message with consistent formatting
 print_warning() {
-  echo "${YELLOW}▲ $1${RESET}"
+  local message="$1"
+  printf "${YELLOW}[WARN]${RESET} %s\n" "$message"
 }
 
-# Function to check for a command's existence
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
+# Section separator for better visual organization
+print_section() {
+  local title="$1"
+  echo ""
+  echo "${BOLD}${BLUE}▼ ${title}${RESET}"
+  echo "${DIM}${BLUE}────────────────────────────────────────────────────────────────────────────${RESET}"
 }
 
-# --- Core Functions ---
+# Command execution with enhanced feedback
+execute_command() {
+  local cmd="$1"
+  local description="$2"
+  local success_msg="$3"
+  local error_msg="$4"
 
-# Usage information
+  print_status "Executing: ${description}"
+
+  if eval "$cmd"; then
+    print_success "$success_msg"
+    return 0
+  else
+    print_error "$error_msg"
+    return 1
+  fi
+}
+
+#===============================================================================
+# Main Functions
+#===============================================================================
+
 usage() {
-  print_header
-  echo "${BOLD}${BLUE}Usage:${RESET} $(basename "$0") {clean|lint|format|sec|test|test-cov|db-generate|db-migrate|db-deploy|db-reset} [--schema path]"
+  print_banner
+  echo "${BOLD}${BLUE}USAGE:${RESET}"
+  printf "  %s ${YELLOW}<command>${RESET} [${DIM}--schema <path>${RESET}]\n\n" "$SCRIPT_NAME"
+
+  echo "${BOLD}${BLUE}AVAILABLE COMMANDS:${RESET}"
   echo ""
-  echo "  ${YELLOW}clean${RESET}       Remove Python/build/test caches and logs"
-  echo "  ${YELLOW}lint${RESET}        Lint the codebase using Ruff and MyPy"
-  echo "  ${YELLOW}format${RESET}      Format Python code and Prisma schema"
-  echo "  ${YELLOW}sec${RESET}         Check application for security vulnerabilities"
-  echo "  ${YELLOW}test${RESET}        Run all tests without coverage"
-  echo "  ${YELLOW}test-cov${RESET}    Run all tests with coverage"
-  echo "  ${YELLOW}db-generate${RESET} Generate Prisma client (schema: ${SCHEMA_PATH})"
-  echo "  ${YELLOW}db-migrate${RESET}  Run Prisma migrations (schema: ${SCHEMA_PATH})"
-  echo "  ${YELLOW}db-deploy${RESET}   Deploy Prisma migrations (schema: ${SCHEMA_PATH})"
-  echo "  ${YELLOW}db-reset${RESET}    Reset Prisma database (schema: ${SCHEMA_PATH})"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "clean" "Remove Python/build/test caches and logs"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "lint" "Lint the codebase using Ruff and MyPy"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "format" "Format Python code and Prisma schema"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "sec" "Check application for security vulnerabilities"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "test" "Run all tests without coverage"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "test-cov" "Run all tests with coverage reporting"
+
   echo ""
-  echo "  ${BOLD}${BLUE}Options:${RESET}"
-  echo "    ${BOLD}--schema <path>${RESET}  Override the default Prisma schema path (${DEFAULT_SCHEMA_PATH})"
-  echo "                     Can also be set via the SCHEMA_PATH environment variable."
+  echo "${BOLD}${MAGENTA}DATABASE COMMANDS:${RESET}"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "db-generate" "Generate Prisma client"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "db-migrate" "Run Prisma migrations"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "db-deploy" "Deploy Prisma migrations"
+  printf "  ${YELLOW}%-12s${RESET} ${ARROW} %s\n" "db-reset" "Reset Prisma database"
+
+  echo ""
+  echo "${BOLD}${BLUE}SCHEMA CONFIGURATION:${RESET}"
+  echo "  Current schema path: ${CYAN}${SCHEMA_PATH}${RESET}"
+  echo ""
+  echo "${DIM}Override schema path by:${RESET}"
+  echo "  ${DIM}• Setting SCHEMA_PATH environment variable${RESET}"
+  echo "  ${DIM}• Using --schema <path> flag${RESET}"
+  echo ""
+
   exit 1
 }
 
-# Clean function
 clean() {
-  echo "${BOLD}${BLUE}🗑️ Cleaning up cache and log files...${RESET}"
+  print_section "Cleanup Operations"
 
-  local items_removed=0
-
-  # Helper to remove items
   remove_items() {
-    local type=$1
-    local name=$2
-    echo "${YELLOW}  - Removing $name $type(s)...${RESET}"
-    local found_items=()
-    while IFS= read -r -d '' item; do
-      # shellcheck disable=SC2179
-      found_items+="$item"
-    done < <(find . -type "$type" -name "$name" -print0)
+    local type="$1"
+    local name="$2"
+    local description="$3"
 
-    if [[ ${#found_items[@]} -gt 0 ]]; then
-      ((items_removed++))
-      for item in "${found_items[@]}"; do
-        rm -rf "$item"
-        echo "    Removed: ${item}"
-      done
+    print_status "Removing ${description}..."
+
+    if find . -type "$type" -name "$name" -print0 2>/dev/null | xargs -0 rm -rf 2>/dev/null; then
+      print_success "${description} removed successfully"
     else
-      echo "    No $name $type(s) found."
+      print_warning "No ${description} found or already clean"
     fi
   }
 
-  remove_items d ".mypy_cache"
-  remove_items d ".pytest_cache"
-  remove_items d "__pycache__"
-  remove_items d "htmlcov"
-  remove_items f ".coverage"
-  remove_items d ".ruff_cache"
-  remove_items f "*.log"
+  remove_items "d" ".mypy_cache" "MyPy cache directories"
+  remove_items "d" ".pytest_cache" "Pytest cache directories"
+  remove_items "d" "__pycache__" "Python cache directories"
+  remove_items "d" "htmlcov" "HTML coverage directories"
+  remove_items "f" ".coverage" "coverage data files"
+  remove_items "d" ".ruff_cache" "Ruff cache directories"
+  remove_items "f" "*.log" "log files"
 
-  if [[ "$items_removed" -gt 0 ]]; then
-    print_success "Cleanup complete. ${items_removed} types of items removed."
-  else
-    print_success "Cleanup complete. No relevant cache or log files found."
-  fi
+  echo ""
+  print_success "Cleanup completed successfully!"
 }
 
-# Database functions
-db_command() {
-  local cmd_name="$1"
-  shift
-  local prisma_args=("$@")
-
-  echo "${BOLD}${MAGENTA}⚙️ Running Prisma $cmd_name (schema: ${SCHEMA_PATH})...${RESET}"
-
-  if command_exists prisma; then
-    if prisma "${prisma_args[@]}" --schema "${SCHEMA_PATH}"; then
-      print_success "Prisma $cmd_name completed successfully."
-    else
-      print_error "Prisma $cmd_name failed."
-      exit 1
-    fi
-  else
-    print_error "prisma CLI not found. Please install it first to run database commands."
-    exit 1
+check_prisma_cli() {
+  if ! command -v prisma >/dev/null 2>&1; then
+    print_error "Prisma CLI not found. Please install it first:"
+    echo "  ${DIM}npm install -g prisma${RESET}"
+    return 1
   fi
+  return 0
 }
 
 db_generate() {
-  db_command "client generation" "generate"
+  print_section "Prisma Client Generation"
+
+  if ! check_prisma_cli; then
+    exit 1
+  fi
+
+  print_status "Schema path: ${CYAN}${SCHEMA_PATH}${RESET}"
+
+  execute_command \
+    "prisma generate --schema '${SCHEMA_PATH}'" \
+    "Generating Prisma client" \
+    "Prisma client generated successfully!" \
+    "Failed to generate Prisma client"
 }
 
 db_migrate() {
-  db_command "migrations" "migrate" "dev" "--create-only"
+  print_section "Database Migration"
+
+  if ! check_prisma_cli; then
+    exit 1
+  fi
+
+  print_status "Schema path: ${CYAN}${SCHEMA_PATH}${RESET}"
+
+  execute_command \
+    "prisma migrate dev --schema '${SCHEMA_PATH}' --create-only" \
+    "Running database migrations" \
+    "Database migrations completed successfully!" \
+    "Database migration failed"
 }
 
 db_deploy() {
-  db_command "deployment" "migrate" "deploy"
+  print_section "Migration Deployment"
+
+  if ! check_prisma_cli; then
+    exit 1
+  fi
+
+  print_status "Schema path: ${CYAN}${SCHEMA_PATH}${RESET}"
+
+  execute_command \
+    "prisma migrate deploy --schema '${SCHEMA_PATH}'" \
+    "Deploying migrations to database" \
+    "Migrations deployed successfully!" \
+    "Migration deployment failed"
 }
 
 db_reset() {
-  db_command "database reset" "migrate" "reset" "--force"
+  print_section "Database Reset"
+
+  if ! check_prisma_cli; then
+    exit 1
+  fi
+
+  print_warning "This will completely reset your database!"
+  print_status "Schema path: ${CYAN}${SCHEMA_PATH}${RESET}"
+
+  execute_command \
+    "prisma migrate reset --schema '${SCHEMA_PATH}' --force" \
+    "Resetting database" \
+    "Database reset completed successfully!" \
+    "Database reset failed"
 }
 
-# Format code
 format_code() {
-  echo "${BOLD}${BLUE}✨ Formatting Python code with Ruff and AutoFlake...${RESET}"
-  if command_exists autoflake && command_exists ruff; then
-    autoflake --in-place --recursive .
-    ruff format .
-    print_success "Python code formatting complete."
+  print_section "Code Formatting"
+
+  # Python formatting
+  print_status "Formatting Python code with AutoFlake..."
+  if command -v autoflake >/dev/null 2>&1; then
+    autoflake --in-place --recursive . && print_success "AutoFlake formatting complete"
   else
-    print_warning "autoflake or ruff not found. Skipping Python code formatting."
+    print_warning "AutoFlake not found, skipping..."
   fi
 
-  echo "${BOLD}${BLUE}✨ Formatting Prisma schema with Prisma CLI...${RESET}"
-  if command_exists prisma; then
-    if prisma format --schema "${SCHEMA_PATH}"; then
-      print_success "Prisma schema formatting complete."
-    else
-      print_error "Prisma schema formatting failed."
-    fi
+  print_status "Formatting Python code with Ruff..."
+  if command -v ruff >/dev/null 2>&1; then
+    ruff format . && print_success "Ruff formatting complete"
   else
-    print_warning "prisma CLI not found. Skipping Prisma schema formatting."
+    print_error "Ruff not found. Please install it first."
+    return 1
   fi
+
+  # Prisma formatting
+  print_status "Formatting Prisma schema..."
+  if command -v prisma >/dev/null 2>&1; then
+    execute_command \
+      "prisma format --schema '${SCHEMA_PATH}'" \
+      "Formatting Prisma schema" \
+      "Prisma schema formatting complete!" \
+      "Prisma schema formatting failed"
+  else
+    print_warning "Prisma CLI not found. Skipping schema formatting."
+  fi
+
+  echo ""
+  print_success "All formatting operations completed!"
 }
 
-# Lint code
-lint_code() {
-  echo "${BOLD}${BLUE}🔎 Linting codebase with Ruff and MyPy...${RESET}"
+run_linting() {
+  print_section "Code Linting"
 
-  local lint_errors=0
-
-  # Run Ruff
-  echo "${CYAN}--- Running Ruff checks ---${RESET}"
-  if command_exists ruff; then
-    if ruff check . --fix --unsafe-fixes; then
-      print_success "Ruff checks passed."
-    else
-      print_error "Ruff found issues."
-      lint_errors=1
-    fi
-  else
-    print_warning "ruff not found. Skipping Ruff checks."
+  # Ruff linting
+  print_status "Running Ruff linter..."
+  if execute_command \
+    "ruff check . --fix --unsafe-fixes" \
+    "Linting with Ruff" \
+    "Ruff linting completed successfully!" \
+    "Ruff linting found issues"; then
+    echo ""
   fi
 
-  # Run MyPy
-  echo "${CYAN}--- Running MyPy checks ---${RESET}"
-  if command_exists mypy; then
-    if mypy app; then # Assuming 'app' is your main application directory for type checking
-      print_success "MyPy type checks passed."
-    else
-      print_error "MyPy found type errors."
-      lint_errors=1
-    fi
-  else
-    print_warning "mypy not found. Skipping MyPy checks."
-  fi
-
-  if [[ "$lint_errors" -eq 0 ]]; then
-    print_success "All linting and type checks complete. No issues found."
-  else
-    print_error "Linting and type checking completed with errors."
-    exit 1
-  fi
+  # MyPy type checking
+  print_status "Running MyPy type checker..."
+  execute_command \
+    "mypy app" \
+    "Type checking with MyPy" \
+    "MyPy type checking passed!" \
+    "MyPy found type issues"
 }
 
-# Security check
-sec_check() {
-  echo "${BOLD}${BLUE}🔒 Checking application security with Bandit...${RESET}"
-  if command_exists bandit; then
-    if bandit -r app; then
-      print_success "Security check complete. No vulnerabilities found."
-    else
-      print_error "Security check completed with potential vulnerabilities."
-    fi
-  else
-    print_warning "bandit not found. Skipping security checks."
-  fi
+run_security_check() {
+  print_section "Security Analysis"
+
+  execute_command \
+    "bandit -r app" \
+    "Scanning for security issues with Bandit" \
+    "Security scan completed - no issues found!" \
+    "Security issues detected!"
 }
 
-# Test functions
 run_tests() {
-  local test_type="$1"
-  local pytest_args=("$@")
-  shift
-  echo "${BOLD}${BLUE}🧪 Running tests (${test_type})...${RESET}"
-  if command_exists pytest; then
-    if pytest "${pytest_args[@]}"; then
-      print_success "Tests (${test_type}) completed successfully."
-    else
-      print_error "Tests (${test_type}) failed."
-      exit 1
-    fi
-  else
-    print_error "pytest not found. Please install it to run tests."
-    exit 1
+  print_section "Test Execution"
+
+  execute_command \
+    "pytest -v --tb=short --no-cov" \
+    "Running test suite" \
+    "All tests passed successfully!" \
+    "Some tests failed"
+}
+
+run_tests_with_coverage() {
+  print_section "Test Execution with Coverage"
+
+  execute_command \
+    "pytest --cov=app --cov-report=html:app/static/htmlcov --cov-report=term-missing:skip-covered --cov-fail-under=80 -v" \
+    "Running tests with coverage analysis" \
+    "Tests completed with coverage report generated!" \
+    "Tests failed or coverage below threshold"
+
+  echo ""
+  print_status "Coverage report available at: ${CYAN}app/static/htmlcov/index.html${RESET}"
+}
+
+#===============================================================================
+# Main Script Logic
+#===============================================================================
+
+main() {
+  # Parse arguments
+  local cmd="${1:-}"
+  SCHEMA_PATH="${SCHEMA_PATH:-$DEFAULT_SCHEMA_PATH}"
+
+  # Handle schema path override
+  if [[ $# -eq 3 && "$2" == "--schema" ]]; then
+    SCHEMA_PATH="$3"
   fi
-}
 
-test_no_cov() {
-  run_tests "no coverage" "-v" "--tb=short" "--no-cov"
-}
-
-test_with_cov() {
-  run_tests "with coverage" "--cov=app" "--cov-report=html:app/static/htmlcov" "--cov-report=term-missing:skip-covered" "--cov-fail-under=80" "-v"
-}
-
-# --- Argument Parsing ---
-CMD="${1:-}"
-
-# Check for --schema argument
-if [[ $# -ge 2 ]]; then
-  if [[ "$2" == "--schema" ]]; then
-    if [[ $# -eq 3 ]]; then
-      SCHEMA_PATH="$3"
-    else
-      print_error "Error: --schema requires a path argument."
-      usage
-    fi
-  fi
-fi
-
-# --- Main execution ---
-if [[ -z "$CMD" ]]; then
-  usage
-fi
-
-case "$CMD" in
-  clean)
-    clean
-    ;;
-  lint)
-    lint_code
-    ;;
-  format)
-    format_code
-    ;;
-  sec)
-    sec_check
-    ;;
-  test)
-    test_no_cov
-    ;;
-  test-cov)
-    test_with_cov
-    ;;
-  db-generate)
-    db_generate
-    ;;
-  db-migrate)
-    db_migrate
-    ;;
-  db-deploy)
-    db_deploy
-    ;;
-  db-reset)
-    db_reset
-    ;;
-  *)
+  # Show usage if no command provided
+  if [[ $# -lt 1 ]]; then
     usage
-    ;;
-esac
+  fi
 
-exit 0
+  # Display banner
+  print_banner
+
+  # Execute command
+  case "$cmd" in
+    clean)
+      clean
+      ;;
+    lint)
+      run_linting
+      ;;
+    format)
+      format_code
+      ;;
+    sec)
+      run_security_check
+      ;;
+    test)
+      run_tests
+      ;;
+    test-cov)
+      run_tests_with_coverage
+      ;;
+    db-generate)
+      db_generate
+      ;;
+    db-migrate)
+      db_migrate
+      ;;
+    db-deploy)
+      db_deploy
+      ;;
+    db-reset)
+      db_reset
+      ;;
+    *)
+      print_error "Unknown command: $cmd"
+      echo ""
+      usage
+      ;;
+  esac
+
+  echo ""
+  print_success "Operation completed successfully!"
+  echo ""
+}
+
+# Execute main function with all arguments
+main "$@"

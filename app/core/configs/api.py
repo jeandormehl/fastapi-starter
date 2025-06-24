@@ -73,7 +73,8 @@ class APIConfiguration(BaseSettings):
     @classmethod
     def _validate_hostname(cls, hostname: str) -> str:
         if not hostname or len(hostname) > 253:
-            raise ValueError(f'invalid hostname length: {hostname}')
+            msg = f'invalid hostname length: {hostname}'
+            raise ValueError(msg)
 
         labels = hostname.split('.')
         invalid_labels = [
@@ -81,8 +82,7 @@ class APIConfiguration(BaseSettings):
         ]
 
         if invalid_labels:
-            raise ValueError(
-                f'invalid hostname "{hostname}": invalid labels {invalid_labels}'
-            )
+            msg = f'invalid hostname "{hostname}": invalid labels {invalid_labels}'
+            raise ValueError(msg)
 
         return hostname
