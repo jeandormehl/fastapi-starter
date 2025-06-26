@@ -18,7 +18,7 @@ class DatabaseConfiguration(BaseSettings):
         extra='ignore',
     )
 
-    url: SecretStr = Field(..., description='The full database connection')
+    url: SecretStr = Field(..., description='The full database connection', repr=False)
     timeout: float = Field(
         5.0,
         description=(

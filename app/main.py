@@ -49,11 +49,6 @@ def run_asgi_gunicorn_server(app: FastAPI, config: Configuration) -> None:
         'reload': config.app_debug,
     }
 
-    print(
-        f'starting gunicorn (asgi) server on '
-        f'{options["bind"]} with {options["workers"]} workers...'
-    )
-
     StandaloneGunicornApplication(app, options).run()
 
 

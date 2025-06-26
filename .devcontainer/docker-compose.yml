@@ -9,22 +9,28 @@ services:
     depends_on:
       - "redis"
       - "postgres"
+      - "grafana"
     env_file:
       - ".env"
     networks:
-      - "app-tier"
+      - "proxy-tier"
       - "infra-tier"
+      - "obs-tier"
     restart: "unless-stopped"
     volumes:
       - ".:/app"
 
 networks:
   app-tier:
-    name: "app-tier"
-    driver: bridge
+    name: "proxy-tier"
+    driver: "bridge"
   infra-tier:
     name: "infra-tier"
-    driver: bridge
+    driver: "bridge"
+  obs-tier:
+    name: "obs-tier"
+    driver: "bridge"
 
 include:
-  - docker-compose.deps.yml
+  - "docker-compose.deps.yml"
+  - "docker-compose.grafana.yml"

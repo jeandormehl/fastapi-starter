@@ -7,7 +7,8 @@ from prisma import Prisma
 from prisma.types import HttpConfig
 
 from app.core.application import get_application
-from app.core.config import Configuration
+from app.core.config import Configuration, get_config
+from app.core.logging import setup_logging
 
 
 def wire_dependencies() -> None:
@@ -20,10 +21,10 @@ def wire_dependencies() -> None:
 # noinspection PyArgumentList
 def _wire_core_dependencies() -> None:
     """Wire core application dependencies."""
-    di[Configuration] = Configuration()
+    di[Configuration] = get_config()
     di[ZoneInfo] = ZoneInfo(di[Configuration].app_timezone)
 
-    # TODO: Init logging
+    setup_logging()
 
     di[FastAPI] = get_application()  # type: ignore[call-arg]
 

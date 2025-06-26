@@ -25,6 +25,7 @@ dependencies = [
   "httpx>=0.28.1",
   "kink>=0.8.1",
   "loguru>=0.7.3",
+  "loki-logger-handler (>=1.1.2,<2.0.0)",
   "orjson (>=3.10.18,<4.0.0)",
   "prisma>=0.15.0",
   "psutil>=7.0.0",

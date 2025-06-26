@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Literal
 from zoneinfo import available_timezones
 
@@ -5,9 +6,9 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import __version__
-from app.core.configs import APIConfiguration
-from app.core.configs.database import DatabaseConfiguration
 from app.core.paths import ROOT_PATH
+
+from .configs import APIConfiguration, DatabaseConfiguration, LogConfiguration
 
 
 # noinspection PyNestedDecorators,PyArgumentList
@@ -43,6 +44,7 @@ class Configuration(BaseSettings):
 
     api: APIConfiguration = APIConfiguration()
     database: DatabaseConfiguration = DatabaseConfiguration()
+    log: LogConfiguration = LogConfiguration()
 
     @property
     def app_debug(self) -> bool:
@@ -55,3 +57,12 @@ class Configuration(BaseSettings):
             msg = f'not a valid timezone: {v}'
             raise ValueError(msg)
         return v
+
+
+# noinspection PyArgumentList
+@lru_cache
+def get_config() -> Configuration:
+    """
+    Get cached application settings.
+    """
+    return Configuration()
