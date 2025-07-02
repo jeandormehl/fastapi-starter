@@ -1,0 +1,69 @@
+name: "fastapi-starter-deps"
+
+services:
+  nginx-proxy:
+    image: "jc21/nginx-proxy-manager:latest"
+    restart: "unless-stopped"
+    environment:
+      DISABLE_IPV6: "true"
+    networks:
+      - "proxy-tier"
+    ports:
+      - "80:80" # Public HTTP Port
+      - "443:443" # Public HTTPS Port
+      - "81:81" # Admin Web Port
+    volumes:
+      - "./proxy/data:/data"
+      - "./proxy/letsencrypt:/etc/letsencrypt"
+    healthcheck:
+      test: [ "CMD", "/usr/bin/check-health" ]
+      interval: "10s"
+      timeout: "3s"
+
+  postgres:
+    image: "bitnami/postgresql:latest"
+    environment:
+      POSTGRES_USER: "${POSTGRESQL_USERNAME}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRESQL_DATABASE: "${POSTGRESQL_DATABASE}"
+      TZ: "${TZ}"
+    networks:
+      - "infra-tier"
+    ports:  # TODO: Remove later
+      - "5432:5432"
+    restart: "unless-stopped"
+    volumes:
+      - "postgres_data:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: "10s"
+      timeout: "5s"
+      retries: "5"
+
+  redis:
+    image: "bitnami/redis:latest"
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      TZ: "${TZ}"
+    networks:
+      - "infra-tier"
+    restart: "unless-stopped"
+    volumes:
+      - "redis_data:/data"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: "10s"
+      timeout: "5s"
+      retries: "5"
+
+networks:
+  proxy-tier:
+    name: "proxy-tier"
+    driver: bridge
+  infra-tier:
+    name: "infra-tier"
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

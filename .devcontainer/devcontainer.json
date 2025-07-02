@@ -1,0 +1,12 @@
+{
+  "name": "fastapi-starter",
+  "service": "app",
+  "dockerComposeFile": [
+    "docker-compose.yml"
+  ],
+  "workspaceFolder": "/app",
+  "remoteEnv": {
+    "SHELL": "/bin/zsh"
+  },
+  "postStartCommand": "/app/manage.sh db-generate && /app/manage.sh db-deploy"
+}

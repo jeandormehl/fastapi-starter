@@ -1,0 +1,48 @@
+# PyCharm related files
+.idea/
+*.iml
+
+# Docker related files
+docker-compose.override.yml
+.dockerenv
+.DS_Store
+
+# Other common ignores (you might want to keep some of these)
+*.log
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+dist/
+build/
+eggs/
+*.egg-info/
+venv/
+env/
+
+*.orig
+*.rej
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Environments
+.env
+.env.*
+!.env.example
+!.env.test
+
+celerybeat-schedule
+poetry.lock
+
+certs/
+.devcontainer/proxy
+!.devcontainer/.env

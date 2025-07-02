@@ -1,0 +1,200 @@
+[project]
+name = "fastapi_starter"
+version = "0.0.1"
+description = "FastAPI skeleton for rapid development and deployment"
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+license = { text = "MIT" }
+authors = [
+  { name = "Jean Dormehl", email = "jean.dormehl@qlink.co.za" }
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+]
+
+dependencies = [
+  "aioredis>=2.0.1",
+  "bcrypt>=4.3.0",
+  "fastapi>=0.115.13",
+  "gunicorn (>=23.0.0,<24.0.0)",
+  "httpx>=0.28.1",
+  "kink>=0.8.1",
+  "loguru>=0.7.3",
+  "loki-logger-handler (>=1.1.2,<2.0.0)",
+  "orjson (>=3.10.18,<4.0.0)",
+  "prisma>=0.15.0",
+  "psutil>=7.0.0",
+  "pydantic-settings>=2.10.0",
+  "pydantic>=2.11.7",
+  "pydiator-core>=1.0.12",
+  "pyjwt>=2.10.1",
+  "python-multipart (>=0.0.20,<0.0.21)",
+  "taskiq-aio-pika>=0.4.2",
+  "taskiq-redis>=1.0.9",
+  "taskiq>=0.11.17",
+  "uvicorn[standard]>=0.30.0",
+  "websockets>=15.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "autoflake>=2.3.1",
+  "bandit>=1.8.5",
+  "bumpver>=2024.1130",
+  "mypy>=1.16.1",
+  "pre-commit>=4.2.0",
+  "pytest-asyncio>=1.0.0",
+  "pytest-cov>=6.2.1",
+  "pytest-httpx>=0.35.0",
+  "pytest-mock>=3.14.1",
+  "pytest-xdist>=3.7.0",
+  "pytest>=8.4.1",
+  "ruff>=0.12.0",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+exclude = [
+  ".git",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  "build",
+  "dist",
+  "docs",
+  "generated",
+  "migrations",
+  "venv"
+]
+
+[tool.ruff.lint]
+select = [
+  "A",     # Built-in exceptions
+  "ANN",   # flake8-annotations (type annotation checks)
+  "ARG",   # Unused arguments
+  "ASYNC", # Async
+  "B",     # Bugbear
+  "C4",    # Comprehensions
+  "DTZ",   # DateTime zones
+  "E",     # Pycodestyle errors
+  "EM",    # Error messages
+  "F",     # Pyflakes
+  "I",     # Import order
+  "ICN",   # Import conventions
+  "N",     # pep8-naming (naming conventions)
+  "PGH",   # PEP 8 naming
+  "PL",    # Pylint
+  "PT",    # Pytest style
+  "RET",   # Returns
+  "RUF",   # Ruff-specific
+  "SIM",   # Simplifications
+  "TCH",   # Type checking
+  "UP",    # Pyupgrade
+  "W",     # Pycodestyle (warnings, e.g., whitespace)
+]
+ignore = [
+  "ANN401", # Any
+  "B008",   # Depends for FastAPI
+  "B904",   # Allow raising without from
+  "PLR2004",# Magic value comparison
+  "PLR0913",# Too many arguments
+]
+unfixable = ["B904", "DTZ005"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending="lf"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "S101"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+exclude = [
+  ".git",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  "build",
+  "dist",
+  "docs",
+  "generated",
+  "migrations",
+  "venv"
+]
+
+[tool.bandit]
+targets = [
+  "app/",
+  "main.py",
+]
+exclude_dirs = [
+  ".git",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  "build",
+  "dist",
+  "docs",
+  "generated",
+  "migrations",
+  "venv"
+]
+confidence_level = "MEDIUM"
+severity_level = "MEDIUM"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+asyncio_mode = "auto"
+addopts = [
+    "-ra",
+    "-q",
+    "--disable-warnings",
+    "--maxfail=10",
+    "--tb=short",
+    "-v",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning",
+    "ignore:.*:pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+  "*/__init__.py",
+  "*/migrations/*",
+  "tests/*"
+]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "@overload"
+]

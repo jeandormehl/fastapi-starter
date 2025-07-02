@@ -1,0 +1,36 @@
+name: "fastapi-starter"
+
+services:
+  app:
+    build:
+      context: ".."
+      dockerfile: ".devcontainer/Dockerfile"
+      target: "build-dev"  # TODO: Change to "build" later
+    depends_on:
+      - "redis"
+      - "postgres"
+      - "grafana"
+    env_file:
+      - ".env"
+    networks:
+      - "proxy-tier"
+      - "infra-tier"
+      - "obs-tier"
+    restart: "unless-stopped"
+    volumes:
+      - ".:/app"
+
+networks:
+  app-tier:
+    name: "proxy-tier"
+    driver: "bridge"
+  infra-tier:
+    name: "infra-tier"
+    driver: "bridge"
+  obs-tier:
+    name: "obs-tier"
+    driver: "bridge"
+
+include:
+  - "docker-compose.deps.yml"
+  - "docker-compose.grafana.yml"

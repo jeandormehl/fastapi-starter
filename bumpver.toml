@@ -1,0 +1,23 @@
+[bumpver]
+commit = true
+commit_message = "version bump: {old_version} -> {new_version}"
+current_version = "0.0.1"
+push = false
+tag = true
+tag_name = "{new_version}"
+version_pattern = "MAJOR.MINOR.PATCH"
+
+
+[version_scheme]
+PATCH = "increment"
+
+[bumpver.file_patterns]
+"bumpver.toml" = [
+  'current_version = "{version}"',
+]
+"pyproject.toml" = [
+  'version = "{version}"',
+]
+"app/__init__.py" = [
+  '__version__ = "{version}"',
+]
