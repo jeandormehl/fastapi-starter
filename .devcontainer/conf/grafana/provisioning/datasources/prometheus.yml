@@ -5,18 +5,13 @@ datasources:
     orgId: 1
     name: Prometheus
     type: prometheus
-    typeName: Prometheus
     access: proxy
     url: http://prometheus:9090
-    password: ''
-    user: ''
-    database: ''
-    basicAuth: false
     isDefault: true
     jsonData:
+      timeout: 60
+      httpMethod: POST
       exemplarTraceIdDestinations:
         - datasourceUid: tempo
           name: TraceID
-      httpMethod: POST
-    readOnly: false
-    editable: true
+          urlDisplayLabel: "View Trace"

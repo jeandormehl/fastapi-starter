@@ -39,7 +39,7 @@ query_frontend:
 overrides:
   defaults:
     metrics_generator:
-      processors: [local-blocks, span-metrics, service-graphs]
+      processors: [local-blocks]
 
 metrics_generator:
   storage:
@@ -47,8 +47,6 @@ metrics_generator:
   traces_storage:
     path: /var/tempo/generator/traces
   processor:
-    span_metrics:
-    service_graphs:
     local_blocks:
       filter_server_spans: false
       flush_to_storage: true

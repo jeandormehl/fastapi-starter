@@ -5,24 +5,12 @@ datasources:
     orgId: 1
     name: Tempo
     type: tempo
-    typeName: Tempo
     access: proxy
     url: http://tempo:3200
-    password: ''
-    user: ''
-    database: ''
-    basicAuth: false
-    isDefault: false
     jsonData:
+      timeout: 60
       nodeGraph:
         enabled: true
       tracesToLogsV2:
-        customQuery: false
         datasourceUid: loki
-        filterBySpanID: false
         filterByTraceID: true
-        tags:
-          - key: service.name
-            value: compose_service
-    readOnly: false
-    editable: true

@@ -17,8 +17,6 @@ class DataSanitizer:
             r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b',
             '<REDACTED_PHONE>',
         ),
-        # API Keys (general pattern: 32+ alphanumeric characters)
-        (r'\b[A-Za-z0-9]{32,}\b', '<REDACTED_API_KEY>'),
         # Passwords in URLs (e.g., http://user:password@example.com)
         (r'(://[^:]+:)[^@]+(@)', r'\1<REDACTED_PASSWORD>\2'),
         # Authorization headers (e.g., "Authorization: Bearer abcdef123")
@@ -48,7 +46,13 @@ class DataSanitizer:
         'token',
     ]
 
-    REDACTION_SKIP_KEYS: ClassVar = ['auth_method', 'token_type', 'grant_type']
+    REDACTION_SKIP_KEYS: ClassVar = [
+        'auth_method',
+        'token_type',
+        'grant_type',
+        'trace_id',
+        'span_id',
+    ]
 
     @classmethod
     def _redact_string(cls, text: str) -> str:

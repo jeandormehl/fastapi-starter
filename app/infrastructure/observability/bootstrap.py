@@ -28,14 +28,14 @@ logger = get_logger(__name__)
 
 
 def _setup_tracing(config: Configuration) -> None:
-    sample_rate = (
+    sampler = (
         sampling.ALWAYS_ON
         if config.observability.tracing_sample_ratio >= 1.0
         else sampling.TraceIdRatioBased(config.observability.tracing_sample_ratio)
     )
 
     provider = TracerProvider(
-        sampler=sample_rate,
+        sampler=sampler,
         resource=Resource.create(
             {
                 'service.name': StringUtils.service_name(),
@@ -44,17 +44,21 @@ def _setup_tracing(config: Configuration) -> None:
             }
         ),
     )
-    span_exporter = OTLPSpanExporter(
-        endpoint=str(config.observability.traces_endpoint), insecure=True
+
+    provider.add_span_processor(
+        BatchSpanProcessor(
+            OTLPSpanExporter(
+                endpoint=str(config.observability.traces_endpoint), insecure=True
+            )
+        )
     )
-    provider.add_span_processor(BatchSpanProcessor(span_exporter))
     trace.set_tracer_provider(provider)
 
     # Instrument libraries
     HTTPXClientInstrumentor().instrument()
     RedisInstrumentor().instrument()
 
-    logger.info('otel tracing initialised.')
+    logger.info('otel tracing initialised')
 
 
 def _setup_metrics(app: FastAPI) -> None:

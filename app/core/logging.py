@@ -30,7 +30,7 @@ def format_log_record(record: dict[str, Any]) -> str:
     fmt = (
         '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | '
         '<level>{level: <8}</level> | '
-        '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | '
+        '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>'
     )
 
     if 'trace_id' in extra:
