@@ -8,10 +8,7 @@ from kink import di
 from prisma import Prisma
 from prometheus_client import REGISTRY, CollectorRegistry, generate_latest
 
-from app.core.logging import get_logger
 from app.domain.common.utils import DateTimeUtils
-
-_logger = get_logger(__name__)
 
 
 @dataclass
@@ -39,7 +36,7 @@ class AggregatedMetrics:
     timestamp: datetime = field(default_factory=datetime.now)
 
 
-# noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic,PyBroadException
 class MetricsAggregator:
     """Aggregates metrics from multiple sources into a unified view."""
 
@@ -86,34 +83,29 @@ class MetricsAggregator:
             collector=collector,
             enabled=enabled,
         )
-        _logger.info(f'added metrics source: {name}')
 
     def disable_source(self, name: str) -> None:
         """Disable a metrics source."""
         if name in self.sources:
             self.sources[name].enabled = False
-            _logger.info(f'disabled metrics source: {name}')
 
     def enable_source(self, name: str) -> None:
         """Enable a metrics source."""
         if name in self.sources:
             self.sources[name].enabled = True
-            _logger.info(f'enabled metrics source: {name}')
 
     async def _collect_prometheus_metrics(self) -> str:
         """Collect Prometheus metrics from the registry."""
         try:
             return generate_latest(self.registry).decode('utf-8')
-        except Exception as e:
-            _logger.error(f'failed to collect prometheus metrics: {e}')
+        except Exception:
             return ''
 
     async def _collect_prisma_metrics(self) -> str:
         """Collect Prisma database metrics."""
         try:
             return await di[Prisma].get_metrics(format='prometheus')
-        except Exception as e:
-            _logger.error(f'failed to collect prisma metrics: {e}')
+        except Exception:
             return ''
 
     async def _collect_health_metrics(self) -> dict[str, Any]:
@@ -155,8 +147,7 @@ class MetricsAggregator:
                     - datetime.fromtimestamp(process.create_time(), tz=di[ZoneInfo])
                 ).total_seconds(),
             }
-        except Exception as e:
-            _logger.error(f'failed to collect health metrics: {e}')
+        except Exception:
             return {}
 
     async def collect_all_metrics(self) -> AggregatedMetrics:
@@ -178,7 +169,6 @@ class MetricsAggregator:
         for source_name, result in zip(self.sources.keys(), results, strict=False):
             if isinstance(result, BaseException):
                 self.sources[source_name].error_count += 1
-                _logger.error(f'error collecting from {source_name}: {result}')
 
                 continue
 
@@ -218,18 +208,17 @@ class MetricsAggregator:
 
         return aggregated
 
-    async def _collect_from_source(self, source_name: str, source: MetricSource) -> Any:
+    async def _collect_from_source(
+        self, _source_name: str, source: MetricSource
+    ) -> Any:
         """Collect metrics from a specific source."""
         try:
             if source.collector:
                 return await source.collector()
-            _logger.warning(f'no collector defined for source: {source_name}')
 
             return None
 
-        except Exception as e:
-            _logger.error(f'failed to collect from {source_name}: {e}')
-
+        except Exception:
             raise
 
     def get_prometheus_format(self) -> str:

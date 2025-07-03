@@ -36,17 +36,14 @@ query_frontend:
   search:
     default_result_limit: 50
 
-overrides:
-  defaults:
-    metrics_generator:
-      processors: [local-blocks]
-
 metrics_generator:
   storage:
     path: /var/tempo/generator
   traces_storage:
     path: /var/tempo/generator/traces
   processor:
+    service_graphs:
+    span_metrics:
     local_blocks:
       filter_server_spans: false
       flush_to_storage: true
