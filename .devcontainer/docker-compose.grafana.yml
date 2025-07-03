@@ -49,7 +49,7 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--timeout=2", "http://localhost:9090/-/ready"]
+      test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:9090/-/ready"]
       interval: "10s"
       timeout: "5s"
       retries: "5"

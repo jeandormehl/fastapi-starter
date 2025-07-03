@@ -1,3 +1,5 @@
+auth_enabled: false
+
 server:
   http_listen_port: 3200
   grpc_listen_port: 9095
@@ -12,6 +14,7 @@ distributor:
           endpoint: 0.0.0.0:4318
 
 ingester:
+  max_block_bytes: 5_242_880
   max_block_duration: 5m
 
 compactor:
@@ -25,7 +28,27 @@ storage:
       path: /var/tempo/traces
     wal:
       path: /var/tempo/wal
+    pool:
+      max_workers: 100
+      queue_depth: 10000
 
 query_frontend:
   search:
     default_result_limit: 50
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [local-blocks, span-metrics, service-graphs]
+
+metrics_generator:
+  storage:
+    path: /var/tempo/generator
+  traces_storage:
+    path: /var/tempo/generator/traces
+  processor:
+    span_metrics:
+    service_graphs:
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
