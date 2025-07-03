@@ -43,7 +43,7 @@ def format_log_record(record: dict[str, Any]) -> str:
 
     if extra:
         record['extra'] = DataSanitizer.sanitize(extra)
-        fmt += '\n<lw>{extra}</lw>'
+        fmt += '\n<white>{extra}</white>'
 
     if record.get('exception'):
         fmt += '\n{exception}'
@@ -72,9 +72,9 @@ def setup_loki_handler(config: Configuration) -> None:
         loki_handler = LokiLoggerHandler(
             url=str(config.log.loki_url),
             labels={
-                'application': StringUtils.slugify(config.app_name.lower()),
-                'environment': config.app_environment.lower(),
-                'version': config.app_version,
+                'service_name': StringUtils.slugify(config.app_name.lower()),
+                'service_environment': config.app_environment.lower(),
+                'service_version': config.app_version,
             },
             auth=auth,
             timeout=10,
@@ -107,7 +107,7 @@ def setup_logging() -> None:
     if config.app_debug and config.app_environment == 'local':
         logger.add(
             sys.stderr,
-            level=log_config.level if config.app_environment != 'local' else 'TRACE',
+            level=log_config.level if config.app_environment != 'local' else 'DEBUG',
             format=format_log_record,  # type: ignore [arg-type]
             colorize=True,
             backtrace=True,

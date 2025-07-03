@@ -58,8 +58,6 @@ def _setup_tracing(config: Configuration) -> None:
     HTTPXClientInstrumentor().instrument()
     RedisInstrumentor().instrument()
 
-    logger.info('otel tracing initialised')
-
 
 def _setup_metrics(app: FastAPI) -> None:
     Instrumentator(
@@ -80,5 +78,3 @@ def configure_observability(app: FastAPI, config: Configuration) -> None:
     FastAPIInstrumentor.instrument_app(
         app, excluded_urls=config.observability.excluded_urls
     )
-
-    logger.info('observability stack configured successfully.')
