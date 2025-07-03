@@ -4,35 +4,51 @@ from typing import Any
 
 from kink import di
 from loguru import logger
+from opentelemetry.trace import get_current_span
 
 from app.core.config import Configuration
 from app.core.paths import ROOT_PATH
 from app.domain.common.utils import DataSanitizer, StringUtils
 
 
+def _inject_trace_context(record: dict[str, Any]) -> None:
+    """Populate ``trace_id`` / ``span_id`` in ``record['extra']`` if absent."""
+    span_ctx = get_current_span().get_span_context()
+
+    if span_ctx and span_ctx.trace_id:
+        record.setdefault('extra', {})
+        record['extra'].setdefault('trace_id', f'{span_ctx.trace_id:032x}')
+        record['extra'].setdefault('span_id', f'{span_ctx.span_id:016x}')
+
+
 def format_log_record(record: dict[str, Any]) -> str:
     """Custom formatter for loguru records with sensitive data sanitization."""
     record['message'] = DataSanitizer.sanitize(record['message'])
+    _inject_trace_context(record)
+    extra = record.get('extra', {})
 
-    format_string = (
+    fmt = (
         '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | '
         '<level>{level: <8}</level> | '
         '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | '
     )
 
-    if 'extra' in record and 'event' in record['extra']:
-        format_string += '<yellow>[{extra[event]: <20}]</yellow> | '
+    if 'trace_id' in extra:
+        fmt += ' | <blue>{extra[trace_id]}</blue>/<yellow>{extra[span_id]}</yellow>'
 
-    format_string += '<level>{message}</level>'
+    if 'event' in extra:
+        fmt += ' | <yellow>[{extra[event]:<20}]</yellow>'
 
-    if 'extra' in record and len(record['extra']) > 0:
-        record['extra'] = DataSanitizer.sanitize(record['extra'])
-        format_string += '\n<lw>{extra}</lw>'
+    fmt += ' | <level>{message}</level>'
+
+    if extra:
+        record['extra'] = DataSanitizer.sanitize(extra)
+        fmt += '\n<lw>{extra}</lw>'
 
     if record.get('exception'):
-        format_string += '\n{exception}'
+        fmt += '\n{exception}'
 
-    return format_string + '\n'
+    return fmt + '\n'
 
 
 # noinspection PyBroadException
@@ -132,9 +148,9 @@ def setup_logging() -> None:
     if log_config.to_loki:
         setup_loki_handler(config)
 
+    logger.patch(_inject_trace_context)  # type: ignore [arg-type]
+
 
 def get_logger(name: str | None = None) -> Any:
     """Get a Loguru logger instance."""
-    if name:
-        return logger.bind(name=name)
-    return logger
+    return logger.bind(name=name) if name else logger

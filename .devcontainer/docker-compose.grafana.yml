@@ -69,9 +69,9 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: "admin"
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
+      - "./conf/grafana/provisioning:/etc/grafana/provisioning"
+      - "./conf/grafana/dashboards:/etc/grafana/dashboards"
       - "grafana_data:/var/lib/grafana"
-      - "./conf/grafana/datasources:/etc/grafana/provisioning/datasources"
-      - "./conf/grafana/dashboards:/etc/grafana/provisioning/dashboards"
     networks:
       - "proxy-tier"
       - "obs-tier"

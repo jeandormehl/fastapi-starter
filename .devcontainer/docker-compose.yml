@@ -8,9 +8,12 @@ services:
       target: "build-dev"  # TODO: Change to "build" later
     container_name: "app"
     depends_on:
-      - "redis"
-      - "postgres"
-      - "grafana"
+      postgres:
+        condition: "service_healthy"
+      redis:
+        condition: "service_healthy"
+      grafana:
+        condition: "service_healthy"
     env_file:
       - ".env"
     networks:
@@ -22,7 +25,7 @@ services:
       - ".:/app"
 
 networks:
-  app-tier:
+  proxy-tier:
     name: "proxy-tier"
     driver: "bridge"
   infra-tier:

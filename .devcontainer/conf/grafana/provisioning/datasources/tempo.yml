@@ -13,4 +13,3 @@ datasources:
         tags:
           - key: service.name
     editable: false
-

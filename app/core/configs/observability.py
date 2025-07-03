@@ -11,7 +11,7 @@ class ObservabilityConfiguration(BaseModel):
         case_sensitive=False,
         env_file=ROOT_PATH / '.env',
         env_file_encoding='utf-8',
-        env_prefix='OBS_',
+        env_prefix='OBSERVABILITY_',
         extra='ignore',
     )
 

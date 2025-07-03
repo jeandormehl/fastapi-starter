@@ -6,7 +6,6 @@ from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import (
@@ -52,7 +51,6 @@ def _setup_tracing(config: Configuration) -> None:
     trace.set_tracer_provider(provider)
 
     # Instrument libraries
-    LoggingInstrumentor().instrument(set_logging_format=False)
     HTTPXClientInstrumentor().instrument()
     RedisInstrumentor().instrument()
 
