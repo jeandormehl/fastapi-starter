@@ -10,7 +10,8 @@ router = APIRouter(prefix='/health', tags=['health'])
 
 @router.get('/liveness')
 async def liveness_check() -> dict[str, Any]:
-    """Simple liveness probe for container orchestration
+    """
+    Simple liveness probe for container orchestration
     Returns 200 if the application is running.
     """
     return {

@@ -12,6 +12,7 @@ from starlette.staticfiles import StaticFiles
 from app.api.v1 import v1_router
 from app.core.config import Configuration
 from app.core.paths import STATIC_PATH
+from app.infrastructure.observability import configure_observability
 
 
 # noinspection PyBroadException
@@ -61,6 +62,8 @@ def _v1(config: Configuration) -> FastAPI:
         title=config.app_name,
         version=config.app_version,
     )
+
+    configure_observability(app, config)
 
     # Add middleware
     # register_request_middlewares(config, app)  TODO: Implement

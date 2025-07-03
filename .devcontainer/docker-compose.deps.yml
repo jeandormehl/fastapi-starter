@@ -1,8 +1,7 @@
-name: "fastapi-starter-deps"
-
 services:
   nginx-proxy:
     image: "jc21/nginx-proxy-manager:latest"
+    container_name: "proxy"
     restart: "unless-stopped"
     environment:
       DISABLE_IPV6: "true"
@@ -22,6 +21,7 @@ services:
 
   postgres:
     image: "bitnami/postgresql:latest"
+    container_name: "postgres"
     environment:
       POSTGRES_USER: "${POSTGRESQL_USERNAME}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
@@ -42,6 +42,7 @@ services:
 
   redis:
     image: "bitnami/redis:latest"
+    container_name: "redis"
     environment:
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
       TZ: "${TZ}"

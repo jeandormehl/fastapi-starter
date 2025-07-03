@@ -1,8 +1,10 @@
 from fastapi import APIRouter
 
 from .health import router as health_router
+from .obs import router as demo_router
 
 router = APIRouter()
 
 # additional routers
 router.include_router(health_router)
+router.include_router(demo_router)

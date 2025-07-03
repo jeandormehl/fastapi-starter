@@ -6,6 +6,7 @@ services:
       context: ".."
       dockerfile: ".devcontainer/Dockerfile"
       target: "build-dev"  # TODO: Change to "build" later
+    container_name: "app"
     depends_on:
       - "redis"
       - "postgres"

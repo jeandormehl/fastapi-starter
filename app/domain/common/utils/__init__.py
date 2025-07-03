@@ -1,4 +1,3 @@
-from .context import ContextExtractor
 from .datetime import DateTimeUtils
 from .int import IntUtils
 from .ip import ClientIPExtractor
@@ -8,7 +7,6 @@ from .string import StringUtils
 
 __all__ = [
     'ClientIPExtractor',
-    'ContextExtractor',
     'DataSanitizer',
     'DateTimeUtils',
     'IntUtils',

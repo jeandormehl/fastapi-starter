@@ -17,8 +17,6 @@ class DataSanitizer:
             r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b',
             '<REDACTED_PHONE>',
         ),
-        # Social Security Numbers
-        (r'\b\d{3}-\d{2}-\d{4}\b', '<REDACTED_SSN>'),
         # API Keys (general pattern: 32+ alphanumeric characters)
         (r'\b[A-Za-z0-9]{32,}\b', '<REDACTED_API_KEY>'),
         # Passwords in URLs (e.g., http://user:password@example.com)
@@ -30,28 +28,24 @@ class DataSanitizer:
         ),
         # Bearer tokens (e.g., "Bearer eyJhbGciOiJIUzI...")
         ((r'(bearer\s+)[a-zA-Z0-9\-._~+/=]+', re.IGNORECASE), r'\1<REDACTED_TOKEN>'),
-        # AWS Access Key IDs (e.g., AKIAIOSFODNN7EXAMPLE)
-        (r'(A3S[A-Z0-9]|AKIA|ASIA|AROA|[A-Z0-9]{20})', '<REDACTED_AWS_KEY>'),
-        # AWS Secret Access Keys (e.g., wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY)
-        (r'([0-9a-zA-Z\/+]{40})', '<REDACTED_AWS_SECRET>'),
     ]
 
     SENSITIVE_KEYS: ClassVar = [
-        'password',
-        'token',
-        'secret',
-        'key',
-        'auth',
-        'credential',
-        'api_key',
-        'private_key',
         'access_token',
-        'refresh_token',
-        'client_secret',
-        'pin',
-        'ssn',
-        'credit_card',
+        'api_key',
+        'auth',
         'cc_number',
+        'client_secret',
+        'credential',
+        'credit_card',
+        'key',
+        'password',
+        'pin',
+        'private_key',
+        'refresh_token',
+        'secret',
+        'ssn',
+        'token',
     ]
 
     REDACTION_SKIP_KEYS: ClassVar = ['auth_method', 'token_type', 'grant_type']
@@ -112,8 +106,8 @@ class DataSanitizer:
         return data
 
     @classmethod
-    def sanitize_headers_params(cls, headers: dict[str, Any]) -> dict[str, str]:
-        """Sanitize headers and params removing sensitive info and formatting."""
+    def sanitize_headers(cls, headers: dict[str, Any]) -> dict[str, str]:
+        """Sanitize headers removing sensitive info and formatting."""
 
         safe = {}
         for key, value in headers.items():

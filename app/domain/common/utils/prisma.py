@@ -29,7 +29,9 @@ class PrismaUtils:
     }
 
     @classmethod
-    def prepare_json(cls, data: dict[str, Any], model_name: str) -> dict[str, Any]:
+    def prepare_json_fields(
+        cls, data: dict[str, Any], model_name: str
+    ) -> dict[str, Any]:
         json_fields = cls.MODEL_JSON_FIELDS.get(model_name, set())
 
         if not json_fields:

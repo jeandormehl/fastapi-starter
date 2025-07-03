@@ -6,6 +6,10 @@ Uses only the standard Python library.
 import re
 import unicodedata
 
+from kink import di
+
+from app.core.config import Configuration
+
 
 class StringUtils:
     """Collection of static string utility methods."""
@@ -85,3 +89,7 @@ class StringUtils:
     def chunk(text: str, size: int) -> list[str]:
         """Split *text* into chunks of *size* characters."""
         return [text[i : i + size] for i in range(0, len(text), size)]
+
+    @staticmethod
+    def service_name() -> str:
+        return StringUtils.slugify(di[Configuration].app_name)

@@ -8,7 +8,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app import __version__
 from app.core.paths import ROOT_PATH
 
-from .configs import APIConfiguration, DatabaseConfiguration, LogConfiguration
+from .configs import (
+    APIConfiguration,
+    DatabaseConfiguration,
+    LogConfiguration,
+    ObservabilityConfiguration,
+)
 
 
 # noinspection PyNestedDecorators,PyArgumentList
@@ -45,6 +50,7 @@ class Configuration(BaseSettings):
     api: APIConfiguration = APIConfiguration()
     database: DatabaseConfiguration = DatabaseConfiguration()
     log: LogConfiguration = LogConfiguration()
+    observability: ObservabilityConfiguration = ObservabilityConfiguration()
 
     @property
     def app_debug(self) -> bool:
