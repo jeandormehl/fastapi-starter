@@ -14,6 +14,7 @@ services:
       interval: "10s"
       timeout: "5s"
       retries: "5"
+      start_period: "30s"
 
   tempo:
     image: "grafana/tempo"
@@ -48,11 +49,11 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/-/ready"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--timeout=2", "http://localhost:9090/-/ready"]
       interval: "10s"
       timeout: "5s"
       retries: "5"
-      start_period: "10s"
+      start_period: "30s"
 
   grafana:
     image: "grafana/grafana"

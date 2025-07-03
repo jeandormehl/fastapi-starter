@@ -16,7 +16,7 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 1h
+    block_retention: 168h
 
 storage:
   trace:
@@ -28,4 +28,4 @@ storage:
 
 query_frontend:
   search:
-    default_result_limit: 20
+    default_result_limit: 50
