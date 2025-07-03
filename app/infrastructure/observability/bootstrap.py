@@ -37,7 +37,6 @@ def _setup_tracing(config: Configuration) -> None:
                 'service.environment': config.app_environment,
                 'service.name': StringUtils.service_name(),
                 'service.version': config.app_version,
-                'service_tracer': 'tempo',
             }
         ),
     )
@@ -61,8 +60,8 @@ def _setup_metrics(app: FastAPI) -> None:
         should_group_status_codes=False,
         should_ignore_untemplated=True,
         excluded_handlers=['/health/liveness', '/metrics'],
-        env_var_name='OBS_ENABLED',
-    ).instrument(app).expose(app, endpoint='/metrics', tags=['metrics'])
+        env_var_name='OBSERVABILITY_ENABLED',
+    ).instrument(app)
 
 
 def configure_observability(app: FastAPI, config: Configuration) -> None:

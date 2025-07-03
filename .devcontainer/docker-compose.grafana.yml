@@ -44,10 +44,12 @@ services:
       - "obs-tier"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--enable-feature=exemplar-storage'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
     healthcheck:
       test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:9090/-/ready"]
       interval: "10s"
@@ -69,6 +71,7 @@ services:
       GF_SECURITY_ADMIN_USER: "admin"
       GF_SECURITY_ADMIN_PASSWORD: "admin"
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
     volumes:
       - "./conf/grafana/provisioning:/etc/grafana/provisioning"
       - "./conf/grafana/dashboards:/etc/grafana/dashboards"

@@ -13,7 +13,10 @@ from app.api.v1 import v1_router
 from app.core.config import Configuration
 from app.core.logging import setup_logging
 from app.core.paths import STATIC_PATH
-from app.infrastructure.observability import configure_observability
+from app.infrastructure.observability import (
+    PrismaInstrumentation,
+    configure_observability,
+)
 
 
 # noinspection PyBroadException
@@ -23,6 +26,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, NoReturn]:
     """Application lifespan manager."""
     try:
         setup_logging()
+        PrismaInstrumentation().instrument_client(di[Prisma])
 
         if not di[Prisma].is_connected():
             await di[Prisma].connect()
