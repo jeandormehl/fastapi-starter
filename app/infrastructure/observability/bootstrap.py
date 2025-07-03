@@ -8,10 +8,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import (
-    TracerProvider,
-    sampling,
-)
+from opentelemetry.sdk.trace import TracerProvider, sampling
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -22,7 +19,6 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
     from app.core.config import Configuration
-
 
 logger = get_logger(__name__)
 
@@ -38,19 +34,20 @@ def _setup_tracing(config: Configuration) -> None:
         sampler=sampler,
         resource=Resource.create(
             {
+                'service.environment': config.app_environment,
                 'service.name': StringUtils.service_name(),
                 'service.version': config.app_version,
-                'service.environment': config.app_environment,
+                'service_tracer': 'tempo',
             }
         ),
     )
 
+    endpoint = (
+        f'{config.observability.traces_endpoint.host}:'
+        f'{config.observability.traces_endpoint.port!s}'
+    )
     provider.add_span_processor(
-        BatchSpanProcessor(
-            OTLPSpanExporter(
-                endpoint=str(config.observability.traces_endpoint), insecure=True
-            )
-        )
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
     )
     trace.set_tracer_provider(provider)
 
@@ -63,7 +60,7 @@ def _setup_metrics(app: FastAPI) -> None:
     Instrumentator(
         should_group_status_codes=False,
         should_ignore_untemplated=True,
-        excluded_handlers=['/metrics'],
+        excluded_handlers=['/health/liveness', '/metrics'],
         env_var_name='OBS_ENABLED',
     ).instrument(app).expose(app, endpoint='/metrics', tags=['metrics'])
 

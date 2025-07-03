@@ -46,6 +46,7 @@ limits_config:
   max_line_size: 256000
   max_cache_freshness_per_query: 10m
   max_query_parallelism: 32
+  volume_enabled: true
 
 analytics:
   reporting_enabled: false

@@ -5,8 +5,7 @@ global:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets:
-          # - alertmanager:9093 # If you add Alertmanager later
+        - targets: []
 
 rule_files:
   # - "first_rules.yml"

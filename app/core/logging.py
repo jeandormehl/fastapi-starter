@@ -72,8 +72,9 @@ def setup_loki_handler(config: Configuration) -> None:
         loki_handler = LokiLoggerHandler(
             url=str(config.log.loki_url),
             labels={
-                'service_name': StringUtils.slugify(config.app_name.lower()),
                 'service_environment': config.app_environment.lower(),
+                'service_logs': 'loki',
+                'service_name': StringUtils.service_name(),
                 'service_version': config.app_version,
             },
             auth=auth,
