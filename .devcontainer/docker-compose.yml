@@ -31,6 +31,8 @@ services:
       timeout: "10s"
       retries: "3"
       start_period: "60s"
+    labels:
+      - "compose_service=app"
 
 networks:
   proxy-tier:

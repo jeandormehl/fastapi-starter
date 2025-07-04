@@ -2,17 +2,10 @@ global:
   scrape_interval: '30s'
   evaluation_interval: '30s'
 
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets: []
-
-rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+rule_files: []
 
 scrape_configs:
-  - job_name: app
-    metrics_path: /api/v1/metrics
+  - job_name: 'app'
+    metrics_path: '/api/v1/metrics'
     static_configs:
-      - targets: ["app:8080"]
+      - targets: ['app:8080']

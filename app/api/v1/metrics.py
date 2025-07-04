@@ -1,14 +1,18 @@
 from fastapi import APIRouter
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from app.infrastructure.observability import MetricsAggregator
 
-router = APIRouter(prefix='/metrics', tags=['metrics'])
+router = APIRouter(prefix='/metrics', tags=['observability'])
 
 
-@router.get('')
-async def get_metrics() -> PlainTextResponse:
-    metrics = MetricsAggregator()
-    await metrics.collect_all_metrics()
+@router.get('', include_in_schema=False)
+async def metrics() -> Response:
+    aggregator = MetricsAggregator()
+    await aggregator.collect_all_metrics()
 
-    return PlainTextResponse(content=metrics.get_prometheus_format())
+    return Response(
+        content=aggregator.get_prometheus_format(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
