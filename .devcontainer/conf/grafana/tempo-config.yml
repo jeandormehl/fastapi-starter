@@ -24,25 +24,37 @@ ingester:
   max_block_bytes: 1_000_000
   complete_block_timeout: 60s
   trace_idle_period: 10s
+  flush_check_period: 10s
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
 
 compactor:
   compaction:
     block_retention: 1h
-    compacted_block_retention: 10m
+    compacted_block_retention: 2m
     max_block_bytes: 100_000_000
     max_compaction_objects: 1_000_000
     retention_concurrency: 10
     v2_in_buffer_bytes: 5_000_000
     v2_out_buffer_bytes: 20_000_000
     v2_prefetch_traces_count: 1000
+  ring:
+    kvstore:
+      store: inmemory
 
 storage:
   trace:
     backend: local
     local:
       path: /var/tempo/traces
+    block:
+      version: v2
     wal:
       path: /var/tempo/wal
+    blocklist_poll: 30s
     pool:
       max_workers: 100
       queue_depth: 10000
@@ -51,13 +63,17 @@ querier:
   max_concurrent_queries: 20
   search:
     query_timeout: 30s
+  trace_by_id:
+    query_timeout: 10s
 
 query_frontend:
   search:
     duration_slo: 5s
     throughput_bytes_slo: 1.073741824e+09
+    max_duration: 0s
   trace_by_id:
     duration_slo: 5s
+    query_shards: 50
 
 metrics_generator:
   registry:
@@ -70,9 +86,14 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
+        headers:
+          X-Scope-OrgID: 1
   traces_storage:
     path: /var/tempo/generator/traces
   processor:
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
     service_graphs:
       histogram_buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
       dimensions: ['cluster', 'namespace']
@@ -81,21 +102,21 @@ metrics_generator:
       dimensions: ['service.name', 'service.namespace', 'service.version']
 
 overrides:
-  per_tenant_override_period: 10s
-  # Global defaults
   ingestion_rate_strategy: local
   ingestion_rate_limit_bytes: 20000000
   ingestion_burst_size_bytes: 30000000
+  max_search_duration: 0s
+  max_bytes_per_tag_values_query: 5000000
+  max_blocks_per_tag_values_query: 100
   max_traces_per_user: 10000
   max_global_traces_per_user: 0
   max_bytes_per_trace: 5000000
-  max_search_duration: 0s
   block_retention: 24h
-  max_bytes_per_tag_values_query: 5000000
-  max_blocks_per_tag_values_query: 100
   forwarders: []
   metrics_generator_ring_size: 1
   metrics_generator_max_active_series: 10000
   metrics_generator_collection_interval: 15s
   metrics_generator_disable_collection: false
   metrics_generator_forwarder_queue_size: 100
+  metrics_generator_processors: [service-graphs, span-metrics]
+  per_tenant_override_period: 10s

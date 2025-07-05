@@ -33,7 +33,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, NoReturn]:
 
         yield
 
-    except Exception:
+    except Exception as e:
+        print(e)
         contextlib.suppress(Exception)
 
     finally:

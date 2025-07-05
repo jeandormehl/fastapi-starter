@@ -7,7 +7,7 @@ from app.infrastructure.observability import MetricsAggregator
 router = APIRouter(prefix='/metrics', tags=['observability'])
 
 
-@router.get('', include_in_schema=False)
+@router.get('')
 async def metrics() -> Response:
     aggregator = MetricsAggregator()
     await aggregator.collect_all_metrics()
