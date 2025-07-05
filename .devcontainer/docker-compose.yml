@@ -32,7 +32,6 @@ services:
       retries: "3"
       start_period: "60s"
     labels:
-      - "cluster=application"
       - "compose_service=app"
       - "logging=lokifluent"
 

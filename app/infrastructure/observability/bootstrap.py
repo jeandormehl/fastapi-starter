@@ -9,6 +9,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.propagate import set_global_textmap
+from opentelemetry.propagators.b3 import B3MultiFormat
 from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider, sampling
@@ -52,6 +53,7 @@ def _setup_tracing(config: Configuration) -> None:
                 f'{StringUtils.service_name()}-{config.app_environment}'
             ),
             'deployment.environment': config.app_environment,
+            'compose_service': StringUtils.service_name(),
             'telemetry.sdk.name': 'opentelemetry',
             'telemetry.sdk.language': 'python',
             'telemetry.sdk.version': __version__,
@@ -72,7 +74,13 @@ def _setup_tracing(config: Configuration) -> None:
         timeout=30,
     )
 
-    provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+    provider.add_span_processor(
+        BatchSpanProcessor(
+            otlp_exporter,
+            max_queue_size=2048,
+            max_export_batch_size=512,
+        )
+    )
 
     # Add console exporter for development
     if config.observability.traces_to_console:
@@ -84,6 +92,7 @@ def _setup_tracing(config: Configuration) -> None:
     set_global_textmap(
         CompositePropagator(
             [
+                B3MultiFormat(),
                 TraceContextTextMapPropagator(),
                 W3CBaggagePropagator(),
             ]
@@ -139,6 +148,7 @@ def _setup_fastapi_instrumentation(app: FastAPI, config: Configuration) -> None:
     FastAPIInstrumentor.instrument_app(
         app,
         excluded_urls=config.observability.excluded_urls,
+        tracer_provider=trace.get_tracer_provider(),
     )
 
 

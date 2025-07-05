@@ -15,8 +15,6 @@ services:
       timeout: "5s"
       retries: "5"
       start_period: "30s"
-    labels:
-      - "cluster=application"
 
   tempo:
     image: "grafana/tempo:2.8.1"
@@ -34,8 +32,6 @@ services:
       timeout: "5s"
       retries: "5"
       start_period: "45s"
-    labels:
-      - "cluster=application"
 
   prometheus:
     image: "prom/prometheus:v2.53.5"
@@ -62,8 +58,6 @@ services:
       timeout: "5s"
       retries: "5"
       start_period: "30s"
-    labels:
-      - "cluster=application"
 
   alertmanager:
     image: "prom/alertmanager:v0.28.1"
@@ -83,8 +77,6 @@ services:
       timeout: "5s"
       retries: "5"
       start_period: "30s"
-    labels:
-      - "cluster=application"
 
   grafana:
     image: "grafana/grafana"
@@ -102,7 +94,7 @@ services:
       GF_SECURITY_ADMIN_USER: "admin"
       GF_SECURITY_ADMIN_PASSWORD: "admin"
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
+      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor,tempoSearch,tempoServiceGraph,tempoApmTable"
     volumes:
       - "./conf/grafana/provisioning:/etc/grafana/provisioning"
       - "./conf/grafana/dashboards:/etc/grafana/dashboards"
@@ -116,8 +108,6 @@ services:
       interval: "10s"
       timeout: "5s"
       retries: "5"
-    labels:
-      - "cluster=application"
 
 networks:
   proxy-tier:

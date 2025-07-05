@@ -1,17 +1,17 @@
 apiVersion: 1
 
 datasources:
-  - uid: prometheus
-    orgId: 1
-    name: Prometheus
+  - name: Prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
+    editable: true
     jsonData:
-      timeout: 60
       httpMethod: POST
+      prometheusType: Prometheus
       exemplarTraceIdDestinations:
-        - datasourceUid: tempo
-          name: TraceID
-          urlDisplayLabel: "View Trace"
+        - name: trace_id
+          datasourceUid: tempo
+          urlDisplayLabel: 'View Trace'
+    version: 1

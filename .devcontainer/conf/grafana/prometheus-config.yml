@@ -2,7 +2,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'obs-stack'
+    cluster: 'docker-compose'
     replica: 'prometheus-1'
 
 rule_files:
@@ -28,3 +28,9 @@ scrape_configs:
     scrape_timeout: 10s
     honor_labels: true
     sample_limit: 10000
+
+remote_write:
+  - url: 'http://tempo:3200/api/v1/push'
+    name: 'tempo'
+    headers:
+      'X-Scope-OrgID': '1'

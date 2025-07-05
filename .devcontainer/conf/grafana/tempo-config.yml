@@ -2,7 +2,6 @@ auth_enabled: false
 
 server:
   http_listen_port: 3200
-  grpc_listen_port: 9095
 
 distributor:
   receivers:
@@ -26,7 +25,8 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 168h
+    block_retention: 1h
+    compacted_block_retention: 10m
   ring:
     kvstore:
       store: inmemory
@@ -60,50 +60,36 @@ metrics_generator:
   registry:
     external_labels:
       source: tempo
-      cluster: application
-    collection_interval: 15s
+      cluster: docker-compose
   storage:
     path: /var/tempo/generator
-  traces_storage:
-    path: /var/tempo/generator/traces
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+        headers:
+          X-Scope-OrgID: 1
+
   processor:
     local_blocks:
       filter_server_spans: false
       flush_to_storage: true
     service_graphs:
       histogram_buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
-      dimensions: ['http.method', 'http.target', 'http.status_code', 'service.version']
-      peer_attributes: ['db.name', 'db.operation', 'http.method', 'http.target', 'http.status_code', 'service.version']
+      dimensions: ['server.address', 'server.port']
       enable_client_server_prefix: true
     span_metrics:
-      histogram_buckets: [0.002, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0]
-      dimensions: ['http.method', 'http.target',' http.status_code', 'service.version']
+      histogram_buckets: [0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+      dimensions: ['http.method', 'http.status_code']
       enable_target_info: true
-      intrinsic_dimensions:
-        service: true
-        span_kind: true
-        span_name: true
-        status_code: true
 
 overrides:
-  ingestion_rate_strategy: local
-  ingestion_rate_limit_bytes: 20000000
-  ingestion_burst_size_bytes: 30000000
-  max_search_duration: 0s
-  max_bytes_per_tag_values_query: 5000000
-  max_blocks_per_tag_values_query: 100
-  max_traces_per_user: 10000
-  max_global_traces_per_user: 0
-  max_bytes_per_trace: 5000000
-  block_retention: 24h
-  forwarders: []
-  metrics_generator_ring_size: 1
-  metrics_generator_max_active_series: 10000
-  metrics_generator_collection_interval: 15s
-  metrics_generator_disable_collection: false
-  metrics_generator_forwarder_queue_size: 100
-  metrics_generator_processors: [service-graphs, span-metrics, local-blocks]
-  per_tenant_override_period: 10s
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics, local-blocks]
+      generate_native_histograms: true
+      max_active_series: 60000
+      collection_interval: 5s
+      disable_collection: false
 
 usage_report:
   reporting_enabled: false
