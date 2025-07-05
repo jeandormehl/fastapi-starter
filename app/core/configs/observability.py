@@ -29,6 +29,10 @@ class ObservabilityConfiguration(BaseModel):
         le=1.0,
         description='Sampling ratio (1.0 = 100% of requests traced).',
     )
+    traces_to_console: bool = Field(
+        False,
+        description='OTLP traces to console mode.',
+    )
 
     excluded_urls: str = Field(
         '/health,/metrics,/docs,/openapi.json',

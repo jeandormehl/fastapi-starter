@@ -84,7 +84,7 @@ def _setup_tracing(config: Configuration) -> None:
     )
 
     # Add console exporter for development
-    if config.app_debug:
+    if config.observability.traces_to_console:
         provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
     trace.set_tracer_provider(provider)
