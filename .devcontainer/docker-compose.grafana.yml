@@ -16,7 +16,7 @@ services:
       retries: "5"
       start_period: "30s"
     labels:
-      - "cluster=obs-stack"
+      - "cluster=application"
 
   tempo:
     image: "grafana/tempo:2.8.1"
@@ -33,9 +33,9 @@ services:
       interval: "10s"
       timeout: "5s"
       retries: "5"
-      start_period: "60s"
+      start_period: "45s"
     labels:
-      - "cluster=obs-stack"
+      - "cluster=application"
 
   prometheus:
     image: "prom/prometheus:v2.53.5"
@@ -63,7 +63,7 @@ services:
       retries: "5"
       start_period: "30s"
     labels:
-      - "cluster=obs-stack"
+      - "cluster=application"
 
   alertmanager:
     image: "prom/alertmanager:v0.28.1"
@@ -84,7 +84,7 @@ services:
       retries: "5"
       start_period: "30s"
     labels:
-      - "cluster=obs-stack"
+      - "cluster=application"
 
   grafana:
     image: "grafana/grafana"
@@ -117,7 +117,7 @@ services:
       timeout: "5s"
       retries: "5"
     labels:
-      - "cluster=obs-stack"
+      - "cluster=application"
 
 networks:
   proxy-tier:

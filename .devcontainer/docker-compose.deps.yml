@@ -18,6 +18,8 @@ services:
       test: [ "CMD", "/usr/bin/check-health" ]
       interval: "10s"
       timeout: "3s"
+    labels:
+      - "cluster=application"
 
   postgres:
     image: "bitnami/postgresql:latest"
@@ -39,6 +41,8 @@ services:
       interval: "10s"
       timeout: "5s"
       retries: "5"
+    labels:
+      - "cluster=application"
 
   redis:
     image: "bitnami/redis:latest"
@@ -56,6 +60,8 @@ services:
       interval: "10s"
       timeout: "5s"
       retries: "5"
+    labels:
+      - "cluster=application"
 
 networks:
   proxy-tier:

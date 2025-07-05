@@ -60,7 +60,9 @@ class MetricsAggregator:
         prisma_instrumentation: PrismaInstrumentation | None = None,
     ) -> None:
         self.registry = registry or REGISTRY
-        self.prisma_instrumentation = prisma_instrumentation or PrismaInstrumentation()
+        self.prisma_instrumentation = (
+            prisma_instrumentation or di[PrismaInstrumentation]
+        )
         self.sources: dict[str, MetricSource] = {}
         self.enabled = True
         self._last_aggregation: AggregatedMetrics | None = None

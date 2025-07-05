@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider, sampling
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from prometheus_client import REGISTRY
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 from app.core.logging import get_logger
 from app.domain.common.utils import StringUtils
@@ -113,6 +113,22 @@ def _setup_metrics(app: FastAPI) -> None:
         inprogress_labels=True,
         env_var_name='OBSERVABILITY_ENABLED',
         registry=registry,
+    )
+
+    instrumentator.add(
+        metrics.combined_size(
+            should_include_handler=True,
+            should_include_method=True,
+            should_include_status=True,
+        )
+    )
+
+    instrumentator.add(
+        metrics.latency(
+            should_include_handler=True,
+            should_include_method=True,
+            should_include_status=True,
+        )
     )
 
     instrumentator.instrument(app)

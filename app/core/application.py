@@ -26,7 +26,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, NoReturn]:
     """Application lifespan manager."""
     try:
         setup_logging()
-        PrismaInstrumentation().instrument_client(di[Prisma])
+        di[PrismaInstrumentation].instrument_client(di[Prisma])
 
         if not di[Prisma].is_connected():
             await di[Prisma].connect()
