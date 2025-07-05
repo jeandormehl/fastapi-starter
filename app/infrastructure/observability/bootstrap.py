@@ -37,31 +37,36 @@ def _setup_tracing(config: Configuration) -> None:
                 'service.environment': config.app_environment,
                 'service.name': StringUtils.service_name(),
                 'service.version': config.app_version,
+                'service.namespace': config.app_environment,
             }
         ),
     )
 
-    endpoint = (
-        f'{config.observability.traces_endpoint.host}:'
-        f'{config.observability.traces_endpoint.port!s}'
-    )
+    # Fixed endpoint format - remove the port parsing
+    endpoint = str(config.observability.traces_endpoint)
+    if not endpoint.startswith('http'):
+        endpoint = f'http://{endpoint}'
+
     provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
+        BatchSpanProcessor(
+            OTLPSpanExporter(endpoint=endpoint, insecure=True, headers={})
+        )
     )
     trace.set_tracer_provider(provider)
 
-    # Instrument libraries
+    # Instrument libraries before FastAPI
     HTTPXClientInstrumentor().instrument()
     RedisInstrumentor().instrument()
 
 
 def _setup_metrics(app: FastAPI) -> None:
-    Instrumentator(
+    instrumentator = Instrumentator(
         should_group_status_codes=False,
         should_ignore_untemplated=True,
-        excluded_handlers=['/health/liveness', '/metrics'],
+        excluded_handlers=['/health', '/metrics', '/docs', '/openapi.json'],
         env_var_name='OBSERVABILITY_ENABLED',
-    ).instrument(app)
+    )
+    instrumentator.instrument(app)
 
 
 def configure_observability(app: FastAPI, config: Configuration) -> None:
@@ -72,5 +77,7 @@ def configure_observability(app: FastAPI, config: Configuration) -> None:
     _setup_metrics(app)
 
     FastAPIInstrumentor.instrument_app(
-        app, excluded_urls=config.observability.excluded_urls
+        app,
+        excluded_urls=config.observability.excluded_urls,
+        tracer_provider=trace.get_tracer_provider(),
     )

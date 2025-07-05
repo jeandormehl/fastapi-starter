@@ -1,7 +1,6 @@
-auth_enabled: false
-
 server:
   http_listen_port: 3200
+  grpc_listen_port: 9095
 
 distributor:
   receivers:
@@ -11,49 +10,92 @@ distributor:
           endpoint: 0.0.0.0:4317
         http:
           endpoint: 0.0.0.0:4318
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: 0.0.0.0:14268
+        grpc:
+          endpoint: 0.0.0.0:14250
+    zipkin:
+      endpoint: 0.0.0.0:9411
 
 ingester:
-  max_block_bytes: 5_242_880
-  max_block_duration: 10m
-  complete_block_timeout: 5m
+  max_block_duration: 5m
+  max_block_bytes: 1_000_000
+  complete_block_timeout: 60s
+  trace_idle_period: 10s
 
 compactor:
   compaction:
-    block_retention: 168h
+    block_retention: 1h
+    compacted_block_retention: 10m
+    max_block_bytes: 100_000_000
+    max_compaction_objects: 1_000_000
+    retention_concurrency: 10
+    v2_in_buffer_bytes: 5_000_000
+    v2_out_buffer_bytes: 20_000_000
+    v2_prefetch_traces_count: 1000
 
 storage:
   trace:
     backend: local
-    local: { path: /var/tempo/traces }
-    wal:   { path: /var/tempo/wal }
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
     pool:
       max_workers: 100
       queue_depth: 10000
 
+querier:
+  max_concurrent_queries: 20
+  search:
+    query_timeout: 30s
+
 query_frontend:
-  search:        { default_result_limit: 50, max_result_limit: 1000, max_duration: 12h }
+  search:
+    duration_slo: 5s
+    throughput_bytes_slo: 1.073741824e+09
+  trace_by_id:
+    duration_slo: 5s
 
 metrics_generator:
   registry:
     external_labels:
       source: tempo
+      cluster: fastapi-observability
+    collection_interval: 15s
   storage:
-    path: /var/tempo/generator
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  traces_storage:
+    path: /var/tempo/generator/traces
   processor:
-    local_blocks:
-      filter_server_spans: false
-      flush_to_storage: true
     service_graphs:
-      histogram_buckets: [0.1,0.2,0.4,0.8,1.6,3.2,6.4,12.8]
-      dimensions: [http.method,http.target,http.status_code,service.version]
-      peer_attributes: [http.method,http.target,http.status_code,service.version]
-      enable_client_server_prefix: true
+      histogram_buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
+      dimensions: ['cluster', 'namespace']
     span_metrics:
-      histogram_buckets: [0.002,0.005,0.01,0.025,0.05,0.075,0.1,0.25,0.5,0.75,1,2.5,5,7.5,10]
-      dimensions: [http.method,http.target,http.status_code,service.version]
-      enable_target_info: true
+      histogram_buckets: [0.002, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0]
+      dimensions: ['service.name', 'service.namespace', 'service.version']
 
 overrides:
-  defaults:
-    metrics_generator:
-      processors: [service-graphs, span-metrics, local-blocks]
+  per_tenant_override_period: 10s
+  # Global defaults
+  ingestion_rate_strategy: local
+  ingestion_rate_limit_bytes: 20000000
+  ingestion_burst_size_bytes: 30000000
+  max_traces_per_user: 10000
+  max_global_traces_per_user: 0
+  max_bytes_per_trace: 5000000
+  max_search_duration: 0s
+  block_retention: 24h
+  max_bytes_per_tag_values_query: 5000000
+  max_blocks_per_tag_values_query: 100
+  forwarders: []
+  metrics_generator_ring_size: 1
+  metrics_generator_max_active_series: 10000
+  metrics_generator_collection_interval: 15s
+  metrics_generator_disable_collection: false
+  metrics_generator_forwarder_queue_size: 100

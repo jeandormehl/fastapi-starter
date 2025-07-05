@@ -1,6 +1,6 @@
 services:
   loki:
-    image: "grafana/loki"
+    image: "grafana/loki:3.5.1"
     container_name: "loki"
     volumes:
       - "./conf/grafana/loki-config.yml:/etc/loki/local-config.yaml"
@@ -17,7 +17,7 @@ services:
       start_period: "30s"
 
   tempo:
-    image: "grafana/tempo"
+    image: "grafana/tempo:2.8.1"
     container_name: "tempo"
     volumes:
       - "./conf/grafana/tempo-config.yml:/etc/tempo/tempo.yml"
@@ -34,10 +34,11 @@ services:
       start_period: "30s"
 
   prometheus:
-    image: "prom/prometheus"
+    image: "prom/prometheus:v2.53.5"
     container_name: "prometheus"
     volumes:
       - "./conf/grafana/prometheus-config.yml:/etc/prometheus/prometheus.yml"
+      - "./conf/grafana/alert-rules.yml:/etc/prometheus/alert-rules.yml"
       - "prometheus_data:/prometheus"
     restart: "unless-stopped"
     networks:
@@ -50,8 +51,50 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
     healthcheck:
       test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:9090/-/ready"]
+      interval: "10s"
+      timeout: "5s"
+      retries: "5"
+      start_period: "30s"
+
+  node-exporter:
+    image: "prom/node-exporter:v1.8.2"
+    container_name: "node-exporter"
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/rootfs:ro"
+    restart: "unless-stopped"
+    networks:
+      - "obs-tier"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    healthcheck:
+      test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:9100/metrics"]
+      interval: "10s"
+      timeout: "5s"
+      retries: "5"
+      start_period: "30s"
+
+  alertmanager:
+    image: "prom/alertmanager:v0.28.1"
+    container_name: "alertmanager"
+    volumes:
+      - "./conf/grafana/alertmanager.yml:/etc/alertmanager/alertmanager.yml"
+    restart: "unless-stopped"
+    networks:
+      - "obs-tier"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    healthcheck:
+      test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:9093/-/ready"]
       interval: "10s"
       timeout: "5s"
       retries: "5"
@@ -66,6 +109,10 @@ services:
       tempo:
         condition: "service_healthy"
       prometheus:
+        condition: "service_healthy"
+      node-exporter:
+        condition: "service_healthy"
+      alertmanager:
         condition: "service_healthy"
     environment:
       GF_SECURITY_ADMIN_USER: "admin"

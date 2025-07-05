@@ -11,8 +11,32 @@ datasources:
       timeout: 60
       nodeGraph:
         enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
       tracesToLogsV2:
         datasourceUid: loki
         filterByTraceID: true
+        filterBySpanID: true
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags: [
+          { key: 'service.name', value: 'service' },
+          { key: 'service.namespace', value: 'namespace' }
+        ]
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '1h'
       tracesToMetrics:
+        datasourceUid: prometheus
+        tags: [
+          { key: 'service.name', value: 'service' },
+          { key: 'job', value: 'job' }
+        ]
+        queries: [
+          {
+            name: 'Sample query',
+            query: 'sum(rate(traces_spanmetrics_latency_bucket{$$__tags}[5m]))'
+          }
+        ]
+      serviceMap:
         datasourceUid: prometheus

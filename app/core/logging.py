@@ -24,6 +24,7 @@ def _inject_trace_context(record: dict[str, Any]) -> None:
 def format_log_record(record: dict[str, Any]) -> str:
     """Custom formatter for loguru records with sensitive data sanitization."""
     record['message'] = DataSanitizer.sanitize(record['message'])
+
     _inject_trace_context(record)
     extra = record.get('extra', {})
 
@@ -33,8 +34,11 @@ def format_log_record(record: dict[str, Any]) -> str:
         '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>'
     )
 
-    if 'trace_id' in extra:
-        fmt += ' | <blue>{extra[trace_id]}</blue>/<yellow>{extra[span_id]}</yellow>'
+    if 'trace_id' in extra and 'span_id' in extra:
+        fmt += (
+            ' | <blue>trace_id={extra[trace_id]}</blue>'
+            ' <yellow>span_id={extra[span_id]}</yellow>'
+        )
 
     if 'event' in extra:
         fmt += ' | <yellow>[{extra[event]:<20}]</yellow>'

@@ -27,7 +27,10 @@ class ObservabilityConfiguration(BaseModel):
         1.0,
         ge=0.0,
         le=1.0,
-        description='Sampling ratio (1.0 = 100 % of requests traced).',
+        description='Sampling ratio (1.0 = 100% of requests traced).',
     )
 
-    excluded_urls: str = Field('', description='Excluded urls list.')
+    excluded_urls: str = Field(
+        '/health,/metrics,/docs,/openapi.json',
+        description='Comma-separated list of excluded URLs.',
+    )
