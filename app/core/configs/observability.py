@@ -15,25 +15,15 @@ class ObservabilityConfiguration(BaseModel):
         extra='ignore',
     )
 
-    enabled: bool = Field(
-        True, description='Enable/disable all observability features.'
-    )
-
+    enabled: bool = Field(True, description='Enable observability features')
     traces_endpoint: AnyUrl = Field(
         AnyUrl('http://tempo:4317'),
         description='OTLP gRPC endpoint used by trace exporter.',
     )
     tracing_sample_ratio: float = Field(
-        1.0,
-        ge=0.0,
-        le=1.0,
-        description='Sampling ratio (1.0 = 100% of requests traced).',
+        1.0, description='Tracing sample ratio (0.0 to 1.0)'
     )
-    traces_to_console: bool = Field(
-        False,
-        description='OTLP traces to console mode.',
-    )
-
+    traces_to_console: bool = Field(False, description='Output traces to console')
     excluded_urls: str = Field(
         '/health,/metrics,/docs,/openapi.json',
         description='Comma-separated list of excluded URLs.',

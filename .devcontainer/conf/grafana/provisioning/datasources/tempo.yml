@@ -8,7 +8,6 @@ datasources:
     access: proxy
     url: http://tempo:3200
     jsonData:
-      timeout: 60
       nodeGraph:
         enabled: true
       search:
@@ -18,8 +17,7 @@ datasources:
       tracesToLogsV2:
         datasourceUid: loki
         filterByTraceID: true
-        filterBySpanID: true
-        tags: ['job', 'instance', 'pod', 'namespace']
+        filterBySpanID: false
         mappedTags: [
           { key: 'service.name', value: 'service' },
           { key: 'service.namespace', value: 'namespace' }
@@ -30,13 +28,6 @@ datasources:
         datasourceUid: prometheus
         tags: [
           { key: 'service.name', value: 'service' },
-          { key: 'job', value: 'job' }
-        ]
-        queries: [
-          {
-            name: 'Sample query',
-            query: 'sum(rate(traces_spanmetrics_latency_bucket{$$__tags}[5m]))'
-          }
         ]
       serviceMap:
         datasourceUid: prometheus

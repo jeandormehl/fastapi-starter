@@ -47,7 +47,6 @@ dependencies = [
   "opentelemetry-instrumentation-httpx (>=0.55b1,<0.56)",
   "opentelemetry-instrumentation-redis (>=0.55b1,<0.56)",
   "opentelemetry-propagator-b3 (>=1.34.1,<2.0.0)",
-  "opentelemetry-propagator-jaeger (>=1.34.1,<2.0.0)",
   "opentelemetry-sdk (>=1.34.1,<2.0.0)",
   "prometheus-client (>=0.22.1,<0.23.0)",
   "prometheus-fastapi-instrumentator (>=7.1.0,<8.0.0)",

@@ -10,12 +10,11 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.propagators.b3 import B3MultiFormat
 from opentelemetry.propagators.composite import CompositePropagator
-from opentelemetry.propagators.jaeger import JaegerPropagator
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider, sampling
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from prometheus_client import REGISTRY
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 from app.core.logging import get_logger
 from app.domain.common.utils import StringUtils
@@ -93,7 +92,6 @@ def _setup_tracing(config: Configuration) -> None:
     set_global_textmap(
         CompositePropagator(
             [
-                JaegerPropagator(),
                 B3MultiFormat(),
             ]
         )
@@ -130,8 +128,26 @@ def _setup_metrics(app: FastAPI) -> None:
             '/redoc',
             '/favicon.ico',
         ],
+        inprogress_name='http_requests_inprogress',
+        inprogress_labels=True,
         env_var_name='OBSERVABILITY_ENABLED',
         registry=registry,
+    )
+
+    instrumentator.add(
+        metrics.combined_size(
+            should_include_handler=True,
+            should_include_method=True,
+            should_include_status=True,
+        )
+    )
+
+    instrumentator.add(
+        metrics.latency(
+            should_include_handler=True,
+            should_include_method=True,
+            should_include_status=True,
+        )
     )
 
     instrumentator.instrument(app)

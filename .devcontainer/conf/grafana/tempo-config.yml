@@ -1,6 +1,7 @@
 server:
   http_listen_port: 3200
   grpc_listen_port: 9095
+  log_format: json
 
 distributor:
   receivers:
@@ -10,14 +11,6 @@ distributor:
           endpoint: 0.0.0.0:4317
         http:
           endpoint: 0.0.0.0:4318
-    jaeger:
-      protocols:
-        thrift_http:
-          endpoint: 0.0.0.0:14268
-        grpc:
-          endpoint: 0.0.0.0:14250
-    zipkin:
-      endpoint: 0.0.0.0:9411
 
 ingester:
   max_block_duration: 5m
@@ -30,6 +23,8 @@ ingester:
       kvstore:
         store: inmemory
       replication_factor: 1
+    # Add heartbeat timeout
+    heartbeat_timeout: 1m
 
 compactor:
   compaction:
@@ -41,6 +36,8 @@ compactor:
     v2_in_buffer_bytes: 5_000_000
     v2_out_buffer_bytes: 20_000_000
     v2_prefetch_traces_count: 1000
+    # Add compaction window
+    compaction_window: 1h
   ring:
     kvstore:
       store: inmemory
@@ -71,6 +68,9 @@ query_frontend:
     duration_slo: 5s
     throughput_bytes_slo: 1.073741824e+09
     max_duration: 0s
+    # Add concurrent jobs
+    concurrent_jobs: 1000
+    target_bytes_per_job: 104857600
   trace_by_id:
     duration_slo: 5s
     query_shards: 50
@@ -83,11 +83,6 @@ metrics_generator:
     collection_interval: 15s
   storage:
     path: /var/tempo/generator/wal
-    remote_write:
-      - url: http://prometheus:9090/api/v1/write
-        send_exemplars: true
-        headers:
-          X-Scope-OrgID: 1
   traces_storage:
     path: /var/tempo/generator/traces
   processor:
@@ -97,9 +92,17 @@ metrics_generator:
     service_graphs:
       histogram_buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
       dimensions: ['cluster', 'namespace']
+      # Add peer attributes
+      peer_attributes: ['db.name', 'db.operation']
     span_metrics:
       histogram_buckets: [0.002, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0]
       dimensions: ['service.name', 'service.namespace', 'service.version']
+      # Add intrinsic dimensions
+      intrinsic_dimensions:
+        service: true
+        span_kind: true
+        span_name: true
+        status_code: true
 
 overrides:
   ingestion_rate_strategy: local
@@ -118,5 +121,8 @@ overrides:
   metrics_generator_collection_interval: 15s
   metrics_generator_disable_collection: false
   metrics_generator_forwarder_queue_size: 100
-  metrics_generator_processors: [service-graphs, span-metrics]
+  metrics_generator_processors: [service-graphs, span-metrics, local-blocks]
   per_tenant_override_period: 10s
+
+usage_report:
+  reporting_enabled: false

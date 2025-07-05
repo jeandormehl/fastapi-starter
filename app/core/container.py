@@ -8,6 +8,7 @@ from prisma.types import HttpConfig
 
 from app.core.application import get_application
 from app.core.config import Configuration, get_config
+from app.infrastructure.observability import MetricsAggregator
 
 
 def wire_dependencies() -> None:
@@ -32,6 +33,7 @@ def _wire_infrastructure_dependencies() -> None:
             timeout=Timeout(None, connect=di[Configuration].database.timeout)
         )
     )
+    di[MetricsAggregator] = MetricsAggregator()
 
 
 def _wire_services() -> None: ...

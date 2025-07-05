@@ -6,7 +6,7 @@ global:
     replica: 'prometheus-1'
 
 rule_files:
-  - "alert_rules.yml"
+  - "/etc/prometheus/alert-rules.yml"
 
 alerting:
   alertmanagers:
@@ -15,6 +15,11 @@ alerting:
           - alertmanager:9093
       timeout: 10s
       api_version: v2
+      # Add path prefix
+      path_prefix: /
+
+storage:
+  tsdb:
 
 scrape_configs:
   - job_name: 'app'
@@ -29,6 +34,8 @@ scrape_configs:
         regex: 'http_request_duration_seconds.*'
         target_label: __tmp_duration_metric
         replacement: 'true'
+    # Add sample limit
+    sample_limit: 10000
 
 #  - job_name: 'prometheus'
 #    static_configs:

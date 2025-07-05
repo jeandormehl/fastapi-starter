@@ -3,6 +3,7 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
+  log_format: json
 
 common:
   ring:
@@ -28,6 +29,7 @@ storage_config:
   tsdb_shipper:
     active_index_directory: /loki/index
     cache_location: /loki/index_cache
+    cache_ttl: 24h
 
 limits_config:
   reject_old_samples: true
@@ -46,10 +48,16 @@ limits_config:
   max_chunks_per_query: 2000000
   max_query_series: 500
   volume_enabled: true
-  # Add cardinality limits
+  # Enhanced cardinality limits
   max_label_name_length: 1024
   max_label_value_length: 4096
   max_label_names_per_series: 30
+  # Add query timeout
+  query_timeout: 1m
+  # Add shard streams
+  shard_streams:
+    enabled: true
+    desired_rate: 3MB
 
 compactor:
   working_directory: /loki/compactor
@@ -75,10 +83,10 @@ query_range:
         enabled: true
         max_size_mb: 100
         ttl: 1h
-  # Add query splitting
   max_retries: 5
+  # Add parallelise shardable queries
+  parallelise_shardable_queries: true
 
-# Add query scheduler for better performance
 query_scheduler:
   max_outstanding_requests_per_tenant: 256
 
@@ -91,12 +99,15 @@ ruler:
     local:
       directory: /loki/rules
   rule_path: /loki/rules-temp
-  alertmanager_url: http://localhost:9093
+  alertmanager_url: http://alertmanager:9093
   ring:
     kvstore:
       store: inmemory
   enable_api: true
   enable_alertmanager_v2: true
+  # Add evaluation interval
+  evaluation_interval: 1m
+  poll_interval: 1m
 
 frontend:
   max_outstanding_per_tenant: 2048

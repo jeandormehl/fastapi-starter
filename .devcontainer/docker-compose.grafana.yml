@@ -65,30 +65,6 @@ services:
     labels:
       - "cluster=obs-stack"
 
-  node-exporter:
-    image: "prom/node-exporter:v1.8.2"
-    container_name: "node-exporter"
-    volumes:
-      - "/proc:/host/proc:ro"
-      - "/sys:/host/sys:ro"
-      - "/:/rootfs:ro"
-    restart: "unless-stopped"
-    networks:
-      - "obs-tier"
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    healthcheck:
-      test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:9100/metrics"]
-      interval: "10s"
-      timeout: "5s"
-      retries: "5"
-      start_period: "30s"
-    labels:
-      - "cluster=obs-stack"
-
   alertmanager:
     image: "prom/alertmanager:v0.28.1"
     container_name: "alertmanager"
@@ -119,8 +95,6 @@ services:
       tempo:
         condition: "service_healthy"
       prometheus:
-        condition: "service_healthy"
-      node-exporter:
         condition: "service_healthy"
       alertmanager:
         condition: "service_healthy"
