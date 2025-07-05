@@ -33,6 +33,7 @@ services:
       start_period: "60s"
     labels:
       - "compose_service=app"
+      - "logging=lokifluent"
 
 networks:
   proxy-tier:

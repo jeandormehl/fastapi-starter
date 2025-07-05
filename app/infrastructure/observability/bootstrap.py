@@ -3,18 +3,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from opentelemetry import trace
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.propagate import set_global_textmap
-from opentelemetry.propagators.b3 import B3MultiFormat
 from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider, sampling
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from prometheus_client import REGISTRY
-from prometheus_fastapi_instrumentator import Instrumentator, metrics
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.core.logging import get_logger
 from app.domain.common.utils import StringUtils
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
     from opentelemetry.sdk.trace.sampling import Sampler
 
     from app.core.config import Configuration
+
+from opentelemetry.sdk.version import __version__
 
 logger = get_logger(__name__)
 
@@ -42,7 +45,6 @@ def _setup_tracing(config: Configuration) -> None:
 
     resource = Resource.create(
         {
-            'service.environment': config.app_environment,
             'service.name': StringUtils.service_name(),
             'service.version': config.app_version,
             'service.namespace': config.app_environment,
@@ -50,6 +52,9 @@ def _setup_tracing(config: Configuration) -> None:
                 f'{StringUtils.service_name()}-{config.app_environment}'
             ),
             'deployment.environment': config.app_environment,
+            'telemetry.sdk.name': 'opentelemetry',
+            'telemetry.sdk.language': 'python',
+            'telemetry.sdk.version': __version__,
         }
     )
 
@@ -59,28 +64,15 @@ def _setup_tracing(config: Configuration) -> None:
         resource=resource,
     )
 
-    # Setup span processors
-    endpoint = str(config.observability.traces_endpoint)
-    if not endpoint.startswith('http'):
-        endpoint = f'http://{endpoint}'
-
     # OTLP exporter for Tempo
     otlp_exporter = OTLPSpanExporter(
-        endpoint=endpoint,
+        endpoint=str(config.observability.traces_endpoint),
         insecure=True,
         headers={},
         timeout=30,
     )
 
-    provider.add_span_processor(
-        BatchSpanProcessor(
-            otlp_exporter,
-            max_queue_size=2048,
-            max_export_batch_size=512,
-            export_timeout_millis=30000,
-            schedule_delay_millis=5000,
-        )
-    )
+    provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
     # Add console exporter for development
     if config.observability.traces_to_console:
@@ -92,7 +84,8 @@ def _setup_tracing(config: Configuration) -> None:
     set_global_textmap(
         CompositePropagator(
             [
-                B3MultiFormat(),
+                TraceContextTextMapPropagator(),
+                W3CBaggagePropagator(),
             ]
         )
     )
@@ -115,39 +108,11 @@ def _setup_metrics(app: FastAPI) -> None:
     registry = REGISTRY
 
     instrumentator = Instrumentator(
-        should_group_status_codes=False,
-        should_ignore_untemplated=True,
-        should_round_latency_decimals=True,
         should_respect_env_var=True,
-        should_instrument_requests_inprogress=True,
-        excluded_handlers=[
-            '/health',
-            '/metrics',
-            '/docs',
-            '/openapi.json',
-            '/redoc',
-            '/favicon.ico',
-        ],
         inprogress_name='http_requests_inprogress',
         inprogress_labels=True,
         env_var_name='OBSERVABILITY_ENABLED',
         registry=registry,
-    )
-
-    instrumentator.add(
-        metrics.combined_size(
-            should_include_handler=True,
-            should_include_method=True,
-            should_include_status=True,
-        )
-    )
-
-    instrumentator.add(
-        metrics.latency(
-            should_include_handler=True,
-            should_include_method=True,
-            should_include_status=True,
-        )
     )
 
     instrumentator.instrument(app)
@@ -158,16 +123,6 @@ def _setup_fastapi_instrumentation(app: FastAPI, config: Configuration) -> None:
     FastAPIInstrumentor.instrument_app(
         app,
         excluded_urls=config.observability.excluded_urls,
-        tracer_provider=trace.get_tracer_provider(),
-        http_capture_headers_server_request=[
-            'content-type',
-            'user-agent',
-            'authorization',
-        ],
-        http_capture_headers_server_response=[
-            'content-type',
-            'content-length',
-        ],
     )
 
 

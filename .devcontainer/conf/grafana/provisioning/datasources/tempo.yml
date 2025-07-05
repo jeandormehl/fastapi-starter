@@ -16,18 +16,9 @@ datasources:
         datasourceUid: loki
       tracesToLogsV2:
         datasourceUid: loki
-        filterByTraceID: true
-        filterBySpanID: false
-        mappedTags: [
-          { key: 'service.name', value: 'service' },
-          { key: 'service.namespace', value: 'namespace' }
-        ]
         spanStartTimeShift: '1h'
         spanEndTimeShift: '1h'
       tracesToMetrics:
         datasourceUid: prometheus
-        tags: [
-          { key: 'service.name', value: 'service' },
-        ]
       serviceMap:
         datasourceUid: prometheus

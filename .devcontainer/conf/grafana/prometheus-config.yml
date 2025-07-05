@@ -15,8 +15,6 @@ alerting:
           - alertmanager:9093
       timeout: 10s
       api_version: v2
-      # Add path prefix
-      path_prefix: /
 
 storage:
   tsdb:
@@ -29,46 +27,4 @@ scrape_configs:
     metrics_path: /api/v1/metrics
     scrape_timeout: 10s
     honor_labels: true
-    metric_relabel_configs:
-      - source_labels: [__name__]
-        regex: 'http_request_duration_seconds.*'
-        target_label: __tmp_duration_metric
-        replacement: 'true'
-    # Add sample limit
     sample_limit: 10000
-
-#  - job_name: 'prometheus'
-#    static_configs:
-#      - targets: ['localhost:9090']
-#    scrape_interval: 15s
-#    metrics_path: /metrics
-
-#  - job_name: 'loki'
-#    static_configs:
-#      - targets: ['loki:3100']
-#    scrape_interval: 15s
-#    metrics_path: /metrics
-
-#  - job_name: 'tempo'
-#    static_configs:
-#      - targets: ['tempo:3200']
-#    scrape_interval: 15s
-#    metrics_path: /metrics
-
-#  - job_name: 'grafana'
-#    static_configs:
-#      - targets: ['grafana:3000']
-#    scrape_interval: 30s
-#    metrics_path: /metrics
-
-#  - job_name: 'node-exporter'
-#    static_configs:
-#      - targets: ['node-exporter:9100']
-#    scrape_interval: 15s
-#    metrics_path: /metrics
-
-#  - job_name: 'alertmanager'
-#    static_configs:
-#      - targets: ['alertmanager:9093']
-#    scrape_interval: 15s
-#    metrics_path: /metrics
